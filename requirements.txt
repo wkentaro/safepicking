@@ -1,0 +1,10 @@
+black
+hacking
+imgviz
+open3d
+path.py
+pre-commit
+pybullet
+scikit-image
+torch
+trimesh[easy]
