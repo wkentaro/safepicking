@@ -5,7 +5,7 @@ from . import transformations as tf
 
 class Coordinate:
     def __init__(
-        self, position=None, euler=None, quaternion=None, matrix=None
+        self, position=None, quaternion=None, *, euler=None, matrix=None
     ):
         self._position = np.zeros((3,), dtype=float)
         self._euler = np.zeros((3,), dtype=float)
