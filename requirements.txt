@@ -6,5 +6,6 @@ path.py
 pre-commit
 pybullet
 scikit-image
+tensorbaord
 torch
 trimesh[easy]
