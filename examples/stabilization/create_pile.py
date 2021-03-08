@@ -65,7 +65,7 @@ def create_clutter(T_base2world=None, class_ids=None, num_instances=None):
 
         for _ in range(1000):
             pybullet.stepSimulation()
-            if np.linalg.norm(pybullet.getBaseVelocity(unique_id)[0]) < 0.01:
+            if np.linalg.norm(pybullet.getBaseVelocity(unique_id)[0]) < 1e-12:
                 break
 
         aabb_min, aabb_max = pybullet.getAABB(bin_unique_id)
@@ -93,12 +93,11 @@ def create_clutter(T_base2world=None, class_ids=None, num_instances=None):
         )
         for _ in range(100):
             pybullet.stepSimulation()
-            for unique_id in mercury.pybullet.get_body_unique_ids():
-                if (
-                    np.linalg.norm(pybullet.getBaseVelocity(unique_id)[0])
-                    < 0.01
-                ):
-                    break
+            if all(
+                np.linalg.norm(pybullet.getBaseVelocity(unique_id)[0]) < 1e-12
+                for unique_id in mercury.pybullet.get_body_unique_ids()
+            ):
+                break
     pybullet.removeBody(bin_unique_id)
 
     return unique_id_to_class_id
