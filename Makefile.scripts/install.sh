@@ -12,6 +12,9 @@ pip_install -r requirements.txt
 echo_bold "==> Installing pre-commit"
 pre-commit install
 
+echo_bold "==> Installing mercury"
+pip_install -e .
+
 echo_bold "\nAll is well! You can start using this!
 
   $ source .anaconda3/bin/activate
