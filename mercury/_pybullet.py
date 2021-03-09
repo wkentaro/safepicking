@@ -77,3 +77,8 @@ def get_debug_visualizer_image():
     rgb = rgba[:, :, :3]
     depth[segm == -1] = np.nan
     return rgb, depth, segm
+
+
+def get_aabb(unique_id):
+    aabb_min, aabb_max = pybullet.getAABB(unique_id)
+    return np.array(aabb_min), np.array(aabb_max)
