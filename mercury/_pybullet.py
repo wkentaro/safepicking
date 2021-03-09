@@ -82,3 +82,13 @@ def get_debug_visualizer_image():
 def get_aabb(unique_id):
     aabb_min, aabb_max = pybullet.getAABB(unique_id)
     return np.array(aabb_min), np.array(aabb_max)
+
+
+def is_colliding(id1):
+    is_colliding = False
+    for id2 in get_body_unique_ids():
+        if id1 != id2:
+            points = pybullet.getClosestPoints(id1, id2, distance=0)
+            if points:
+                is_colliding = True
+    return is_colliding
