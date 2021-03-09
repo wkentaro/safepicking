@@ -12,17 +12,6 @@ import mercury
 from create_bin import create_bin
 
 
-def get_cad_file(class_id):
-    assert class_id > 0
-    root_dir = path.Path("/home/wkentaro/data/ycb_video/YCB_Video_Models")
-    class_names = []
-    for model_dir in sorted(root_dir.listdir()):
-        class_name = str(model_dir.basename())
-        class_names.append(class_name)
-    class_name = class_names[class_id - 1]
-    return root_dir / class_name / "textured_simple.obj"
-
-
 def create_clutter(T_base2world=None, class_ids=None, num_instances=None):
     x = (-0.2, 0.2)
     y = (-0.2, 0.2)
@@ -63,7 +52,7 @@ def create_clutter(T_base2world=None, class_ids=None, num_instances=None):
         if T_base2world is not None:
             coord.transform(T_base2world, wrt="world")
 
-        visual_file = get_cad_file(class_id=class_id)
+        visual_file = mercury.datasets.ycb.get_visual_file(class_id=class_id)
         collision_file = mercury.pybullet.get_collision_file(visual_file)
         unique_id = mercury.pybullet.create_mesh_body(
             visual_file=collision_file,

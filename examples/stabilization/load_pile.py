@@ -9,8 +9,6 @@ import pybullet
 
 import mercury
 
-from create_pile import get_cad_file
-
 
 def main():
     parser = argparse.ArgumentParser(
@@ -38,10 +36,10 @@ def main():
         position,
         quaternion,
     ) in zip(class_ids, positions, quaternions):
-        visual_file = get_cad_file(class_id=class_id)
+        visual_file = mercury.datasets.ycb.get_visual_file(class_id=class_id)
         collision_file = mercury.pybullet.get_collision_file(visual_file)
         mercury.pybullet.create_mesh_body(
-            visual_file=collision_file,
+            visual_file=visual_file,
             collision_file=collision_file,
             position=position,
             quaternion=quaternion,
