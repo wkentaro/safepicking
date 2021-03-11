@@ -5,6 +5,7 @@ open3d
 path.py
 pre-commit
 pybullet
+pybullet-planning
 scikit-image
 tensorboard
 torch
