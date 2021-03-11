@@ -5,8 +5,6 @@ import pybullet_planning
 
 import mercury
 
-from utils import PandaRobotInterface
-
 
 def main():
     pybullet_planning.connect(use_gui=True)
@@ -26,7 +24,7 @@ def main():
         )
     pybullet_planning.dump_body(robot)
 
-    ri = PandaRobotInterface(robot)
+    ri = mercury.pybullet.PandaRobotInterface(robot)
 
     # -------------------------------------------------------------------------
 
