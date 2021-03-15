@@ -96,20 +96,15 @@ class PandaRobotInterface:
     ):
         obstacles = [] if obstacles is None else obstacles
         attachments = [] if attachments is None else attachments
-
-        world_saver = pybullet_planning.WorldSaver()
-        p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 0)
-        path = pybullet_planning.plan_joint_motion(
-            body=self.robot,
-            joints=self.joints,
-            end_conf=targj,
-            obstacles=obstacles,
-            attachments=attachments,
-            self_collisions=self_collisions,
-        )
-        p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 1)
-        world_saver.restore()
-
+        with pybullet_planning.WorldSaver(), pybullet_planning.LockRenderer():
+            path = pybullet_planning.plan_joint_motion(
+                body=self.robot,
+                joints=self.joints,
+                end_conf=targj,
+                obstacles=obstacles,
+                attachments=attachments,
+                self_collisions=self_collisions,
+            )
         return path
 
     def planp(
