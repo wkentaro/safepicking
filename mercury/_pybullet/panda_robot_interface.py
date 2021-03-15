@@ -54,15 +54,42 @@ class PandaRobotInterface:
         targj = self.solve_ik(pose)
         return self.movej(targj, speed=speed)
 
-    def solve_ik(self, pose):
+    def _solve_ik_pybullet(self, pose):
+        n_joints = p.getNumJoints(self.robot)
+        lower_limits = []
+        upper_limits = []
+        for i in range(n_joints):
+            joint_info = p.getJointInfo(self.robot, i)
+            lower_limits.append(joint_info[8])
+            upper_limits.append(joint_info[9])
         joint_positions = p.calculateInverseKinematics(
-            self.robot,
-            self.ee,
-            pose[0],
-            pose[1],
+            bodyUniqueId=self.robot,
+            endEffectorLinkIndex=self.ee,
+            targetPosition=pose[0],
+            targetOrientation=pose[1],
+            lowerLimits=lower_limits,
+            upperLimits=upper_limits,
+            restPoses=self.homej,
+            maxNumIterations=1000,
+            residualThreshold=1e-5,
         )
         joint_positions = [joint_positions[i] for i in self.joints]
         return joint_positions
+
+    def solve_ik(self, pose):
+        with pybullet_planning.WorldSaver(), pybullet_planning.LockRenderer():
+            targj = pybullet_planning.inverse_kinematics(
+                self.robot,
+                self.ee,
+                pose,
+                custom_limits={
+                    9: pybullet_planning.UNBOUNDED_LIMITS,
+                    10: pybullet_planning.UNBOUNDED_LIMITS,
+                },
+            )
+        if targj is None:
+            raise RuntimeError("Failed to find an IK solution")
+        return [targj[j] for j in self.joints]
 
     def planj(
         self, targj, obstacles=None, attachments=None, self_collisions=True
