@@ -5,6 +5,7 @@ import numpy as np
 import path
 import pybullet
 import pybullet_data
+import pybullet_planning
 
 
 def init_world(*args, **kwargs):
@@ -98,3 +99,24 @@ def is_colliding(id1, ids2=None):
         if points:
             is_colliding = True
     return is_colliding
+
+
+def get_pose(body_id, link_id=-1, parent_body_id=None, parent_link_id=-1):
+    self_to_world = pybullet_planning.get_link_pose(body_id, link_id)
+
+    if parent_body_id is None:
+        self_to_parent = self_to_world
+    else:
+        parent_to_world = pybullet_planning.get_link_pose(
+            parent_body_id, parent_link_id
+        )
+        world_to_parent = pybullet.invertTransform(
+            parent_to_world[0], parent_to_world[1]
+        )
+        self_to_parent = pybullet.multiplyTransforms(
+            world_to_parent[0],
+            world_to_parent[1],
+            self_to_world[0],
+            self_to_world[1],
+        )
+    return self_to_parent
