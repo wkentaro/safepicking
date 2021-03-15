@@ -125,3 +125,7 @@ class Coordinate:
 
     def copy(self):
         return Coordinate(matrix=self.matrix.copy())
+
+    @property
+    def pose(self):
+        return self.position, self.quaternion
