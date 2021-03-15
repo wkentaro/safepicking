@@ -21,30 +21,34 @@ def get_body_unique_ids():
 
 
 def create_mesh_body(
-    visual_file,
+    visual_file=None,
     collision_file=None,
     position=None,
     quaternion=None,
     mass=0,
     rgba_color=None,
 ):
-    if collision_file is None:
-        collision_file = get_collision_file(visual_file)
     if rgba_color is not None and len(rgba_color) == 3:
         rgba_color = [rgba_color[0], rgba_color[1], rgba_color[2], 1]
-    visual_shape_id = pybullet.createVisualShape(
-        shapeType=pybullet.GEOM_MESH,
-        fileName=visual_file,
-        visualFramePosition=[0, 0, 0],
-        meshScale=[1, 1, 1],
-        rgbaColor=rgba_color,
-    )
-    collision_shape_id = pybullet.createCollisionShape(
-        shapeType=pybullet.GEOM_MESH,
-        fileName=collision_file,
-        collisionFramePosition=[0, 0, 0],
-        meshScale=[1, 1, 1],
-    )
+    if visual_file is not None:
+        visual_shape_id = pybullet.createVisualShape(
+            shapeType=pybullet.GEOM_MESH,
+            fileName=visual_file,
+            visualFramePosition=[0, 0, 0],
+            meshScale=[1, 1, 1],
+            rgbaColor=rgba_color,
+        )
+    else:
+        visual_shape_id = -1
+    if collision_file is not None:
+        collision_shape_id = pybullet.createCollisionShape(
+            shapeType=pybullet.GEOM_MESH,
+            fileName=collision_file,
+            collisionFramePosition=[0, 0, 0],
+            meshScale=[1, 1, 1],
+        )
+    else:
+        collision_shape_id = -1
     unique_id = pybullet.createMultiBody(
         baseMass=mass,
         baseInertialFramePosition=[0, 0, 0],
