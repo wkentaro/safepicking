@@ -20,6 +20,10 @@ class PandaRobotInterface:
         for joint in self.joints:
             p.resetJointState(robot, joint, self.homej[joint])
 
+    def setj(self, joint_positions):
+        for joint, joint_position in enumerate(joint_positions):
+            p.resetJointState(self.robot, joint, joint_position)
+
     def movej(self, targj, speed=0.01, timeout=5):
         t0 = time.time()
         while (time.time() - t0) < timeout:
