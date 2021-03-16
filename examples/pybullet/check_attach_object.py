@@ -17,15 +17,8 @@ def main():
         cameraTargetPosition=[0, 0, 0],
     )
 
-    plane = p.loadURDF("plane.urdf")  # NOQA
-    with pybullet_planning.HideOutput():
-        with pybullet_planning.LockRenderer():
-            robot = pybullet_planning.load_pybullet(
-                "franka_panda/panda.urdf", fixed_base=True
-            )
-    pybullet_planning.dump_body(robot)
-
-    ri = mercury.pybullet.PandaRobotInterface(robot)
+    p.loadURDF("plane.urdf")
+    ri = mercury.pybullet.PandaRobotInterface()
 
     # -------------------------------------------------------------------------
 
@@ -50,12 +43,11 @@ def main():
     coord = mercury.geometry.Coordinate(
         *pybullet_planning.get_link_pose(ri.robot, ri.ee)
     )
-    coord_reset = coord.copy()
     coord.translate([0.5, 0, -0.5], wrt="world")
 
     while True:
-        ri.movep((coord.position, coord.quaternion))
-        ri.movep((coord_reset.position, coord_reset.quaternion))
+        ri.movep(coord.pose)
+        ri.movej(ri.homej)
 
     pybullet_planning.disconnect()
 

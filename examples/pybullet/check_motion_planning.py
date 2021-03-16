@@ -18,13 +18,7 @@ def main():
     )
 
     plane = p.loadURDF("plane.urdf")
-    with pybullet_planning.HideOutput(), pybullet_planning.LockRenderer():
-        robot = pybullet_planning.load_pybullet(
-            "franka_panda/panda.urdf", fixed_base=True
-        )
-    pybullet_planning.dump_body(robot)
-
-    ri = mercury.pybullet.PandaRobotInterface(robot)
+    ri = mercury.pybullet.PandaRobotInterface()
 
     # -------------------------------------------------------------------------
 

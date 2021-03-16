@@ -18,14 +18,7 @@ def main():
     )
 
     p.loadURDF("plane.urdf")
-    with pybullet_planning.HideOutput():
-        with pybullet_planning.LockRenderer():
-            robot = pybullet_planning.load_pybullet(
-                "franka_panda/panda.urdf", fixed_base=True
-            )
-    pybullet_planning.dump_body(robot)
-
-    ri = mercury.pybullet.PandaRobotInterface(robot)
+    ri = mercury.pybullet.PandaRobotInterface()
 
     pose = pybullet_planning.get_link_pose(ri.robot, ri.ee)
     coord_reset = mercury.geometry.Coordinate(*pose)
@@ -34,10 +27,8 @@ def main():
     coord.translate([0.2, 0, -0.5], wrt="world")
 
     while True:
-        targj = ri.solve_ik((coord.position, coord.quaternion))
-        ri.movej(targj)
-        targj = ri.solve_ik((coord_reset.position, coord_reset.quaternion))
-        ri.movej(targj)
+        ri.movep(coord.pose)
+        ri.movej(ri.homej)
 
     pybullet_planning.disconnect()
 
