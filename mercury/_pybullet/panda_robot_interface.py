@@ -102,12 +102,13 @@ class PandaRobotInterface:
 
     def _solve_ik_pybullet_planning(self, pose, **kwargs):
         assert kwargs == {}
-        with pybullet_planning.WorldSaver(), pybullet_planning.LockRenderer():
-            joint_positions = pybullet_planning.inverse_kinematics(
-                self.robot,
-                self.ee,
-                pose,
-            )
+        with pybullet_planning.LockRenderer():
+            with pybullet_planning.WorldSaver():
+                joint_positions = pybullet_planning.inverse_kinematics(
+                    self.robot,
+                    self.ee,
+                    pose,
+                )
         return joint_positions
 
     def _solve_ik_skrobot(self, pose, **kwargs):
@@ -133,15 +134,16 @@ class PandaRobotInterface:
     ):
         obstacles = [] if obstacles is None else obstacles
         attachments = [] if attachments is None else attachments
-        with pybullet_planning.WorldSaver(), pybullet_planning.LockRenderer():
-            path = pybullet_planning.plan_joint_motion(
-                body=self.robot,
-                joints=self.joints,
-                end_conf=targj,
-                obstacles=obstacles,
-                attachments=attachments,
-                self_collisions=self_collisions,
-            )
+        with pybullet_planning.LockRenderer():
+            with pybullet_planning.WorldSaver():
+                path = pybullet_planning.plan_joint_motion(
+                    body=self.robot,
+                    joints=self.joints,
+                    end_conf=targj,
+                    obstacles=obstacles,
+                    attachments=attachments,
+                    self_collisions=self_collisions,
+                )
         return path
 
     def planp(
