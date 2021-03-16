@@ -2,7 +2,6 @@
 
 import time
 
-import imgviz
 import numpy as np
 import pybullet
 import pybullet_planning
@@ -61,55 +60,53 @@ def main():
     pybullet_planning.add_data_path()
     pybullet.setGravity(0, 0, -9.8)
 
-    pybullet.loadURDF("plane.urdf")
-
     pybullet.resetDebugVisualizerCamera(
-        cameraDistance=1,
+        cameraDistance=1.5,
         cameraYaw=90,
-        cameraPitch=-60,
+        cameraPitch=-50,
         cameraTargetPosition=(0, 0, 0),
     )
 
-    bin_unique_id = create_bin(0.5, 0.5, 0.2)
-    bin_aabb_min, bin_aabb_max = np.array(pybullet.getAABB(bin_unique_id))
+    with pybullet_planning.LockRenderer():
+        pybullet.loadURDF("plane.urdf")
+        pybullet_planning.load_pybullet(
+            "franka_panda/panda.urdf", fixed_base=True
+        )
 
+        data = np.load("data/pile.npz")
+        object_ids = []
+        for class_id, position, quaternion in zip(
+            data["class_ids"], data["positions"], data["quaternions"]
+        ):
+            coord = mercury.geometry.Coordinate(
+                position=position,
+                quaternion=quaternion,
+            )
+            coord.translate([0.5, -0.5, 0], wrt="world")
+
+            visual_file = mercury.datasets.ycb.get_visual_file(class_id)
+            collision_file = mercury.pybullet.get_collision_file(visual_file)
+            object_id = mercury.pybullet.create_mesh_body(
+                visual_file=visual_file,
+                collision_file=collision_file,
+                mass=0.1,
+                position=coord.position,
+                quaternion=coord.quaternion,
+            )
+            object_ids.append(object_id)
+
+        bin_id = create_bin(0.4, 0.35, 0.2)
+        pybullet.resetBasePositionAndOrientation(
+            bin_id, posObj=[0.5, 0.5, 0.1], ornObj=[0, 0, 0, 1]
+        )
+
+    time.sleep(1)
+
+    bin_aabb_min, bin_aabb_max = mercury.pybullet.get_aabb(bin_id)
     bin_aabb_min += 0.01
     bin_aabb_max -= 0.01
 
-    # visual_shape_id = pybullet.createVisualShape(
-    #     shapeType=pybullet.GEOM_BOX,
-    #     halfExtents=(bin_aabb_max - bin_aabb_min) / 2,
-    #     rgbaColor=[1, 0, 0, 0.3],
-    # )
-    # pybullet.createMultiBody(
-    #     baseMass=0,
-    #     basePosition=(bin_aabb_max + bin_aabb_min) / 2,
-    #     baseOrientation=[0, 0, 0, 1],
-    #     baseVisualShapeIndex=visual_shape_id,
-    #     baseCollisionShapeIndex=visual_shape_id,
-    #     baseInertialFramePosition=[0, 0, 0],
-    #     baseInertialFrameOrientation=[0, 0, 0, 1],
-    # )
-
-    class_ids = np.arange(1, 22)
-    class_ids = class_ids[~np.isin(class_ids, [10, 18])]
-    class_ids = np.random.choice(class_ids, 10)
-    object_ids = []
-    for class_id in class_ids:
-        visual_file = mercury.datasets.ycb.get_visual_file(class_id)
-        collision_file = mercury.pybullet.get_collision_file(visual_file)
-
-        unique_id = mercury.pybullet.create_mesh_body(
-            visual_file=collision_file,
-            collision_file=collision_file,
-            position=(bin_aabb_min + bin_aabb_max) / 2 + [0, 0, 0.5],
-            quaternion=[0, 0, 0, 1],
-            mass=0.1,
-            rgba_color=imgviz.label_colormap()[class_id] / 255,
-        )
-        object_ids.append(unique_id)
-
-    for object_id, class_id in zip(object_ids, class_ids):
+    for object_id, class_id in zip(object_ids, data["class_ids"]):
         position, quaternion = get_place_pose(
             object_id, class_id, bin_aabb_min, bin_aabb_max
         )
@@ -121,7 +118,7 @@ def main():
         time.sleep(0.3)
 
     while True:
-        pass
+        pybullet.stepSimulation()
 
 
 if __name__ == "__main__":
