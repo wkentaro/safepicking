@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import argparse
+
 import imgviz
 import numpy as np
 import pybullet as p
@@ -36,7 +38,7 @@ def get_pre_place_joint_positions(
                         return targj
 
 
-def spawn_object_in_hand(ri, class_id):
+def spawn_object_in_hand(ri, class_id, noise=False):
     if class_id == 15:
         quaternion = mercury.geometry.quaternion_from_euler(
             [np.deg2rad(90), 0, 0]
@@ -62,7 +64,7 @@ def spawn_object_in_hand(ri, class_id):
         )
         pos = obj_mind_to_world[0]
         qua = obj_mind_to_world[1]
-        if 0:  # XXX: noise
+        if noise:
             pos += np.random.normal(0, [0.02 / 3, 0.02 / 3, 0], 3)
             qua += np.random.normal(0, 0.1 / 3, 4)
         obj_to_world = (pos, qua / np.linalg.norm(qua))
@@ -95,6 +97,12 @@ def spawn_object_in_hand(ri, class_id):
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument("--noise", action="store_true", help="noise")
+    args = parser.parse_args()
+
     pybullet_planning.connect()
     pybullet_planning.add_data_path()
     p.setGravity(0, 0, -9.8)
@@ -106,15 +114,15 @@ def main():
         cameraTargetPosition=(0, 0, 0.2),
     )
 
-    plane = p.loadURDF("plane.urdf")
+    ri = mercury.pybullet.PandaRobotInterface()
+
     with pybullet_planning.LockRenderer():
+        plane = p.loadURDF("plane.urdf")
         bin = create_bin(0.4, 0.35, 0.2)
         p.resetBasePositionAndOrientation(bin, [0.4, 0.4, 0.11], [0, 0, 0, 1])
         bin_aabb = np.array(p.getAABB(bin))
         bin_aabb[0] += 0.01
         bin_aabb[1] -= 0.01
-
-    ri = mercury.pybullet.PandaRobotInterface()
 
     np.random.seed(1)
 
@@ -122,7 +130,7 @@ def main():
     for _ in range(10):
         class_id = 3
         obj, obj_mind_to_ee, constraint_id = spawn_object_in_hand(
-            ri, class_id=class_id
+            ri, class_id=class_id, noise=args.noise
         )
 
         obj_mind_to_world = get_place_pose(
