@@ -121,8 +121,8 @@ def main():
         class_ids=[2, 3, 5, 11, 12, 15, 16], num_instances=8
     )
 
-    data_dir = here / "data"
-    data_dir.makedirs_p()
+    logs_dir = here / "logs"
+    logs_dir.makedirs_p()
 
     class_ids = []
     positions = []
@@ -135,7 +135,7 @@ def main():
         positions.append(position)
         quaternions.append(quaternion)
     np.savez_compressed(
-        data_dir / "pile.npz",
+        logs_dir / "pile.npz",
         class_ids=class_ids,
         positions=positions,
         quaternions=quaternions,

@@ -69,11 +69,10 @@ def main():
 
     with pybullet_planning.LockRenderer():
         pybullet.loadURDF("plane.urdf")
-        pybullet_planning.load_pybullet(
-            "franka_panda/panda.urdf", fixed_base=True
-        )
 
-        data = np.load("data/pile.npz")
+        mercury.pybullet.PandaRobotInterface()
+
+        data = np.load("assets/pile_001.npz")
         object_ids = []
         for class_id, position, quaternion in zip(
             data["class_ids"], data["positions"], data["quaternions"]
