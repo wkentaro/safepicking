@@ -100,6 +100,7 @@ def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+    parser.add_argument("--pause", action="store_true", help="pause")
     parser.add_argument("--noise", action="store_true", help="noise")
     args = parser.parse_args()
 
@@ -123,6 +124,12 @@ def main():
         bin_aabb = np.array(p.getAABB(bin))
         bin_aabb[0] += 0.01
         bin_aabb[1] -= 0.01
+
+    if args.pause:
+        print("Please press 'n' to start")
+        while True:
+            if ord("n") in p.getKeyboardEvents():
+                break
 
     np.random.seed(1)
 

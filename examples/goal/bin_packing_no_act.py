@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
-import time
+import argparse
 
 import numpy as np
-import pybullet
+import pybullet as p
 import pybullet_planning
 
 import mercury
@@ -12,9 +12,7 @@ from create_bin import create_bin
 
 
 def get_place_pose(object_id, class_id, bin_aabb_min, bin_aabb_max):
-    position_org, quaternion_org = pybullet.getBasePositionAndOrientation(
-        object_id
-    )
+    position_org, quaternion_org = p.getBasePositionAndOrientation(object_id)
 
     if class_id == 15:
         quaternion = mercury.geometry.quaternion_from_euler(
@@ -22,23 +20,19 @@ def get_place_pose(object_id, class_id, bin_aabb_min, bin_aabb_max):
         )
     else:
         quaternion = [0, 0, 0, 1]
-    pybullet.resetBasePositionAndOrientation(
-        object_id, position_org, quaternion
-    )
+    p.resetBasePositionAndOrientation(object_id, position_org, quaternion)
 
-    aabb_min, aabb_max = np.array(pybullet.getAABB(object_id))
+    aabb_min, aabb_max = np.array(p.getAABB(object_id))
     position_lt = bin_aabb_min - (aabb_min - position_org)
     position_rb = bin_aabb_max + (aabb_min - position_org)
 
-    pybullet.configureDebugVisualizer(pybullet.COV_ENABLE_RENDERING, 0)
+    p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 0)
 
     z = position_lt[2]
     for x in np.linspace(position_lt[0], position_rb[0]):
         for y in np.linspace(position_lt[1], position_rb[1]):
             position = (x, y, z)
-            pybullet.resetBasePositionAndOrientation(
-                object_id, position, quaternion
-            )
+            p.resetBasePositionAndOrientation(object_id, position, quaternion)
             if not mercury.pybullet.is_colliding(object_id):
                 break
         else:
@@ -47,20 +41,24 @@ def get_place_pose(object_id, class_id, bin_aabb_min, bin_aabb_max):
     else:
         position, quaternion = None, None
 
-    pybullet.resetBasePositionAndOrientation(
-        object_id, position_org, quaternion_org
-    )
-    pybullet.configureDebugVisualizer(pybullet.COV_ENABLE_RENDERING, 1)
+    p.resetBasePositionAndOrientation(object_id, position_org, quaternion_org)
+    p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 1)
 
     return position, quaternion
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument("--pause", action="store_true", help="pause")
+    args = parser.parse_args()
+
     pybullet_planning.connect()
     pybullet_planning.add_data_path()
-    pybullet.setGravity(0, 0, -9.8)
+    p.setGravity(0, 0, -9.8)
 
-    pybullet.resetDebugVisualizerCamera(
+    p.resetDebugVisualizerCamera(
         cameraDistance=1.5,
         cameraYaw=90,
         cameraPitch=-50,
@@ -68,7 +66,7 @@ def main():
     )
 
     with pybullet_planning.LockRenderer():
-        pybullet.loadURDF("plane.urdf")
+        p.loadURDF("plane.urdf")
 
         mercury.pybullet.PandaRobotInterface()
 
@@ -95,11 +93,15 @@ def main():
             object_ids.append(object_id)
 
         bin_id = create_bin(0.4, 0.35, 0.2)
-        pybullet.resetBasePositionAndOrientation(
+        p.resetBasePositionAndOrientation(
             bin_id, posObj=[0.5, 0.5, 0.1], ornObj=[0, 0, 0, 1]
         )
 
-    time.sleep(1)
+    if args.pause:
+        print("Please press 'n' to start")
+        while True:
+            if ord("n") in p.getKeyboardEvents():
+                break
 
     bin_aabb_min, bin_aabb_max = mercury.pybullet.get_aabb(bin_id)
     bin_aabb_min += 0.01
@@ -111,13 +113,11 @@ def main():
         )
         if position is None or quaternion is None:
             continue
-        pybullet.resetBasePositionAndOrientation(
-            object_id, position, quaternion
-        )
-        time.sleep(0.3)
+        p.resetBasePositionAndOrientation(object_id, position, quaternion)
+        mercury.pybullet.step_and_sleep(0.3)
 
     while True:
-        pybullet.stepSimulation()
+        p.stepSimulation()
 
 
 if __name__ == "__main__":
