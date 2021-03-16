@@ -57,7 +57,7 @@ def main():
         c.position = pybullet_planning.get_pose(obj)[0]
         c.position[2] = pybullet_planning.get_aabb(obj)[1][2] + 0.05
 
-        ri.movep(c.pose)
+        ri.movep(c.pose, rotation_axis="z")
 
         ri.grasp()
 
