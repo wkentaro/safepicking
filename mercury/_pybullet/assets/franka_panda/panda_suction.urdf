@@ -332,7 +332,7 @@
         <mesh filename="suction/tip.obj" scale="0.001 0.001 0.001"/>
       </geometry>
       <material name="blue">
-        <color rgba="0.18039216, 0.50588235, 0.77254902 1"/>
+        <color rgba="0.18039216 0.50588235 0.77254902 1"/>
       </material>
     </visual>
     <collision>
