@@ -1,5 +1,7 @@
+import itertools
 import shlex
 import subprocess
+import time
 
 import numpy as np
 import path
@@ -120,3 +122,11 @@ def get_pose(body_id, link_id=-1, parent_body_id=None, parent_link_id=-1):
             self_to_world[1],
         )
     return self_to_parent
+
+
+def step_and_sleep(seconds=np.inf):
+    for i in itertools.count():
+        pybullet.stepSimulation()
+        time.sleep(1 / 240)
+        if int(round(i / 240)) >= seconds:
+            break

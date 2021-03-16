@@ -1,15 +1,27 @@
 import time
 
 import numpy as np
+import path
 import pybullet as p
 import pybullet_planning
 
+from .. import geometry
+from .suction_gripper import SuctionGripper
+
+
+here = path.Path(__file__).abspath().parent
+
 
 class PandaRobotInterface:
-    def __init__(self, robot):
-        self.robot = robot
+    def __init__(self):
+        self.robot = pybullet_planning.load_pybullet(
+            here / "assets/franka_panda/panda_suction.urdf", fixed_base=True
+        )
+        self.ee = pybullet_planning.link_from_name(self.robot, "tipLink")
 
-        self.ee = pybullet_planning.link_from_name(robot, "panda_grasptarget")
+        self.gripper = SuctionGripper(
+            self.robot, self.ee, graspable_objects=[]
+        )
 
         # Get revolute joint indices of robot (skip fixed joints).
         n_joints = p.getNumJoints(self.robot)
@@ -18,7 +30,7 @@ class PandaRobotInterface:
 
         self.homej = [0, -np.pi / 4, 0, -np.pi / 2, 0, np.pi / 4, np.pi / 4]
         for joint in self.joints:
-            p.resetJointState(robot, joint, self.homej[joint])
+            p.resetJointState(self.robot, joint, self.homej[joint])
 
     def setj(self, joint_positions):
         for joint, joint_position in enumerate(joint_positions):
@@ -117,3 +129,15 @@ class PandaRobotInterface:
             attachments=attachments,
             self_collisions=self_collisions,
         )
+
+    def grasp(self):
+        c = geometry.Coordinate(
+            *pybullet_planning.get_link_pose(self.robot, self.ee)
+        )
+        while not self.gripper.detect_contact():
+            c.translate([0, 0, 0.001])
+            self.movep(c.pose)
+        self.gripper.activate()
+
+    def ungrasp(self):
+        self.gripper.release()
