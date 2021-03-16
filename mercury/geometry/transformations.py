@@ -33,7 +33,7 @@ def quaternion_matrix(quaternion):
     return ttf.quaternion_matrix(quaternion)
 
 
-def transformation_matrix(quaternion, translation):
+def transformation_matrix(translation, quaternion):
     matrix = quaternion_matrix(quaternion)
     matrix[:3, 3] = translation
     return matrix
