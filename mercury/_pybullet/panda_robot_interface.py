@@ -25,9 +25,7 @@ class PandaRobotInterface:
         )
         self.ee = pybullet_planning.link_from_name(self.robot, "tipLink")
 
-        self.gripper = SuctionGripper(
-            self.robot, self.ee, graspable_objects=[]
-        )
+        self.gripper = SuctionGripper(self.robot, self.ee)
 
         # Get revolute joint indices of robot (skip fixed joints).
         n_joints = p.getNumJoints(self.robot)

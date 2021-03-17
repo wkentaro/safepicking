@@ -37,7 +37,6 @@ def main():
             rgba_color=imgviz.label_colormap()[class_id] / 255,
         )
     aabb_min, _ = mercury.pybullet.get_aabb(obj)
-    ri.gripper.graspable_objects = [obj]
 
     spawn_aabb = [0.3, -0.3, 0], [0.5, 0.3, 0]
     pybullet_planning.draw_aabb(spawn_aabb)

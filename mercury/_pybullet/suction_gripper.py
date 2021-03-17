@@ -3,10 +3,9 @@ import pybullet_planning
 
 
 class SuctionGripper:
-    def __init__(self, body, link, graspable_objects):
+    def __init__(self, body, link):
         self.body = body
         self.link = link
-        self.graspable_objects = graspable_objects
 
         self.activated = False
         self.contact_constraint = None
@@ -20,25 +19,26 @@ class SuctionGripper:
             # Handle contact between suction with a rigid object.
             for point in points:
                 obj_id, contact_link = point[2], point[4]
-            if obj_id in self.graspable_objects:
+            mass = p.getDynamicsInfo(obj_id, -1)[0]
+            if mass > 0:
                 body_to_world = p.getLinkState(self.body, self.link)[:2]
                 obj_to_world = p.getBasePositionAndOrientation(obj_id)
                 world_to_body = pybullet_planning.invert(body_to_world)
                 obj_to_body = pybullet_planning.multiply(
                     world_to_body, obj_to_world
                 )
-            self.contact_constraint = p.createConstraint(
-                parentBodyUniqueId=self.body,
-                parentLinkIndex=self.link,
-                childBodyUniqueId=obj_id,
-                childLinkIndex=contact_link,
-                jointType=p.JOINT_FIXED,
-                jointAxis=(0, 0, 0),
-                parentFramePosition=obj_to_body[0],
-                parentFrameOrientation=obj_to_body[1],
-                childFramePosition=(0, 0, 0),
-                childFrameOrientation=(0, 0, 0),
-            )
+                self.contact_constraint = p.createConstraint(
+                    parentBodyUniqueId=self.body,
+                    parentLinkIndex=self.link,
+                    childBodyUniqueId=obj_id,
+                    childLinkIndex=contact_link,
+                    jointType=p.JOINT_FIXED,
+                    jointAxis=(0, 0, 0),
+                    parentFramePosition=obj_to_body[0],
+                    parentFrameOrientation=obj_to_body[1],
+                    childFramePosition=(0, 0, 0),
+                    childFrameOrientation=(0, 0, 0),
+                )
 
             self.activated = True
 
