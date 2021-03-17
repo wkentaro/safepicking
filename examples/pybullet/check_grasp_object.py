@@ -54,9 +54,9 @@ def main():
             *mercury.pybullet.get_pose(ri.robot, ri.ee)
         )
         c.position = pybullet_planning.get_pose(obj)[0]
-        c.position[2] = pybullet_planning.get_aabb(obj)[1][2] + 0.05
+        c.position[2] = pybullet_planning.get_aabb(obj)[1][2] + 0.1
 
-        path = ri.planp(c.pose, rotation_axis="z")
+        path = ri.planj(ri.solve_ik(c.pose, rotation_axis="z"))
         [ri.movej(j) for j in path]
 
         ri.grasp()
@@ -68,7 +68,7 @@ def main():
         ri.planj(ri.homej)
         [ri.movej(j) for j in path]
 
-        path = ri.planp(c.pose)
+        path = ri.planj(ri.solve_ik(c.pose))
         [ri.movej(j) for j in path]
 
         # mercury.pybullet.step_and_sleep(0.5)

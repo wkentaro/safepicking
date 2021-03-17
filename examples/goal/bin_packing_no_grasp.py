@@ -170,7 +170,7 @@ def main():
 
         mercury.pybullet.step_and_sleep(0.5)
 
-        ri.movep(ee_to_world)
+        ri.movej(ri.solve_ik(ee_to_world))
 
         mercury.pybullet.step_and_sleep(0.5)
 

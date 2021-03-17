@@ -45,8 +45,12 @@ def main():
     )
     coord.translate([0.5, 0, -0.5], wrt="world")
 
+    robot_model = ri.get_skrobot()
     while True:
-        ri.movep(coord.pose)
+        joint_positions = robot_model.inverse_kinematics(
+            coord.skrobot_coords, move_target=robot_model.tipLink
+        )
+        ri.movej(joint_positions)
         ri.movej(ri.homej)
 
     pybullet_planning.disconnect()

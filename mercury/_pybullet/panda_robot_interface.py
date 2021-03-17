@@ -17,7 +17,7 @@ here = path.Path(__file__).abspath().parent
 class PandaRobotInterface:
     def __init__(self):
         urdf_file = here / "assets/franka_panda/panda_suction.urdf"
-        self._skrobot = skrobot.models.urdf.RobotModelFromURDF(
+        self.robot_model = skrobot.models.urdf.RobotModelFromURDF(
             urdf_file=urdf_file
         )
         self.robot = pybullet_planning.load_pybullet(
@@ -72,60 +72,75 @@ class PandaRobotInterface:
         print(f"Warning: movej exceeded {timeout} second timeout. Skipping.")
         return False
 
-    def movep(self, pose, speed=0.01, **kwargs):
-        targj = self.solve_ik(pose, **kwargs)
-        return self.movej(targj, speed=speed)
-
-    def _solve_ik_pybullet(self, pose, **kwargs):
-        assert kwargs == {}
-        n_joints = p.getNumJoints(self.robot)
-        lower_limits = []
-        upper_limits = []
-        for i in range(n_joints):
-            joint_info = p.getJointInfo(self.robot, i)
-            lower_limits.append(joint_info[8])
-            upper_limits.append(joint_info[9])
-        joint_positions = p.calculateInverseKinematics(
-            bodyUniqueId=self.robot,
-            endEffectorLinkIndex=self.ee,
-            targetPosition=pose[0],
-            targetOrientation=pose[1],
-            lowerLimits=lower_limits,
-            upperLimits=upper_limits,
-            restPoses=self.homej,
-            maxNumIterations=1000,
-            residualThreshold=1e-5,
-        )
-        return joint_positions
-
-    def _solve_ik_pybullet_planning(self, pose, **kwargs):
-        assert kwargs == {}
-        with pybullet_planning.LockRenderer():
-            with pybullet_planning.WorldSaver():
-                joint_positions = pybullet_planning.inverse_kinematics(
-                    self.robot,
-                    self.ee,
-                    pose,
-                )
-        return joint_positions
-
-    def _solve_ik_skrobot(self, pose, **kwargs):
-        currj = self.getj()
-        self._skrobot.angle_vector(currj)
-        target_coords = skrobot.coordinates.Coordinates(
-            pos=pose[0], rot=geometry.quaternion_matrix(pose[1])[:3, :3]
-        )
-        joint_positions = self._skrobot.inverse_kinematics(
-            target_coords,
-            move_target=self._skrobot.tipLink,
+    def solve_ik(self, pose, **kwargs):
+        c = geometry.Coordinate(*pose)
+        joint_positions = self.get_skrobot().inverse_kinematics(
+            c.skrobot_coords,
+            move_target=self.robot_model.tipLink,
             **kwargs,
         )
-        return joint_positions
-
-    def solve_ik(self, pose, **kwargs):
-        joint_positions = self._solve_ik_skrobot(pose, **kwargs)
         assert len(joint_positions) == len(self.joints)
         return joint_positions
+
+    # def _solve_ik_pybullet(self, pose):
+    #     n_joints = p.getNumJoints(self.robot)
+    #     lower_limits = []
+    #     upper_limits = []
+    #     for i in range(n_joints):
+    #         joint_info = p.getJointInfo(self.robot, i)
+    #         lower_limits.append(joint_info[8])
+    #         upper_limits.append(joint_info[9])
+    #     joint_positions = p.calculateInverseKinematics(
+    #         bodyUniqueId=self.robot,
+    #         endEffectorLinkIndex=self.ee,
+    #         targetPosition=pose[0],
+    #         targetOrientation=pose[1],
+    #         lowerLimits=lower_limits,
+    #         upperLimits=upper_limits,
+    #         restPoses=self.homej,
+    #         maxNumIterations=1000,
+    #         residualThreshold=1e-5,
+    #     )
+    #     return joint_positions
+    #
+    # def _solve_ik_pybullet_planning(self, pose):
+    #     with pybullet_planning.LockRenderer():
+    #         with pybullet_planning.WorldSaver():
+    #             joint_positions = pybullet_planning.inverse_kinematics(
+    #                 self.robot,
+    #                 self.ee,
+    #                 pose,
+    #             )
+    #     return joint_positions
+
+    def get_skrobot(self, attachments=None):
+        attachments = attachments or []
+
+        currj = self.getj()
+        self.robot_model.angle_vector(currj)
+
+        link_list = self.robot_model.link_list.copy()
+        joint_list = self.robot_model.joint_list.copy()
+        for i, attachment in enumerate(attachments):
+            position, quaternion = attachment.grasp_pose
+            link = skrobot.model.Link(
+                parent=self.robot_model.tipLink,
+                pos=position,
+                rot=geometry.quaternion_matrix(quaternion)[:3, :3],
+                name=f"attachment_link{i}",
+            )
+            joint = skrobot.model.FixedJoint(
+                child_link=link,
+                parent_link=self.robot_model.tipLink,
+                name=f"attachment_joint{i}",
+            )
+            link_list.append(link)
+            joint_list.append(joint)
+        return skrobot.model.RobotModel(
+            link_list=link_list,
+            joint_list=joint_list,
+            root_link=self.robot_model.root_link,
+        )
 
     def planj(
         self, targj, obstacles=None, attachments=None, self_collisions=True
@@ -144,29 +159,13 @@ class PandaRobotInterface:
                 )
         return path
 
-    def planp(
-        self,
-        pose,
-        obstacles=None,
-        attachments=None,
-        self_collisions=True,
-        **kwargs,
-    ):
-        targj = self.solve_ik(pose, **kwargs)
-        return self.planj(
-            targj=targj,
-            obstacles=obstacles,
-            attachments=attachments,
-            self_collisions=self_collisions,
-        )
-
     def grasp(self):
         c = geometry.Coordinate(
             *pybullet_planning.get_link_pose(self.robot, self.ee)
         )
         while not self.gripper.detect_contact():
             c.translate([0, 0, 0.001])
-            self.movep(c.pose)
+            self.movej(self.solve_ik(c.pose))
         self.gripper.activate()
 
     def ungrasp(self):

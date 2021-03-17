@@ -1,4 +1,5 @@
 import numpy as np
+import skrobot
 
 from . import transformations as tf
 
@@ -86,3 +87,10 @@ class Coordinate:
     @property
     def pose(self):
         return self.position, self.quaternion
+
+    @property
+    def skrobot_coords(self):
+        return skrobot.coordinates.Coordinates(
+            pos=self.position,
+            rot=tf.quaternion_matrix(self.quaternion)[:3, :3],
+        )

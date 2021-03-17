@@ -21,13 +21,13 @@ def main():
     ri = mercury.pybullet.PandaRobotInterface()
 
     pose = pybullet_planning.get_link_pose(ri.robot, ri.ee)
-    coord_reset = mercury.geometry.Coordinate(*pose)
+    c_reset = mercury.geometry.Coordinate(*pose)
 
-    coord = coord_reset.copy()
-    coord.translate([0.2, 0, -0.5], wrt="world")
+    c = c_reset.copy()
+    c.translate([0.2, 0, -0.5], wrt="world")
 
     while True:
-        ri.movep(coord.pose)
+        ri.movej(ri.solve_ik(c.pose))
         ri.movej(ri.homej)
 
     pybullet_planning.disconnect()

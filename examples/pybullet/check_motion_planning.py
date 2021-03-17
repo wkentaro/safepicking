@@ -50,26 +50,26 @@ def main():
 
     # -------------------------------------------------------------------------
 
-    coord1 = mercury.geometry.Coordinate(
+    c1 = mercury.geometry.Coordinate(
         *pybullet_planning.get_link_pose(ri.robot, ri.ee)
     )
-    coord1.translate([0.4, -0.4, -0.4], wrt="world")
+    c1.translate([0.4, -0.4, -0.4], wrt="world")
 
-    coord2 = coord1.copy()
-    coord2.translate([0, 0.8, 0], wrt="world")
+    c2 = c1.copy()
+    c2.translate([0, 0.8, 0], wrt="world")
 
     obstacles = [plane, box]
 
     while True:
-        traj = ri.planp(
-            (coord1.position, coord1.quaternion),
+        traj = ri.planj(
+            ri.solve_ik(c1.pose),
             obstacles=obstacles,
             attachments=attachments,
         )
         [ri.movej(j) for j in traj]
 
-        traj = ri.planp(
-            (coord2.position, coord2.quaternion),
+        traj = ri.planj(
+            ri.solve_ik(c2.pose),
             obstacles=obstacles,
             attachments=attachments,
         )
