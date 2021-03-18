@@ -32,6 +32,12 @@ class Coordinate:
                 f"\n)"
             )
 
+    @classmethod
+    def from_matrix(cls, matrix):
+        position = tf.translation_from_matrix(matrix)
+        quaternion = tf.quaternion_from_matrix(matrix)
+        return cls(position=position, quaternion=quaternion)
+
     def translate(self, translation, wrt="local"):
         self.transform(tf.translation_matrix(translation), wrt=wrt)
 
