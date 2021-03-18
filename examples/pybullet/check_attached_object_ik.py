@@ -59,11 +59,14 @@ def main():
     c_init = mercury.geometry.Coordinate(*pybullet_planning.get_pose(cube))
 
     c1 = c_init.copy()
-    c1.translate([0.3, 0, -0.3], wrt="world")
+    c1.translate([0.3, -0.3, -0.3], wrt="world")
     c1.rotate([np.deg2rad(45), 0, 0], wrt="local")
+    pybullet_planning.draw_pose(c1.pose)
 
-    c2 = c1.copy()
-    c2.rotate([np.deg2rad(-90), 0, 0], wrt="local")
+    c2 = c_init.copy()
+    c2.translate([0.3, 0.3, -0.3], wrt="world")
+    c2.rotate([np.deg2rad(-45), 0, 0], wrt="local")
+    pybullet_planning.draw_pose(c2.pose)
 
     robot_model = ri.get_skrobot(attachments=attachments)
     while True:
