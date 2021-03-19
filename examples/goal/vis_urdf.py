@@ -31,7 +31,9 @@ def main():
     )
 
     while True:
-        if ord("q") in p.getKeyboardEvents():
+        try:
+            p.stepSimulation()
+        except p.error:
             break
 
 
