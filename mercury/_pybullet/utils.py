@@ -9,6 +9,8 @@ import pybullet
 import pybullet_data
 import pybullet_planning
 
+from .. import geometry
+
 
 def init_world(*args, **kwargs):
     pybullet.connect(pybullet.GUI)
@@ -130,3 +132,88 @@ def step_and_sleep(seconds=np.inf):
         time.sleep(1 / 240)
         if int(round(i / 240)) >= seconds:
             break
+
+
+def get_camera_image(
+    T_cam2world,
+    fovy,
+    height,
+    width,
+    far=1000,
+    near=0.01,
+):
+    # T_cam2world -> view_matrix
+    view_matrix = T_cam2world.copy()
+    view_matrix[:3, 3] = 0
+    view_matrix[3, :3] = np.linalg.inv(T_cam2world)[:3, 3]
+    view_matrix[:, 1] *= -1
+    view_matrix[:, 2] *= -1
+    view_matrix = view_matrix.flatten()
+
+    projection_matrix = pybullet.computeProjectionMatrixFOV(
+        fov=np.rad2deg(fovy),
+        aspect=1.0 * width / height,
+        farVal=far,
+        nearVal=near,
+    )
+    _, _, rgba, depth, segm = pybullet.getCameraImage(
+        width=width,
+        height=height,
+        viewMatrix=view_matrix,
+        projectionMatrix=projection_matrix,
+        renderer=pybullet.ER_BULLET_HARDWARE_OPENGL,
+    )
+    rgb = rgba[:, :, :3]
+    depth = np.asarray(depth, dtype=np.float32).reshape(height, width)
+    depth = far * near / (far - (far - near) * depth)
+    depth[segm == -1] = np.nan
+    return rgb, depth, segm
+
+
+def draw_camera(
+    fovy,
+    width,
+    height,
+    transform=None,
+    marker_height=0.1,
+    marker_color=(0, 0.9, 0.9),
+    marker_width=2,
+):
+    aspect_ratio = width / height
+    fovx = 2 * np.arctan(np.tan(fovy * 0.5) * aspect_ratio)
+
+    x = marker_height * np.tan(fovx * 0.5)
+    y = marker_height * np.tan(fovy * 0.5)
+    z = marker_height
+
+    # combine the points into the vertices of an FOV visualization
+    points = np.array(
+        [(0, 0, 0), (-x, -y, z), (x, -y, z), (x, y, z), (-x, y, z)],
+        dtype=float,
+    )
+
+    # create line segments for the FOV visualization
+    # a segment from the origin to each bound of the FOV
+    segments = np.column_stack((np.zeros_like(points), points)).reshape(
+        (-1, 3)
+    )
+
+    # add a loop for the outside of the FOV then reshape
+    # the whole thing into multiple line segments
+    segments = np.vstack((segments, points[[1, 2, 2, 3, 3, 4, 4, 1]])).reshape(
+        (-1, 2, 3)
+    )
+
+    if transform is not None:
+        segments = segments.reshape(-1, 3)
+        segments = geometry.transform_points(segments, transform)
+        segments = segments.reshape(-1, 2, 3)
+
+    lines = []
+    for segment in segments:
+        lines.append(
+            pybullet_planning.add_line(
+                segment[0], segment[1], color=marker_color, width=marker_width
+            )
+        )
+    return lines
