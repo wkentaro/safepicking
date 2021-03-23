@@ -15,7 +15,16 @@ here = path.Path(__file__).abspath().parent
 
 
 class PandaRobotInterface:
-    def __init__(self):
+    def __init__(self, step_simulation=None):
+        if step_simulation is None:
+
+            def step_simulation():
+                p.stepSimulation()
+                time.sleep(1 / 240)
+
+        self.step_simulation = step_simulation
+        self.i = 0
+
         urdf_file = here / "assets/franka_panda/panda_suction.urdf"
         self.robot_model = skrobot.models.urdf.RobotModelFromURDF(
             urdf_file=urdf_file
@@ -67,8 +76,8 @@ class PandaRobotInterface:
                 targetPositions=stepj,
                 positionGains=gains,
             )
-            p.stepSimulation()
-            time.sleep(1 / 240)
+            self.step_simulation()
+            self.i += 1
         print(f"Warning: movej exceeded {timeout} second timeout. Skipping.")
         return False
 
