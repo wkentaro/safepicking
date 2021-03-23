@@ -174,7 +174,7 @@ def draw_camera(
     fovy,
     width,
     height,
-    transform=None,
+    pose=None,
     marker_height=0.1,
     marker_color=(0, 0.9, 0.9),
     marker_width=2,
@@ -204,9 +204,11 @@ def draw_camera(
         (-1, 2, 3)
     )
 
-    if transform is not None:
+    if pose is not None:
         segments = segments.reshape(-1, 3)
-        segments = geometry.transform_points(segments, transform)
+        segments = geometry.transform_points(
+            segments, geometry.transformation_matrix(*pose)
+        )
         segments = segments.reshape(-1, 2, 3)
 
     lines = []

@@ -23,7 +23,6 @@ class PandaRobotInterface:
                 time.sleep(1 / 240)
 
         self.step_simulation = step_simulation
-        self.i = 0
 
         urdf_file = here / "assets/franka_panda/panda_suction.urdf"
         self.robot_model = skrobot.models.urdf.RobotModelFromURDF(
@@ -77,7 +76,6 @@ class PandaRobotInterface:
                 positionGains=gains,
             )
             self.step_simulation()
-            self.i += 1
         print(f"Warning: movej exceeded {timeout} second timeout. Skipping.")
         return False
 

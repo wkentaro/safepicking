@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
+import time
 
 import imgviz
 import numpy as np
@@ -131,11 +132,43 @@ def main():
             if ord("n") in p.getKeyboardEvents():
                 break
 
+    T_camera_to_world = mercury.geometry.Coordinate()
+    T_camera_to_world.translate([-0.3, 0.4, 0.8], wrt="world")
+    T_camera_to_world.rotate([0, 0, np.deg2rad(-90)], wrt="local")
+    T_camera_to_world.rotate([np.deg2rad(-130), 0, 0], wrt="local")
+    pybullet_planning.draw_pose(T_camera_to_world.pose)
+
+    fovy = np.deg2rad(45)
+    height = 480
+    width = 640
+    mercury.pybullet.draw_camera(
+        fovy=fovy,
+        height=height,
+        width=width,
+        transform=T_camera_to_world.matrix,
+    )
+
+    def step_simulation():
+        t_start = time.time()
+        p.stepSimulation()
+        if ri.i % 8 == 0:
+            rgb, _, _ = mercury.pybullet.get_camera_image(
+                T_camera_to_world.matrix,
+                fovy=fovy,
+                height=height,
+                width=width,
+            )
+            imgviz.io.cv_imshow(rgb, "shoulder_camera")
+            imgviz.io.cv_waitkey(1)
+        time.sleep(max(0, 1 / 240 - (time.time() - t_start)))
+
+    ri.step_simulation = step_simulation
+
     np.random.seed(1)
 
     placed_objects = []
     for _ in range(10):
-        class_id = 3
+        class_id = 2
         obj, obj_mind_to_ee, constraint_id = spawn_object_in_hand(
             ri, class_id=class_id, noise=args.noise
         )
