@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import argparse
-import time
 
 import imgviz
 import numpy as np
@@ -51,30 +50,31 @@ def spawn_object_in_hand(ri, class_id, noise=False):
         collision_file = mercury.pybullet.get_collision_file(visual_file)
         position, _ = pybullet_planning.get_link_pose(ri.robot, ri.ee)
         obj = mercury.pybullet.create_mesh_body(
-            visual_file=collision_file,
+            visual_file=visual_file,
+            # visual_file=collision_file,
+            # rgba_color=imgviz.label_colormap()[class_id] / 255,
             collision_file=collision_file,
             position=(0, 0, 0),
             quaternion=quaternion,
             mass=0.1,
-            rgba_color=imgviz.label_colormap()[class_id] / 255,
         )
         aabb_min, aabb_max = pybullet_planning.get_aabb(obj)
         obj_mind_to_world = (
             position + np.array([0, 0, -aabb_max[2] - 0.01]),
             quaternion,
         )
+
         pos = obj_mind_to_world[0]
         qua = obj_mind_to_world[1]
         if noise:
             pos += np.random.normal(0, [0.02 / 3, 0.02 / 3, 0], 3)
             qua += np.random.normal(0, 0.1 / 3, 4)
         obj_to_world = (pos, qua / np.linalg.norm(qua))
-        p.resetBasePositionAndOrientation(
-            obj, obj_to_world[0], obj_to_world[1]
-        )
+        pybullet_planning.set_pose(obj, obj_to_world)
 
-        obj_to_ee = mercury.pybullet.get_pose(
-            obj, parent_body_id=ri.robot, parent_link_id=ri.ee
+        ee_to_world = mercury.pybullet.get_pose(ri.robot, ri.ee)
+        obj_to_ee = pybullet_planning.multiply(
+            pybullet_planning.invert(ee_to_world), obj_to_world
         )
         constraint_id = p.createConstraint(
             parentBodyUniqueId=ri.robot,
@@ -97,12 +97,17 @@ def spawn_object_in_hand(ri, class_id, noise=False):
     return obj, obj_mind_to_ee, constraint_id
 
 
+def real_to_virtual(T_obj_to_world):
+    real_to_virtual = ([0, 2, 0], [0, 0, 0, 1])
+    return pybullet_planning.multiply(real_to_virtual, T_obj_to_world)
+
+
 def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--pause", action="store_true", help="pause")
-    parser.add_argument("--noise", action="store_true", help="noise")
+    parser.add_argument("--perfect", action="store_true", help="noise")
     args = parser.parse_args()
 
     pybullet_planning.connect()
@@ -110,21 +115,26 @@ def main():
     p.setGravity(0, 0, -9.8)
 
     p.resetDebugVisualizerCamera(
-        cameraDistance=1.3,
-        cameraYaw=120,
+        cameraDistance=2,
+        cameraYaw=90,
         cameraPitch=-40,
-        cameraTargetPosition=(0, 0, 0.2),
+        cameraTargetPosition=(0, 1, 0),
     )
 
     ri = mercury.pybullet.PandaRobotInterface()
 
     with pybullet_planning.LockRenderer():
         plane = p.loadURDF("plane.urdf")
-        bin = create_bin(0.4, 0.35, 0.2)
-        p.resetBasePositionAndOrientation(bin, [0.4, 0.4, 0.11], [0, 0, 0, 1])
+        bin = create_bin(0.4, 0.38, 0.2)
+        bin_to_world = ([0.4, 0.4, 0.11], [0, 0, 0, 1])
+        pybullet_planning.set_pose(bin, bin_to_world)
         bin_aabb = np.array(p.getAABB(bin))
         bin_aabb[0] += 0.01
         bin_aabb[1] -= 0.01
+
+    with pybullet_planning.LockRenderer():
+        bin2 = create_bin(0.4, 0.38, 0.2)
+        pybullet_planning.set_pose(bin2, real_to_virtual(bin_to_world))
 
     if args.pause:
         print("Please press 'n' to start")
@@ -136,7 +146,6 @@ def main():
     T_camera_to_world.translate([-0.3, 0.4, 0.8], wrt="world")
     T_camera_to_world.rotate([0, 0, np.deg2rad(-90)], wrt="local")
     T_camera_to_world.rotate([np.deg2rad(-130), 0, 0], wrt="local")
-    pybullet_planning.draw_pose(T_camera_to_world.pose)
 
     fovy = np.deg2rad(45)
     height = 480
@@ -145,52 +154,92 @@ def main():
         fovy=fovy,
         height=height,
         width=width,
-        transform=T_camera_to_world.matrix,
+        pose=T_camera_to_world.pose,
     )
+    pybullet_planning.draw_pose(T_camera_to_world.pose)
+    mercury.pybullet.draw_camera(
+        fovy=fovy,
+        height=height,
+        width=width,
+        pose=real_to_virtual(T_camera_to_world.pose),
+    )
+    pybullet_planning.draw_pose(real_to_virtual(T_camera_to_world.pose))
 
-    def step_simulation():
-        t_start = time.time()
-        p.stepSimulation()
-        if ri.i % 8 == 0:
-            rgb, _, _ = mercury.pybullet.get_camera_image(
-                T_camera_to_world.matrix,
-                fovy=fovy,
-                height=height,
-                width=width,
-            )
-            imgviz.io.cv_imshow(rgb, "shoulder_camera")
-            imgviz.io.cv_waitkey(1)
-        time.sleep(max(0, 1 / 240 - (time.time() - t_start)))
+    obj = None
+    obj_v = None
 
-    ri.step_simulation = step_simulation
+    class StepSimulation:
+        def __init__(self):
+            self.i = 0
+
+        def __call__(self):
+            p.stepSimulation()
+            if self.i % 8 == 0:
+                if obj is not None and obj_v is not None:
+                    rgb, _, segm = mercury.pybullet.get_camera_image(
+                        T_camera_to_world.matrix,
+                        fovy=fovy,
+                        height=height,
+                        width=width,
+                    )
+                    rgb_v, _, segm_v = mercury.pybullet.get_camera_image(
+                        mercury.geometry.transformation_matrix(
+                            *real_to_virtual(T_camera_to_world.pose)
+                        ),
+                        fovy=fovy,
+                        height=height,
+                        width=width,
+                    )
+                    rgb_masked = rgb * (segm == obj)[:, :, None]
+                    rgb_v_masked = rgb_v * (segm_v == obj_v)[:, :, None]
+                    imgviz.io.cv_imshow(
+                        imgviz.tile(
+                            [rgb, rgb_v, rgb_masked, rgb_v_masked],
+                            shape=(2, 2),
+                            border=(255, 255, 255),
+                        ),
+                        "shoulder_camera",
+                    )
+                    imgviz.io.cv_waitkey(1)
+            self.i += 1
+
+    ri.step_simulation = StepSimulation()
 
     np.random.seed(1)
 
     placed_objects = []
-    for _ in range(10):
+    placed_objects_v = []
+    for _ in range(2):
         class_id = 2
-        obj, obj_mind_to_ee, constraint_id = spawn_object_in_hand(
-            ri, class_id=class_id, noise=args.noise
+        obj, obj_to_ee, constraint_id = spawn_object_in_hand(
+            ri, class_id=class_id, noise=not args.perfect
         )
 
-        obj_mind_to_world = get_place_pose(
-            obj, class_id, bin_aabb[0], bin_aabb[1]
-        )
-        if obj_mind_to_world[0] is None or obj_mind_to_world[1] is None:
+        obj_to_world = get_place_pose(obj, class_id, bin_aabb[0], bin_aabb[1])
+        if obj_to_world[0] is None or obj_to_world[1] is None:
             print("Warning: cannot find place pose")
             break
-        ee_to_obj_mind = pybullet_planning.invert(obj_mind_to_ee)
+
+        visual_file = mercury.datasets.ycb.get_visual_file(class_id=class_id)
+        collision_file = mercury.pybullet.get_collision_file(visual_file)
+        obj_v = mercury.pybullet.create_mesh_body(
+            visual_file=visual_file,
+            collision_file=collision_file,
+            position=real_to_virtual(obj_to_world)[0],
+            quaternion=real_to_virtual(obj_to_world)[1],
+        )
+
         ee_to_world = pybullet_planning.multiply(
-            obj_mind_to_world, ee_to_obj_mind
+            obj_to_world, pybullet_planning.invert(obj_to_ee)
         )
 
         obstacles = [plane, bin] + placed_objects
         attachments = [
-            pybullet_planning.Attachment(ri.robot, ri.ee, obj_mind_to_ee, obj)
+            pybullet_planning.Attachment(ri.robot, ri.ee, obj_to_ee, obj)
         ]
         targj = get_pre_place_joint_positions(
             ri,
-            ee_to_world,
+            place_pose=ee_to_world,
             obstacles=obstacles,
             attachments=attachments,
         )
@@ -201,34 +250,27 @@ def main():
             break
         [ri.movej(j) for j in path]
 
-        mercury.pybullet.step_and_sleep(0.5)
+        [ri.step_simulation() for _ in range(120)]
 
-        ri.movej(ri.solve_ik(ee_to_world))
+        ri.movej(ri.solve_ik(ee_to_world), speed=0.001)
 
-        mercury.pybullet.step_and_sleep(0.5)
+        [ri.step_simulation() for _ in range(120)]
 
         p.removeConstraint(constraint_id)
 
-        mercury.pybullet.step_and_sleep(0.5)
+        [ri.step_simulation() for _ in range(120)]
 
-        ee_to_world = mercury.pybullet.get_pose(ri.robot, ri.ee)
-        obj_mind_to_world = p.multiplyTransforms(
-            ee_to_world[0],
-            ee_to_world[1],
-            obj_mind_to_ee[0],
-            obj_mind_to_ee[1],
-        )
-        mercury.pybullet.create_mesh_body(
-            visual_file=mercury.pybullet.get_collision_file(
-                mercury.datasets.ycb.get_visual_file(class_id)
-            ),
-            position=obj_mind_to_world[0],
-            quaternion=obj_mind_to_world[1],
-            rgba_color=(1, 0, 0, 0.5),
-        )
         placed_objects.append(obj)
+        placed_objects_v.append(obj_v)
 
         ri.movej(ri.homej)
+
+        for obj, obj_v in zip(placed_objects, placed_objects_v):
+            pybullet_planning.set_pose(
+                obj_v, real_to_virtual(pybullet_planning.get_pose(obj))
+            )
+
+        [ri.step_simulation() for _ in range(120)]
 
     mercury.pybullet.step_and_sleep()
 
