@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import time
+
 import pybullet as p
 import pybullet_planning
 
@@ -66,14 +68,20 @@ def main():
             obstacles=obstacles,
             attachments=attachments,
         )
-        [ri.movej(j) for j in traj]
+        for j in traj:
+            for _ in ri.movej(j):
+                p.stepSimulation()
+                time.sleep(1 / 240)
 
         traj = ri.planj(
             ri.solve_ik(c2.pose),
             obstacles=obstacles,
             attachments=attachments,
         )
-        [ri.movej(j) for j in traj]
+        for j in traj:
+            for _ in ri.movej(j):
+                p.stepSimulation()
+                time.sleep(1 / 240)
 
     pybullet_planning.disconnect()
 

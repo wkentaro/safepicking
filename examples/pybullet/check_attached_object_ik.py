@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import time
+
 import numpy as np
 import pybullet as p
 import pybullet_planning
@@ -74,13 +76,17 @@ def main():
             c1.skrobot_coords,
             move_target=robot_model.attachment_link0,
         )
-        ri.movej(joint_positions[:-1])
+        for _ in ri.movej(joint_positions[:-1]):
+            p.stepSimulation()
+            time.sleep(1 / 240)
 
         joint_positions = robot_model.inverse_kinematics(
             c2.skrobot_coords,
             move_target=robot_model.attachment_link0,
         )
-        ri.movej(joint_positions[:-1])
+        for _ in ri.movej(joint_positions[:-1]):
+            p.stepSimulation()
+            time.sleep(1 / 240)
 
     pybullet_planning.disconnect()
 

@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import time
+
 import imgviz
 import numpy as np
 import pybullet as p
@@ -57,26 +59,40 @@ def main():
         c.position[2] = pybullet_planning.get_aabb(obj)[1][2] + 0.1
 
         path = ri.planj(ri.solve_ik(c.pose, rotation_axis="z"))
-        [ri.movej(j) for j in path]
+        for j in path:
+            for _ in ri.movej(j):
+                p.stepSimulation()
+                time.sleep(1 / 240)
 
-        ri.grasp()
+        for _ in ri.grasp():
+            p.stepSimulation()
+            time.sleep(1 / 240)
 
         c = mercury.geometry.Coordinate(
             *mercury.pybullet.get_pose(ri.robot, ri.ee)
         )
 
         ri.planj(ri.homej)
-        [ri.movej(j) for j in path]
+        for j in path:
+            for _ in ri.movej(j):
+                p.stepSimulation()
+                time.sleep(1 / 240)
 
         path = ri.planj(ri.solve_ik(c.pose))
-        [ri.movej(j) for j in path]
+        for j in path:
+            for _ in ri.movej(j):
+                p.stepSimulation()
+                time.sleep(1 / 240)
 
         # mercury.pybullet.step_and_sleep(0.5)
 
         ri.ungrasp()
 
         path = ri.planj(ri.homej)
-        [ri.movej(j) for j in path]
+        for j in path:
+            for _ in ri.movej(j):
+                p.stepSimulation()
+                time.sleep(1 / 240)
 
 
 if __name__ == "__main__":

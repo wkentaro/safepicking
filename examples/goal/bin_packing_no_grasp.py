@@ -203,7 +203,7 @@ def main():
                     imgviz.io.cv_waitkey(1)
             self.i += 1
 
-    ri.step_simulation = StepSimulation()
+    step_simulation = StepSimulation()
 
     np.random.seed(1)
 
@@ -248,29 +248,33 @@ def main():
         if path is None:
             print("Warning: failed to find collision-free path")
             break
-        [ri.movej(j) for j in path]
+        for j in path:
+            for _ in ri.movej(j):
+                step_simulation()
 
-        [ri.step_simulation() for _ in range(120)]
+        [step_simulation() for _ in range(120)]
 
-        ri.movej(ri.solve_ik(ee_to_world), speed=0.001)
+        for _ in ri.movej(ri.solve_ik(ee_to_world), speed=0.001):
+            step_simulation()
 
-        [ri.step_simulation() for _ in range(120)]
+        [step_simulation() for _ in range(120)]
 
         p.removeConstraint(constraint_id)
 
-        [ri.step_simulation() for _ in range(120)]
+        [step_simulation() for _ in range(120)]
 
         placed_objects.append(obj)
         placed_objects_v.append(obj_v)
 
-        ri.movej(ri.homej)
+        for _ in ri.movej(ri.homej):
+            step_simulation()
 
         for obj, obj_v in zip(placed_objects, placed_objects_v):
             pybullet_planning.set_pose(
                 obj_v, real_to_virtual(pybullet_planning.get_pose(obj))
             )
 
-        [ri.step_simulation() for _ in range(120)]
+        [step_simulation() for _ in range(120)]
 
     mercury.pybullet.step_and_sleep()
 

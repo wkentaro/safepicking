@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
+import time
 
 import numpy as np
 import pybullet as p
@@ -82,9 +83,14 @@ def main():
     c.position = obj_to_world[0]
     c.position[2] = 0.3
     traj = ri.planj(ri.solve_ik(c.pose, rotation_axis="z"), obstacles=[plane])
-    [ri.movej(j) for j in traj]
+    for j in traj:
+        for _ in ri.movej(j):
+            p.stepSimulation()
+            time.sleep(1 / 240)
 
-    ri.grasp()
+    for _ in ri.grasp():
+        p.stepSimulation()
+        time.sleep(1 / 240)
 
     ee_to_world = mercury.pybullet.get_pose(ri.robot, ri.ee)
     world_to_obj = pybullet_planning.invert(obj_to_world)
@@ -96,7 +102,9 @@ def main():
 
     robot_model = ri.get_skrobot(attachments)
 
-    ri.movej(ri.homej)
+    for j in ri.movej(ri.homej):
+        p.stepSimulation()
+        time.sleep(1 / 240)
 
     while True:
         with pybullet_planning.WorldSaver():
@@ -122,7 +130,10 @@ def main():
             continue
 
         break
-    [ri.movej(j) for j in traj]
+    for j in traj:
+        for _ in ri.movej(j):
+            p.stepSimulation()
+            time.sleep(1 / 240)
 
     mercury.pybullet.step_and_sleep(1)
 
@@ -138,9 +149,14 @@ def main():
         *mercury.pybullet.get_pose(ri.robot, ri.ee)
     )
     c.translate([0, 0, -0.01])
-    ri.movej(ri.solve_ik(c.pose, rotation_axis="z"))
+    for _ in ri.movej(ri.solve_ik(c.pose, rotation_axis="z")):
+        p.stepSimulation()
+        time.sleep(1 / 240)
     traj = ri.planj(ri.homej, obstacles=[plane, bin, obj])
-    [ri.movej(j) for j in traj]
+    for j in traj:
+        for _ in ri.movej(j):
+            p.stepSimulation()
+            time.sleep(1 / 240)
 
     c = mercury.geometry.Coordinate(
         *mercury.pybullet.get_pose(ri.robot, ri.ee)
@@ -149,9 +165,13 @@ def main():
     c.position[2] = 0.3
 
     # pre-grasp-pose
-    ri.movej(ri.solve_ik(c.pose))
+    for _ in ri.movej(ri.solve_ik(c.pose)):
+        p.stepSimulation()
+        time.sleep(1 / 240)
 
-    ri.grasp()
+    for _ in ri.grasp():
+        p.stepSimulation()
+        time.sleep(1 / 240)
 
     ee_to_world = mercury.pybullet.get_pose(ri.robot, ri.ee)
     obj_to_ee = pybullet_planning.multiply(
@@ -166,7 +186,10 @@ def main():
 
     # reset-pose
     traj = ri.planj(ri.homej, obstacles=[plane])
-    [ri.movej(j) for j in traj]
+    for j in traj:
+        for _ in ri.movej(j):
+            p.stepSimulation()
+            time.sleep(1 / 240)
 
     # place-pose
     place_pose = get_place_pose(obj, class_id, bin_aabb[0], bin_aabb[1])
@@ -178,7 +201,10 @@ def main():
     traj = ri.planj(
         joint_positions[:-1], obstacles=[plane, bin], attachments=attachments
     )
-    [ri.movej(j) for j in traj]
+    for j in traj:
+        for _ in ri.movej(j):
+            p.stepSimulation()
+            time.sleep(1 / 240)
 
     mercury.pybullet.step_and_sleep(1)
 
@@ -189,7 +215,10 @@ def main():
     pybullet_planning.draw_pose(obj_to_world)
 
     traj = ri.planj(ri.homej, obstacles=[plane, bin])
-    [ri.movej(j) for j in traj]
+    for j in traj:
+        for _ in ri.movej(j):
+            p.stepSimulation()
+            time.sleep(1 / 240)
 
     mercury.pybullet.step_and_sleep()
 

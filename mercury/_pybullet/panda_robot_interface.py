@@ -1,5 +1,3 @@
-import time
-
 import numpy as np
 import path
 import pybullet as p
@@ -15,15 +13,7 @@ here = path.Path(__file__).abspath().parent
 
 
 class PandaRobotInterface:
-    def __init__(self, step_simulation=None):
-        if step_simulation is None:
-
-            def step_simulation():
-                p.stepSimulation()
-                time.sleep(1 / 240)
-
-        self.step_simulation = step_simulation
-
+    def __init__(self):
         urdf_file = here / "assets/franka_panda/panda_suction.urdf"
         self.robot_model = skrobot.models.urdf.RobotModelFromURDF(
             urdf_file=urdf_file
@@ -54,14 +44,13 @@ class PandaRobotInterface:
             joint_positions.append(p.getJointState(self.robot, joint)[0])
         return joint_positions
 
-    def movej(self, targj, speed=0.01, timeout=5):
-        t0 = time.time()
-        while (time.time() - t0) < timeout:
+    def movej(self, targj, speed=0.01):
+        while True:
             currj = [p.getJointState(self.robot, i)[0] for i in self.joints]
             currj = np.array(currj)
             diffj = targj - currj
             if all(np.abs(diffj) < 1e-2):
-                return True
+                return
 
             # Move with constant velocity
             norm = np.linalg.norm(diffj)
@@ -75,9 +64,7 @@ class PandaRobotInterface:
                 targetPositions=stepj,
                 positionGains=gains,
             )
-            self.step_simulation()
-        print(f"Warning: movej exceeded {timeout} second timeout. Skipping.")
-        return False
+            yield
 
     def solve_ik(self, pose, **kwargs):
         c = geometry.Coordinate(*pose)
@@ -172,7 +159,7 @@ class PandaRobotInterface:
         )
         while not self.gripper.detect_contact():
             c.translate([0, 0, 0.001])
-            self.movej(self.solve_ik(c.pose))
+            yield from self.movej(self.solve_ik(c.pose))
         self.gripper.activate()
 
     def ungrasp(self):

@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import time
+
 import pybullet as p
 import pybullet_planning
 
@@ -27,8 +29,12 @@ def main():
     c.translate([0.2, 0, -0.5], wrt="world")
 
     while True:
-        ri.movej(ri.solve_ik(c.pose))
-        ri.movej(ri.homej)
+        for _ in ri.movej(ri.solve_ik(c.pose)):
+            p.stepSimulation()
+            time.sleep(1 / 240)
+        for _ in ri.movej(ri.homej):
+            p.stepSimulation()
+            time.sleep(1 / 240)
 
     pybullet_planning.disconnect()
 
