@@ -3,7 +3,6 @@
 import argparse
 import time
 
-import albumentations as albu
 import imgviz
 import numpy as np
 import pybullet as p
@@ -196,7 +195,6 @@ def main():
                     height=height,
                     width=width,
                 )
-                rgb = albu.CLAHE().apply(rgb)
                 rgb[segm == plane] = [222, 184, 135]
                 rgb_v, _, segm_v = mercury.pybullet.get_camera_image(
                     mercury.geometry.transformation_matrix(
