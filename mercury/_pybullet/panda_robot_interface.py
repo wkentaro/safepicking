@@ -13,7 +13,9 @@ here = path.Path(__file__).abspath().parent
 
 
 class PandaRobotInterface:
-    def __init__(self):
+    def __init__(self, pose=None):
+        self.pose = pose
+
         urdf_file = here / "assets/franka_panda/panda_suction.urdf"
         self.robot_model = skrobot.models.urdf.RobotModelFromURDF(
             urdf_file=urdf_file
@@ -25,6 +27,9 @@ class PandaRobotInterface:
 
         self.gripper = SuctionGripper(self.robot, self.ee)
 
+        if self.pose is not None:
+            pybullet_planning.set_pose(self.robot, self.pose)
+
         # Get revolute joint indices of robot (skip fixed joints).
         n_joints = p.getNumJoints(self.robot)
         joints = [p.getJointInfo(self.robot, i) for i in range(n_joints)]
@@ -34,8 +39,17 @@ class PandaRobotInterface:
         for joint in self.joints:
             p.resetJointState(self.robot, joint, self.homej[joint])
 
+    def world_to_base(self, a_to_world):
+        if self.pose is None:
+            a_to_base = a_to_world
+        else:
+            base_to_world = self.pose
+            world_to_base = pybullet_planning.invert(base_to_world)
+            a_to_base = pybullet_planning.invert(world_to_base, a_to_world)
+        return a_to_base
+
     def setj(self, joint_positions):
-        for joint, joint_position in enumerate(joint_positions):
+        for joint, joint_position in zip(self.joints, joint_positions):
             p.resetJointState(self.robot, joint, joint_position)
 
     def getj(self):
@@ -67,7 +81,7 @@ class PandaRobotInterface:
             yield
 
     def solve_ik(self, pose, **kwargs):
-        c = geometry.Coordinate(*pose)
+        c = geometry.Coordinate(*self.world_to_base(pose))
         joint_positions = self.get_skrobot().inverse_kinematics(
             c.skrobot_coords,
             move_target=self.robot_model.tipLink,
