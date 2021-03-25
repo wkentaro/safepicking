@@ -219,6 +219,7 @@ def main():
 
     np.random.seed(1)
 
+    placed_objects = []
     for _ in range(4):
         class_id = 2
         obj, obj_to_ee, constraint_id = spawn_object_in_hand(
@@ -251,7 +252,10 @@ def main():
             obj_to_ee=obj_to_ee,
         )
 
-        if args.pause:
+        step_simulation()
+        visual_feedback()
+
+        if not placed_objects and args.pause:
             print("Please press 'n' to start")
             while True:
                 if ord("n") in p.getKeyboardEvents():
@@ -292,7 +296,16 @@ def main():
                 mercury.geometry.Coordinate(*obj_to_world).skrobot_coords,
                 move_target=robot_model.attachment_link0,
             )[:-1]
-            path = ri.planj(j, obstacles=obstacles, attachments=attachments)
+            pybullet_planning.MAX_DISTANCE = 0.01
+            path = ri.planj(
+                j,
+                obstacles=obstacles + placed_objects,
+                attachments=attachments,
+            )
+            pybullet_planning.MAX_DISTANCE = 0
+            if path is None:
+                print("==> Path planning failed, so retrying")
+                continue
             for i, j in enumerate(path):
                 for _ in ri.movej(j):
                     step_simulation()
@@ -315,6 +328,7 @@ def main():
 
         p.removeConstraint(constraint_id)
         step_simulation.constraint_id = None
+        placed_objects.append(obj)
 
         for i in range(120):
             step_simulation()
