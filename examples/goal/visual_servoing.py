@@ -89,7 +89,7 @@ class VisualFeedback:
         )
         imgviz.io.cv_waitkey(1)
 
-        if not update or mask.sum() < 10000:
+        if not update or mask.sum() < (30 * 30):
             return False
 
         K = mercury.geometry.opengl_intrinsic_matrix(
@@ -163,6 +163,7 @@ def main():
     parser.add_argument("--pause", action="store_true", help="pause")
     parser.add_argument("--perfect", action="store_true", help="perfect")
     parser.add_argument("--update", action="store_true", help="update")
+    parser.add_argument("--class-id", type=int, default=2, help="class id")
     args = parser.parse_args()
 
     pybullet_planning.connect()
@@ -219,9 +220,9 @@ def main():
 
     np.random.seed(1)
 
+    class_id = args.class_id
     placed_objects = []
     for _ in range(7):
-        class_id = 2
         obj, obj_to_ee, constraint_id = spawn_object_in_hand(
             ri, class_id=class_id, noise=not args.perfect
         )
@@ -329,6 +330,20 @@ def main():
         p.removeConstraint(constraint_id)
         step_simulation.constraint_id = None
         placed_objects.append(obj)
+
+        with pybullet_planning.LockRenderer():
+            mercury.pybullet.create_mesh_body(
+                visual_file=collision_file,
+                position=obj_to_world[0],
+                quaternion=obj_to_world[1],
+                rgba_color=(0, 1, 0, 0.5),
+            )
+            mercury.pybullet.create_mesh_body(
+                visual_file=collision_file,
+                position=real_to_virtual(obj_to_world)[0],
+                quaternion=real_to_virtual(obj_to_world)[1],
+                rgba_color=(0, 1, 0, 0.5),
+            )
 
         for i in range(120):
             step_simulation()
