@@ -1,8 +1,13 @@
 import numpy as np
 import trimesh.transformations as ttf
-from trimesh.transformations import transform_points  # NOQA
 from trimesh.transformations import translation_from_matrix  # NOQA
 from trimesh.transformations import translation_matrix  # NOQA
+
+
+def transform_points(points, matrix, translate=True):
+    return ttf.transform_points(
+        points.reshape(-1, 3), matrix, translate=translate
+    ).reshape(points.shape)
 
 
 def quaternion_from_matrix(matrix):
@@ -33,12 +38,6 @@ def quaternion_matrix(quaternion):
     return ttf.quaternion_matrix(quaternion)
 
 
-def transformation_matrix(translation, quaternion):
-    matrix = quaternion_matrix(quaternion)
-    matrix[:3, 3] = translation
-    return matrix
-
-
 def quaternion_from_euler(euler):
     quaternion = ttf.quaternion_from_euler(*euler, axes="rxyz")
     if quaternion[0] < 0.0:
@@ -62,3 +61,15 @@ def euler_matrix(euler):
 
 def euler_from_matrix(matrix):
     return ttf.euler_from_matrix(matrix, axes="rxyz")
+
+
+def transformation_matrix(translation, quaternion):
+    matrix = quaternion_matrix(quaternion)
+    matrix[:3, 3] = translation
+    return matrix
+
+
+def pose_from_matrix(matrix):
+    translation = translation_from_matrix(matrix)
+    quaternion = quaternion_from_matrix(matrix)
+    return translation, quaternion

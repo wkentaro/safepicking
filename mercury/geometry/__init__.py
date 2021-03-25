@@ -17,3 +17,4 @@ from .transformations import euler_matrix
 from .transformations import quaternion_from_euler
 from .transformations import quaternion_from_matrix
 from .transformations import quaternion_matrix
+from .transformations import pose_from_matrix
