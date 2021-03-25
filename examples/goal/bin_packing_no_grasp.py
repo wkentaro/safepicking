@@ -108,6 +108,7 @@ def main():
     )
     parser.add_argument("--pause", action="store_true", help="pause")
     parser.add_argument("--perfect", action="store_true", help="noise")
+    parser.add_argument("--class-id", type=int, help="class id")
     args = parser.parse_args()
 
     pybullet_planning.connect()
@@ -190,10 +191,10 @@ def main():
 
     np.random.seed(1)
 
+    class_id = args.class_id
     placed_objects = []
     placed_objects_v = []
     for _ in range(7):
-        class_id = 2
         obj, obj_to_ee, constraint_id = spawn_object_in_hand(
             ri, class_id=class_id, noise=not args.perfect
         )
@@ -258,6 +259,22 @@ def main():
 
         placed_objects.append(obj)
         placed_objects_v.append(obj_v)
+
+        visual_file = mercury.datasets.ycb.get_visual_file(class_id=class_id)
+        collision_file = mercury.pybullet.get_collision_file(visual_file)
+        with pybullet_planning.LockRenderer():
+            mercury.pybullet.create_mesh_body(
+                visual_file=collision_file,
+                position=obj_to_world[0],
+                quaternion=obj_to_world[1],
+                rgba_color=(0, 1, 0, 0.5),
+            )
+            mercury.pybullet.create_mesh_body(
+                visual_file=collision_file,
+                position=real_to_virtual(obj_to_world)[0],
+                quaternion=real_to_virtual(obj_to_world)[1],
+                rgba_color=(0, 1, 0, 0.5),
+            )
 
         # reset
 
