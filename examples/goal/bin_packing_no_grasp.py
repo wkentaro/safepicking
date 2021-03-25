@@ -3,7 +3,6 @@
 import argparse
 import time
 
-import imgviz
 import numpy as np
 import pybullet as p
 import pybullet_planning
@@ -174,9 +173,6 @@ def main():
     constraint_id = None
 
     class StepSimulation:
-        def __init__(self):
-            self.i = 0
-
         def __call__(self):
             p.stepSimulation()
             ri_v.setj(ri.getj())
@@ -188,34 +184,7 @@ def main():
                         obj_to_ee,
                     ),
                 )
-            if self.i % 8 == 0:
-                rgb, _, segm = mercury.pybullet.get_camera_image(
-                    T_camera_to_world.matrix,
-                    fovy=fovy,
-                    height=height,
-                    width=width,
-                )
-                rgb[segm == plane] = [222, 184, 135]
-                rgb_v, _, segm_v = mercury.pybullet.get_camera_image(
-                    mercury.geometry.transformation_matrix(
-                        *real_to_virtual(T_camera_to_world.pose)
-                    ),
-                    fovy=fovy,
-                    height=height,
-                    width=width,
-                )
-                imgviz.io.cv_imshow(
-                    imgviz.tile(
-                        [rgb, rgb_v, np.uint8(rgb * 0.5 + rgb_v * 0.5)],
-                        shape=(1, 3),
-                        border=(255, 255, 255),
-                    ),
-                    "shoulder_camera",
-                )
-                imgviz.io.cv_waitkey(1)
-            else:
-                time.sleep(1 / 240)
-            self.i += 1
+            time.sleep(1 / 240)
 
     step_simulation = StepSimulation()
 
@@ -223,7 +192,7 @@ def main():
 
     placed_objects = []
     placed_objects_v = []
-    for _ in range(2):
+    for _ in range(7):
         class_id = 2
         obj, obj_to_ee, constraint_id = spawn_object_in_hand(
             ri, class_id=class_id, noise=not args.perfect
@@ -240,35 +209,47 @@ def main():
             print("Warning: cannot find place pose")
             break
 
-        ee_to_world = pybullet_planning.multiply(
-            obj_to_world, pybullet_planning.invert(obj_to_ee)
-        )
-
-        obstacles = [plane, bin] + placed_objects
         attachments = [
             pybullet_planning.Attachment(ri.robot, ri.ee, obj_to_ee, obj)
         ]
-        targj = get_pre_place_joint_positions(
-            ri,
-            place_pose=ee_to_world,
-            obstacles=obstacles,
-            attachments=attachments,
+        robot_model = ri.get_skrobot(attachments)
+
+        # above-bin
+
+        c_bin_to_world = mercury.geometry.Coordinate(
+            *pybullet_planning.get_pose(bin)
         )
+        c_bin_to_world.translate([0, 0, 0.3], wrt="world")
 
-        path = ri.planj(targj, obstacles=obstacles, attachments=attachments)
-        if path is None:
-            print("Warning: failed to find collision-free path")
-            break
-        for j in path:
-            for _ in ri.movej(j):
-                step_simulation()
-
-        [step_simulation() for _ in range(120)]
-
-        for _ in ri.movej(ri.solve_ik(ee_to_world), speed=0.001):
+        j = robot_model.inverse_kinematics(
+            c_bin_to_world.skrobot_coords,
+            move_target=robot_model.attachment_link0,
+        )[:-1]
+        for _ in ri.movej(j):
             step_simulation()
 
+        # place
+
+        obstacles = [plane, bin] + placed_objects
+        while True:
+            targj = robot_model.inverse_kinematics(
+                mercury.geometry.Coordinate(*obj_to_world).skrobot_coords,
+                move_target=robot_model.attachment_link0,
+            )[:-1]
+            path = ri.planj(
+                targj, obstacles=obstacles, attachments=attachments
+            )
+            if path is None:
+                print("Warning: failed to find collision-free path")
+                continue
+            for j in path:
+                for _ in ri.movej(j):
+                    step_simulation()
+            break
+
         [step_simulation() for _ in range(120)]
+
+        # ungrasp
 
         p.removeConstraint(constraint_id)
         constraint_id = None
@@ -277,6 +258,8 @@ def main():
 
         placed_objects.append(obj)
         placed_objects_v.append(obj_v)
+
+        # reset
 
         for _ in ri.movej(ri.homej):
             step_simulation()
