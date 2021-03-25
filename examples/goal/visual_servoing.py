@@ -26,13 +26,143 @@ def virtual_to_real(T_obj_to_world):
     return pybullet_planning.multiply(virtual_to_real, T_obj_to_world)
 
 
+class VisualFeedback:
+    def __init__(
+        self,
+        ri,
+        c_camera_to_world,
+        fovy,
+        height,
+        width,
+        plane,
+        obj_v,
+        obj_to_ee,
+    ):
+        self.ri = ri
+        self.c_camera_to_world = c_camera_to_world
+        self.fovy = fovy
+        self.height = height
+        self.width = width
+        self.plane = plane
+        self.obj_v = obj_v
+        self.obj_to_ee = obj_to_ee
+
+    def __call__(self, update=False):
+        rgb, depth, segm = mercury.pybullet.get_camera_image(
+            self.c_camera_to_world.matrix,
+            fovy=self.fovy,
+            height=self.height,
+            width=self.width,
+        )
+        rgb[segm == self.plane] = [222, 184, 135]
+        rgb_v, depth_v, segm_v = mercury.pybullet.get_camera_image(
+            mercury.geometry.transformation_matrix(
+                *real_to_virtual(self.c_camera_to_world.pose)
+            ),
+            fovy=self.fovy,
+            height=self.height,
+            width=self.width,
+        )
+
+        aabb_min, aabb_max = pybullet_planning.get_aabb(self.obj_v)
+        aabb_min += [0, -2, 0]
+        aabb_max += [0, -2, 0]
+
+        mask = segm_v == self.obj_v
+        rgb_masked = rgb * mask[:, :, None]
+        rgb_v_masked = rgb_v * mask[:, :, None]
+
+        tiled = imgviz.tile(
+            [
+                rgb,
+                rgb_v,
+                np.uint8(rgb * 0.5 + rgb_v * 0.5),
+                rgb_masked,
+                rgb_v_masked,
+                np.uint8(rgb_masked * 0.5 + rgb_v_masked * 0.5),
+            ],
+            shape=(2, 3),
+            border=(255, 255, 255),
+        )
+        imgviz.io.cv_imshow(
+            imgviz.resize(tiled, width=1200), "shoulder_camera"
+        )
+        imgviz.io.cv_waitkey(1)
+
+        if not update or mask.sum() < 10000:
+            return False
+
+        K = mercury.geometry.opengl_intrinsic_matrix(
+            self.fovy, self.height, self.width
+        )
+
+        pcd = mercury.geometry.pointcloud_from_depth(
+            depth, K[0, 0], K[1, 1], K[0, 2], K[1, 2]
+        )
+        pcd = mercury.geometry.transform_points(
+            pcd, self.c_camera_to_world.matrix
+        )
+        mask = (
+            mask
+            & (pcd >= aabb_min).all(axis=2)
+            & (pcd <= aabb_max).all(axis=2)
+            & ~np.isnan(depth)
+        )
+        pcd = pcd[mask]
+
+        ee_to_world = mercury.pybullet.get_pose(self.ri.robot, self.ri.ee)
+
+        pcd_v = np.loadtxt(mercury.datasets.ycb.get_pcd_file(class_id=2))
+        T_obj_v_to_world = mercury.geometry.transformation_matrix(
+            *pybullet_planning.multiply(ee_to_world, self.obj_to_ee)
+        )
+        pcd_v = mercury.geometry.transform_points(pcd_v, T_obj_v_to_world)
+
+        print("==> Doing icp_registration")
+        T_pcd_to_pcd_v = icp_registration(pcd, pcd_v, np.eye(4))
+        pcd_to_pcd_v = mercury.geometry.pose_from_matrix(T_pcd_to_pcd_v)
+
+        obj_v_to_world = pybullet_planning.multiply(
+            ee_to_world, self.obj_to_ee
+        )
+        obj_to_world = pybullet_planning.multiply(
+            pybullet_planning.invert(pcd_to_pcd_v), obj_v_to_world
+        )
+        self.obj_to_ee = pybullet_planning.multiply(
+            pybullet_planning.invert(ee_to_world), obj_to_world
+        )
+        return True
+
+
+class StepSimulation:
+    def __init__(self, ri, ri_v, obj_v, obj_to_ee, constraint_id):
+        self.ri = ri
+        self.ri_v = ri_v
+        self.obj_v = obj_v
+        self.obj_to_ee = obj_to_ee
+        self.constraint_id = constraint_id
+
+    def __call__(self):
+        p.stepSimulation()
+        self.ri_v.setj(self.ri.getj())
+        if self.constraint_id:
+            pybullet_planning.set_pose(
+                self.obj_v,
+                pybullet_planning.multiply(
+                    mercury.pybullet.get_pose(self.ri_v.robot, self.ri_v.ee),
+                    self.obj_to_ee,
+                ),
+            )
+        time.sleep(1 / 240)
+
+
 def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--pause", action="store_true", help="pause")
     parser.add_argument("--perfect", action="store_true", help="perfect")
-    parser.add_argument("--feedback", action="store_true", help="feedback")
+    parser.add_argument("--update", action="store_true", help="update")
     args = parser.parse_args()
 
     pybullet_planning.connect()
@@ -64,10 +194,10 @@ def main():
         bin2 = create_bin(0.4, 0.38, 0.2)
         pybullet_planning.set_pose(bin2, real_to_virtual(bin_to_world))
 
-    T_camera_to_world = mercury.geometry.Coordinate()
-    T_camera_to_world.translate([-0.3, 0.4, 0.8], wrt="world")
-    T_camera_to_world.rotate([0, 0, np.deg2rad(-90)], wrt="local")
-    T_camera_to_world.rotate([np.deg2rad(-130), 0, 0], wrt="local")
+    c_camera_to_world = mercury.geometry.Coordinate()
+    c_camera_to_world.translate([-0.3, 0.4, 0.8], wrt="world")
+    c_camera_to_world.rotate([0, 0, np.deg2rad(-90)], wrt="local")
+    c_camera_to_world.rotate([np.deg2rad(-130), 0, 0], wrt="local")
 
     fovy = np.deg2rad(45)
     height = 480
@@ -76,127 +206,16 @@ def main():
         fovy=fovy,
         height=height,
         width=width,
-        pose=T_camera_to_world.pose,
+        pose=c_camera_to_world.pose,
     )
-    pybullet_planning.draw_pose(T_camera_to_world.pose)
+    pybullet_planning.draw_pose(c_camera_to_world.pose)
     mercury.pybullet.draw_camera(
         fovy=fovy,
         height=height,
         width=width,
-        pose=real_to_virtual(T_camera_to_world.pose),
+        pose=real_to_virtual(c_camera_to_world.pose),
     )
-    pybullet_planning.draw_pose(real_to_virtual(T_camera_to_world.pose))
-
-    class StepSimulation:
-        def __init__(self, obj_to_ee):
-            self.obj_to_ee = obj_to_ee
-            self.i = 0
-            self.visual_feedback = False
-
-        def __call__(self):
-            p.stepSimulation()
-            ri_v.setj(ri.getj())
-            if constraint_id:
-                pybullet_planning.set_pose(
-                    obj_v,
-                    pybullet_planning.multiply(
-                        mercury.pybullet.get_pose(ri_v.robot, ri_v.ee),
-                        self.obj_to_ee,
-                    ),
-                )
-            if self.i % 8 == 0:
-                rgb, depth, segm = mercury.pybullet.get_camera_image(
-                    T_camera_to_world.matrix,
-                    fovy=fovy,
-                    height=height,
-                    width=width,
-                )
-                rgb[segm == plane] = [222, 184, 135]
-                rgb_v, depth_v, segm_v = mercury.pybullet.get_camera_image(
-                    mercury.geometry.transformation_matrix(
-                        *real_to_virtual(T_camera_to_world.pose)
-                    ),
-                    fovy=fovy,
-                    height=height,
-                    width=width,
-                )
-
-                aabb_min, aabb_max = pybullet_planning.get_aabb(obj_v)
-                aabb_min += [0, -2, 0]
-                aabb_max += [0, -2, 0]
-
-                mask = segm_v == obj_v
-                rgb_masked = rgb * mask[:, :, None]
-                rgb_v_masked = rgb_v * mask[:, :, None]
-
-                tiled = imgviz.tile(
-                    [
-                        rgb,
-                        rgb_v,
-                        np.uint8(rgb * 0.5 + rgb_v * 0.5),
-                        rgb_masked,
-                        rgb_v_masked,
-                        np.uint8(rgb_masked * 0.5 + rgb_v_masked * 0.5),
-                    ],
-                    shape=(2, 3),
-                    border=(255, 255, 255),
-                )
-                imgviz.io.cv_imshow(
-                    imgviz.resize(tiled, width=1200), "shoulder_camera"
-                )
-                imgviz.io.cv_waitkey(1)
-
-                if not self.visual_feedback or mask.sum() < 10000:
-                    self.i += 1
-                    return
-
-                K = mercury.geometry.opengl_intrinsic_matrix(
-                    fovy, height, width
-                )
-
-                pcd = mercury.geometry.pointcloud_from_depth(
-                    depth, K[0, 0], K[1, 1], K[0, 2], K[1, 2]
-                )
-                pcd = mercury.geometry.transform_points(
-                    pcd, T_camera_to_world.matrix
-                )
-                mask = (
-                    mask
-                    & (pcd >= aabb_min).all(axis=2)
-                    & (pcd <= aabb_max).all(axis=2)
-                    & ~np.isnan(depth)
-                )
-                pcd = pcd[mask]
-
-                pcd_v = np.loadtxt(
-                    mercury.datasets.ycb.get_pcd_file(class_id=2)
-                )
-                T_obj_v_to_world = mercury.geometry.transformation_matrix(
-                    *virtual_to_real(pybullet_planning.get_pose(obj_v))
-                )
-                pcd_v = mercury.geometry.transform_points(
-                    pcd_v, T_obj_v_to_world
-                )
-
-                print("Doing ICP")
-                T_pcd_to_pcd_v = icp_registration(pcd, pcd_v, np.eye(4))
-                pcd_to_pcd_v = mercury.geometry.pose_from_matrix(
-                    T_pcd_to_pcd_v
-                )
-
-                ee_to_world = mercury.pybullet.get_pose(ri.robot, ri.ee)
-                obj_v_to_world = pybullet_planning.multiply(
-                    ee_to_world, self.obj_to_ee
-                )
-                obj_to_world = pybullet_planning.multiply(
-                    pybullet_planning.invert(pcd_to_pcd_v), obj_v_to_world
-                )
-                self.obj_to_ee = pybullet_planning.multiply(
-                    pybullet_planning.invert(ee_to_world), obj_to_world
-                )
-            else:
-                time.sleep(1 / 240)
-            self.i += 1
+    pybullet_planning.draw_pose(real_to_virtual(c_camera_to_world.pose))
 
     np.random.seed(1)
 
@@ -213,15 +232,31 @@ def main():
             collision_file=collision_file,
         )
 
-    step_simulation = StepSimulation(obj_to_ee=obj_to_ee)
-
-    [step_simulation() for _ in range(8)]
+    step_simulation = StepSimulation(
+        ri=ri,
+        ri_v=ri_v,
+        obj_v=obj_v,
+        obj_to_ee=obj_to_ee,
+        constraint_id=constraint_id,
+    )
+    visual_feedback = VisualFeedback(
+        ri=ri,
+        c_camera_to_world=c_camera_to_world,
+        fovy=fovy,
+        height=height,
+        width=width,
+        plane=plane,
+        obj_v=obj_v,
+        obj_to_ee=obj_to_ee,
+    )
 
     if args.pause:
         print("Please press 'n' to start")
         while True:
             if ord("n") in p.getKeyboardEvents():
                 break
+
+    # before-place
 
     c = mercury.geometry.Coordinate(*pybullet_planning.get_pose(bin))
     c.translate([0, 0, 0.3], wrt="world")
@@ -235,17 +270,21 @@ def main():
         c.skrobot_coords,
         move_target=robot_model.attachment_link0,
     )[:-1]
-    for _ in ri.movej(j):
+    for i, _ in enumerate(ri.movej(j)):
         step_simulation()
+        if i % 24 == 0:
+            visual_feedback()
+
+    # place
 
     obstacles = [plane, bin]
     obj_to_world = get_place_pose(obj, class_id, bin_aabb[0], bin_aabb[1])
 
-    step_simulation.visual_feedback = args.feedback
-    obj_to_ee = step_simulation.obj_to_ee
     while True:
         attachments = [
-            pybullet_planning.Attachment(ri.robot, ri.ee, obj_to_ee, obj)
+            pybullet_planning.Attachment(
+                ri.robot, ri.ee, visual_feedback.obj_to_ee, obj
+            )
         ]
         robot_model = ri.get_skrobot(attachments)
         j = robot_model.inverse_kinematics(
@@ -253,29 +292,40 @@ def main():
             move_target=robot_model.attachment_link0,
         )[:-1]
         path = ri.planj(j, obstacles=obstacles, attachments=attachments)
-        for j in path:
+        for i, j in enumerate(path):
             for _ in ri.movej(j):
                 step_simulation()
-            if (step_simulation.obj_to_ee[0] != obj_to_ee[0]) or (
-                step_simulation.obj_to_ee[1] != obj_to_ee[1]
-            ):
-                print("Doing re-planning")
-                obj_to_ee = step_simulation.obj_to_ee
+            if i == 2 and visual_feedback(update=args.update):
+                step_simulation.obj_to_ee = visual_feedback.obj_to_ee
+                print("==> Doing re-planning")
                 break
+            else:
+                visual_feedback()
         else:
-            print("Reached to the goal")
+            print("==> Reached to the goal")
             break
-    step_simulation.visual_feedback = False
 
-    [step_simulation() for _ in range(120)]
+    for i in range(120):
+        step_simulation()
+        if i % 24 == 0:
+            visual_feedback()
+
+    # ungrasp
 
     p.removeConstraint(constraint_id)
-    constraint_id = None
+    step_simulation.constraint_id = None
 
-    [step_simulation() for _ in range(120)]
-
-    for _ in ri.movej(ri.homej):
+    for i in range(120):
         step_simulation()
+        if i % 24 == 0:
+            visual_feedback()
+
+    # reset
+
+    for i, _ in enumerate(ri.movej(ri.homej)):
+        step_simulation()
+        if i % 24 == 0:
+            visual_feedback()
 
     mercury.pybullet.step_and_sleep()
 
