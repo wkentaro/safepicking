@@ -220,7 +220,7 @@ def main():
     np.random.seed(1)
 
     placed_objects = []
-    for _ in range(4):
+    for _ in range(7):
         class_id = 2
         obj, obj_to_ee, constraint_id = spawn_object_in_hand(
             ri, class_id=class_id, noise=not args.perfect
