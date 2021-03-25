@@ -5,7 +5,7 @@ import path
 home = path.Path("~").expanduser()
 
 
-def get_visual_file(class_id):
+def init():
     root_dir = home / "data/ycb_video/YCB_Video_Models"
 
     if not root_dir.exists():
@@ -16,10 +16,23 @@ def get_visual_file(class_id):
             postprocess=gdown.extractall,
         )
 
-    assert class_id > 0
     class_names = []
     for model_dir in sorted(root_dir.listdir()):
         class_name = str(model_dir.basename())
         class_names.append(class_name)
+
+    return root_dir, class_names
+
+
+def get_visual_file(class_id):
+    assert class_id > 0
+    root_dir, class_names = init()
     class_name = class_names[class_id - 1]
     return root_dir / class_name / "textured_simple.obj"
+
+
+def get_pcd_file(class_id):
+    assert class_id > 0
+    root_dir, class_names = init()
+    class_name = class_names[class_id - 1]
+    return root_dir / class_name / "points.xyz"
