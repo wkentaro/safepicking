@@ -219,113 +219,114 @@ def main():
 
     np.random.seed(1)
 
-    class_id = 2
-    obj, obj_to_ee, constraint_id = spawn_object_in_hand(
-        ri, class_id=class_id, noise=not args.perfect
-    )
-
-    visual_file = mercury.datasets.ycb.get_visual_file(class_id=class_id)
-    collision_file = mercury.pybullet.get_collision_file(visual_file)
-    with pybullet_planning.LockRenderer():
-        obj_v = mercury.pybullet.create_mesh_body(
-            visual_file=visual_file,
-            collision_file=collision_file,
+    for _ in range(4):
+        class_id = 2
+        obj, obj_to_ee, constraint_id = spawn_object_in_hand(
+            ri, class_id=class_id, noise=not args.perfect
         )
 
-    step_simulation = StepSimulation(
-        ri=ri,
-        ri_v=ri_v,
-        obj_v=obj_v,
-        obj_to_ee=obj_to_ee,
-        constraint_id=constraint_id,
-    )
-    visual_feedback = VisualFeedback(
-        ri=ri,
-        c_camera_to_world=c_camera_to_world,
-        fovy=fovy,
-        height=height,
-        width=width,
-        plane=plane,
-        obj_v=obj_v,
-        obj_to_ee=obj_to_ee,
-    )
-
-    if args.pause:
-        print("Please press 'n' to start")
-        while True:
-            if ord("n") in p.getKeyboardEvents():
-                break
-
-    # before-place
-
-    c = mercury.geometry.Coordinate(*pybullet_planning.get_pose(bin))
-    c.translate([0, 0, 0.3], wrt="world")
-
-    robot_model = ri.get_skrobot(
-        attachments=[
-            pybullet_planning.Attachment(ri.robot, ri.ee, obj_to_ee, obj)
-        ]
-    )
-    j = robot_model.inverse_kinematics(
-        c.skrobot_coords,
-        move_target=robot_model.attachment_link0,
-    )[:-1]
-    for i, _ in enumerate(ri.movej(j)):
-        step_simulation()
-        if i % 24 == 0:
-            visual_feedback()
-
-    # place
-
-    obstacles = [plane, bin]
-    obj_to_world = get_place_pose(obj, class_id, bin_aabb[0], bin_aabb[1])
-
-    while True:
-        attachments = [
-            pybullet_planning.Attachment(
-                ri.robot, ri.ee, visual_feedback.obj_to_ee, obj
+        visual_file = mercury.datasets.ycb.get_visual_file(class_id=class_id)
+        collision_file = mercury.pybullet.get_collision_file(visual_file)
+        with pybullet_planning.LockRenderer():
+            obj_v = mercury.pybullet.create_mesh_body(
+                visual_file=visual_file,
+                collision_file=collision_file,
             )
-        ]
-        robot_model = ri.get_skrobot(attachments)
+
+        step_simulation = StepSimulation(
+            ri=ri,
+            ri_v=ri_v,
+            obj_v=obj_v,
+            obj_to_ee=obj_to_ee,
+            constraint_id=constraint_id,
+        )
+        visual_feedback = VisualFeedback(
+            ri=ri,
+            c_camera_to_world=c_camera_to_world,
+            fovy=fovy,
+            height=height,
+            width=width,
+            plane=plane,
+            obj_v=obj_v,
+            obj_to_ee=obj_to_ee,
+        )
+
+        if args.pause:
+            print("Please press 'n' to start")
+            while True:
+                if ord("n") in p.getKeyboardEvents():
+                    break
+
+        # before-place
+
+        c = mercury.geometry.Coordinate(*pybullet_planning.get_pose(bin))
+        c.translate([0, 0, 0.3], wrt="world")
+
+        robot_model = ri.get_skrobot(
+            attachments=[
+                pybullet_planning.Attachment(ri.robot, ri.ee, obj_to_ee, obj)
+            ]
+        )
         j = robot_model.inverse_kinematics(
-            mercury.geometry.Coordinate(*obj_to_world).skrobot_coords,
+            c.skrobot_coords,
             move_target=robot_model.attachment_link0,
         )[:-1]
-        path = ri.planj(j, obstacles=obstacles, attachments=attachments)
-        for i, j in enumerate(path):
-            for _ in ri.movej(j):
-                step_simulation()
-            if i == 2 and visual_feedback(update=args.update):
-                step_simulation.obj_to_ee = visual_feedback.obj_to_ee
-                print("==> Doing re-planning")
-                break
-            else:
+        for i, _ in enumerate(ri.movej(j)):
+            step_simulation()
+            if i % 24 == 0:
                 visual_feedback()
-        else:
-            print("==> Reached to the goal")
-            break
 
-    for i in range(120):
-        step_simulation()
-        if i % 24 == 0:
-            visual_feedback()
+        # place
 
-    # ungrasp
+        obstacles = [plane, bin]
+        obj_to_world = get_place_pose(obj, class_id, bin_aabb[0], bin_aabb[1])
 
-    p.removeConstraint(constraint_id)
-    step_simulation.constraint_id = None
+        while True:
+            attachments = [
+                pybullet_planning.Attachment(
+                    ri.robot, ri.ee, visual_feedback.obj_to_ee, obj
+                )
+            ]
+            robot_model = ri.get_skrobot(attachments)
+            j = robot_model.inverse_kinematics(
+                mercury.geometry.Coordinate(*obj_to_world).skrobot_coords,
+                move_target=robot_model.attachment_link0,
+            )[:-1]
+            path = ri.planj(j, obstacles=obstacles, attachments=attachments)
+            for i, j in enumerate(path):
+                for _ in ri.movej(j):
+                    step_simulation()
+                if i == 2 and visual_feedback(update=args.update):
+                    step_simulation.obj_to_ee = visual_feedback.obj_to_ee
+                    print("==> Doing re-planning")
+                    break
+                else:
+                    visual_feedback()
+            else:
+                print("==> Reached to the goal")
+                break
 
-    for i in range(120):
-        step_simulation()
-        if i % 24 == 0:
-            visual_feedback()
+        for i in range(120):
+            step_simulation()
+            if i % 24 == 0:
+                visual_feedback()
 
-    # reset
+        # ungrasp
 
-    for i, _ in enumerate(ri.movej(ri.homej)):
-        step_simulation()
-        if i % 24 == 0:
-            visual_feedback()
+        p.removeConstraint(constraint_id)
+        step_simulation.constraint_id = None
+
+        for i in range(120):
+            step_simulation()
+            if i % 24 == 0:
+                visual_feedback()
+
+        # reset
+
+        for i, _ in enumerate(ri.movej(ri.homej)):
+            step_simulation()
+            if i % 24 == 0:
+                visual_feedback()
 
     mercury.pybullet.step_and_sleep()
 
