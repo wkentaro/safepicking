@@ -37,6 +37,7 @@ class VisualFeedback:
         plane,
         obj_v,
         obj_to_ee,
+        enabled=True,
     ):
         self.ri = ri
         self.c_camera_to_world = c_camera_to_world
@@ -46,8 +47,11 @@ class VisualFeedback:
         self.plane = plane
         self.obj_v = obj_v
         self.obj_to_ee = obj_to_ee
+        self.enabled = enabled
 
     def __call__(self, update=False):
+        if not self.enabled:
+            return
         rgb, depth, segm = mercury.pybullet.get_camera_image(
             self.c_camera_to_world.matrix,
             fovy=self.fovy,
@@ -162,9 +166,15 @@ def main():
     )
     parser.add_argument("--pause", action="store_true", help="pause")
     parser.add_argument("--perfect", action="store_true", help="perfect")
+    parser.add_argument(
+        "--no-feedback", action="store_true", help="no feedback"
+    )
     parser.add_argument("--update", action="store_true", help="update")
     parser.add_argument("--class-id", type=int, default=2, help="class id")
     args = parser.parse_args()
+
+    if args.update:
+        assert not args.no_feedback
 
     pybullet_planning.connect()
     pybullet_planning.add_data_path()
@@ -222,7 +232,7 @@ def main():
 
     class_id = args.class_id
     placed_objects = []
-    for _ in range(7):
+    for _ in range(10):
         obj, obj_to_ee, constraint_id = spawn_object_in_hand(
             ri, class_id=class_id, noise=not args.perfect
         )
@@ -251,6 +261,7 @@ def main():
             plane=plane,
             obj_v=obj_v,
             obj_to_ee=obj_to_ee,
+            enabled=not args.no_feedback,
         )
 
         step_simulation()
@@ -286,6 +297,11 @@ def main():
         obstacles = [plane, bin]
         obj_to_world = get_place_pose(obj, class_id, bin_aabb[0], bin_aabb[1])
 
+        if obj_to_world[0] is None:
+            print("Warning: failed to find place pose")
+            break
+
+        max_distance = 0
         while True:
             attachments = [
                 pybullet_planning.Attachment(
@@ -296,16 +312,21 @@ def main():
             j = robot_model.inverse_kinematics(
                 mercury.geometry.Coordinate(*obj_to_world).skrobot_coords,
                 move_target=robot_model.attachment_link0,
-            )[:-1]
-            pybullet_planning.MAX_DISTANCE = 0.01
+            )
+            if j is False:
+                print("==> Inverse kinematics failed. Retrying")
+                continue
             path = ri.planj(
-                j,
+                j[:-1],
                 obstacles=obstacles + placed_objects,
                 attachments=attachments,
+                max_distance=max_distance,
             )
-            pybullet_planning.MAX_DISTANCE = 0
             if path is None:
-                print("==> Path planning failed, so retrying")
+                max_distance -= 0.01
+                print(
+                    f"==> Path planning failed. Retrying with {max_distance}"
+                )
                 continue
             for i, j in enumerate(path):
                 for _ in ri.movej(j):
@@ -350,12 +371,28 @@ def main():
             if i % 24 == 0:
                 visual_feedback()
 
+        c = mercury.geometry.Coordinate(
+            *mercury.pybullet.get_pose(ri.robot, ri.ee)
+        )
+        c.translate([0, 0, -0.05])
+        j = ri.solve_ik(c.pose)
+        for i, _ in enumerate(ri.movej(j)):
+            step_simulation()
+            if i % 8 == 0:
+                visual_feedback()
+
         # reset
 
-        for i, _ in enumerate(ri.movej(ri.homej)):
-            step_simulation()
-            if i % 24 == 0:
-                visual_feedback()
+        path = None
+        while path is None:
+            path = ri.planj(ri.homej, obstacles=obstacles + placed_objects)
+        i = 0
+        for j in path:
+            for _ in ri.movej(j):
+                step_simulation()
+                if i % 8 == 0:
+                    visual_feedback()
+                i += 1
 
     mercury.pybullet.step_and_sleep()
 
