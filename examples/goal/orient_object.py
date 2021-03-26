@@ -125,7 +125,9 @@ def main():
             continue
 
         traj = ri.planj(
-            joint_positions[:-1], obstacles=[plane], attachments=attachments
+            joint_positions[:-1],
+            obstacles=[plane, bin],
+            attachments=attachments,
         )
         if traj is None:
             continue
