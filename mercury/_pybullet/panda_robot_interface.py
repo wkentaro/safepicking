@@ -151,7 +151,12 @@ class PandaRobotInterface:
         )
 
     def planj(
-        self, targj, obstacles=None, attachments=None, self_collisions=True
+        self,
+        targj,
+        obstacles=None,
+        attachments=None,
+        self_collisions=True,
+        **kwargs,
     ):
         obstacles = [] if obstacles is None else obstacles
         attachments = [] if attachments is None else attachments
@@ -164,6 +169,7 @@ class PandaRobotInterface:
                     obstacles=obstacles,
                     attachments=attachments,
                     self_collisions=self_collisions,
+                    **kwargs,
                 )
         return path
 
