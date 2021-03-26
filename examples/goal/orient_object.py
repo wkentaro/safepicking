@@ -18,6 +18,7 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--pause", action="store_true", help="pause")
+    parser.add_argument("--class-id", type=int, default=3, help="class id")
     args = parser.parse_args()
 
     pybullet_planning.connect()
@@ -42,7 +43,7 @@ def main():
 
         ri = mercury.pybullet.PandaRobotInterface()
 
-        class_id = 3
+        class_id = args.class_id
         visual_file = mercury.datasets.ycb.get_visual_file(class_id)
         collision_file = mercury.pybullet.get_collision_file(visual_file)
         spawn_space = ((0.2, -0.1, 0), (0.4, -0.4, 0))
@@ -192,16 +193,23 @@ def main():
             time.sleep(1 / 240)
 
     # place-pose
+    path = None
     place_pose = get_place_pose(obj, class_id, bin_aabb[0], bin_aabb[1])
-    robot_model = ri.get_skrobot(attachments)
-    joint_positions = robot_model.inverse_kinematics(
-        mercury.geometry.Coordinate(*place_pose).skrobot_coords,
-        move_target=robot_model.attachment_link0,
-    )
-    traj = ri.planj(
-        joint_positions[:-1], obstacles=[plane, bin], attachments=attachments
-    )
-    for j in traj:
+    while True:
+        robot_model = ri.get_skrobot(attachments)
+        j = robot_model.inverse_kinematics(
+            mercury.geometry.Coordinate(*place_pose).skrobot_coords,
+            move_target=robot_model.attachment_link0,
+        )
+        if j is False:
+            continue
+        path = ri.planj(
+            j[:-1], obstacles=[plane, bin], attachments=attachments
+        )
+        if path is None:
+            continue
+        break
+    for j in path:
         for _ in ri.movej(j):
             p.stepSimulation()
             time.sleep(1 / 240)
