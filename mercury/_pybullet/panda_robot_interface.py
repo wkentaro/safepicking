@@ -1,3 +1,5 @@
+import itertools
+
 import numpy as np
 import path
 import pybullet as p
@@ -59,7 +61,7 @@ class PandaRobotInterface:
         return joint_positions
 
     def movej(self, targj, speed=0.01):
-        while True:
+        for i in itertools.count():
             currj = [p.getJointState(self.robot, i)[0] for i in self.joints]
             currj = np.array(currj)
             diffj = targj - currj
@@ -78,7 +80,7 @@ class PandaRobotInterface:
                 targetPositions=stepj,
                 positionGains=gains,
             )
-            yield
+            yield i
 
     def solve_ik(self, pose, **kwargs):
         c = geometry.Coordinate(*self.world_to_base(pose))
@@ -87,7 +89,6 @@ class PandaRobotInterface:
             move_target=self.robot_model.tipLink,
             **kwargs,
         )
-        assert len(joint_positions) == len(self.joints)
         return joint_positions
 
     # def _solve_ik_pybullet(self, pose):

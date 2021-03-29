@@ -1,5 +1,8 @@
+import numpy as np
 import pybullet as p
 import pybullet_planning
+
+from .. import geometry
 
 
 class SuctionGripper:
@@ -14,15 +17,74 @@ class SuctionGripper:
         if self.activated:
             return
 
+        self.activated = True
+
         points = p.getContactPoints(bodyA=self.body, linkIndexA=self.link)
         if points:
+            if len(points) > 1:
+                print(f"Warning: contact points size is >1: {len(points)}")
+
             # Handle contact between suction with a rigid object.
-            for point in points:
-                obj_id, contact_link = point[2], point[4]
+            point = points[-1]
+
+            obj_id = point[2]
+            contact_link = point[4]
+            contact_distance = point[8]
+
+            # in world coordinates
+            point_on_ee = point[5]
+            point_on_obj = point[6]
+
+            ee_to_world = pybullet_planning.get_link_pose(self.body, self.link)
+            world_to_ee = pybullet_planning.invert(ee_to_world)
+            T_world_to_ee = geometry.transformation_matrix(*world_to_ee)
+
+            # in ee coordinates
+            point_on_ee = geometry.transform_points(
+                [point_on_ee], T_world_to_ee
+            )[0]
+            point_on_obj = geometry.transform_points(
+                [point_on_obj], T_world_to_ee
+            )[0]
+
+            v_ee_to_obj = (point_on_obj - point_on_ee) * np.sign(
+                contact_distance
+            )
+            v_ee_to_obj /= np.linalg.norm(v_ee_to_obj)
+
+            angle = np.abs(np.arccos(np.dot(v_ee_to_obj, [0, 0, 1])))
+
             mass = p.getDynamicsInfo(obj_id, -1)[0]
             if mass > 0:
+                if angle > np.deg2rad(20):
+                    print(
+                        "Warning: failed to grasp with surface angle >15 deg: "
+                        f"{np.rad2deg(angle):.1f} deg"
+                    )
+                    return
+
+                # simulate compliance of suction gripper
+                T_obj_to_obj_af_in_ee = geometry.transformation_matrix(
+                    point_on_ee - point_on_obj,
+                    geometry.quaternion_from_vec2vec(v_ee_to_obj, [0, 0, 1]),
+                )
+                T_obj_to_obj_af_in_ee = geometry.transform_around(
+                    T_obj_to_obj_af_in_ee, point_on_obj
+                )
+                T_obj_to_world = geometry.transformation_matrix(
+                    *pybullet_planning.get_pose(obj_id)
+                )
+                T_obj_to_ee = T_world_to_ee @ T_obj_to_world
+                T_obj_af_to_ee = T_obj_to_obj_af_in_ee @ T_obj_to_ee
+                T_obj_af_to_world = (
+                    np.linalg.inv(T_world_to_ee) @ T_obj_af_to_ee
+                )
+
                 body_to_world = p.getLinkState(self.body, self.link)[:2]
-                obj_to_world = p.getBasePositionAndOrientation(obj_id)
+                if 0:  # w/o compliance
+                    obj_to_world = p.getBasePositionAndOrientation(obj_id)
+                else:  # w/ compliance
+                    obj_to_world = geometry.pose_from_matrix(T_obj_af_to_world)
                 world_to_body = pybullet_planning.invert(body_to_world)
                 obj_to_body = pybullet_planning.multiply(
                     world_to_body, obj_to_world
@@ -39,8 +101,7 @@ class SuctionGripper:
                     childFramePosition=(0, 0, 0),
                     childFrameOrientation=(0, 0, 0),
                 )
-
-            self.activated = True
+                p.changeConstraint(self.contact_constraint, maxForce=10)
 
     def release(self):
         if not self.activated:

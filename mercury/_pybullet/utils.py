@@ -219,3 +219,25 @@ def draw_camera(
             )
         )
     return lines
+
+
+def duplicate(body_id, visual=True, collision=True, **kwargs):
+    if visual:
+        visual_data = pybullet.getVisualShapeData(body_id)
+        assert len(visual_data) == 1
+        visual_file = visual_data[0][4].decode()
+    else:
+        visual_file = None
+
+    if collision:
+        collision_data = pybullet.getCollisionShapeData(body_id)
+        assert len(collision_data) == 1
+        collision_file = collision_data[0][4].decode()
+    else:
+        collision_file = None
+
+    return create_mesh_body(
+        visual_file=visual_file,
+        collision_file=collision_file,
+        **kwargs,
+    )
