@@ -5,6 +5,7 @@ from trimesh.transformations import translation_matrix  # NOQA
 
 
 def transform_points(points, matrix, translate=True):
+    points = np.asarray(points)
     return ttf.transform_points(
         points.reshape(-1, 3), matrix, translate=translate
     ).reshape(points.shape)
