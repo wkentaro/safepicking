@@ -38,7 +38,7 @@ def draw_registration_result(pcd, pcd_v, T_obj_v_to_world, transform):
         cad,
         transform=T_obj_v_to_world,
     )
-    scene.show()
+    scene.show(resolution=(640, 480))
 
 
 def main():
