@@ -72,7 +72,9 @@ def main():
     height = 480
     width = 640
     pybullet_planning.draw_pose(c_camera_to_world.pose)
-    mercury.pybullet.draw_camera(fovy, width, height, c_camera_to_world.pose)
+    mercury.pybullet.draw_camera(
+        fovy, height=height, width=width, pose=c_camera_to_world.pose
+    )
 
     # rgb, _, _ = mercury.pybullet.get_camera_image(
     #     c_camera_to_world.matrix, fovy=np.deg2rad(45), height=480, width=640

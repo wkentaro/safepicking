@@ -172,8 +172,8 @@ def get_camera_image(
 
 def draw_camera(
     fovy,
-    width,
     height,
+    width,
     pose=None,
     marker_height=0.1,
     marker_color=(0, 0.9, 0.9),
