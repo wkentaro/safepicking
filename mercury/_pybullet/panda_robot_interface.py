@@ -61,6 +61,7 @@ class PandaRobotInterface:
         return joint_positions
 
     def movej(self, targj, speed=0.01):
+        assert len(targj) == len(self.joints)
         for i in itertools.count():
             currj = [p.getJointState(self.robot, i)[0] for i in self.joints]
             currj = np.array(currj)
@@ -89,6 +90,9 @@ class PandaRobotInterface:
             move_target=self.robot_model.tipLink,
             **kwargs,
         )
+        if joint_positions is False:
+            return
+        assert len(joint_positions) == len(self.joints)
         return joint_positions
 
     # def _solve_ik_pybullet(self, pose):
@@ -180,7 +184,10 @@ class PandaRobotInterface:
         )
         while not self.gripper.detect_contact():
             c.translate([0, 0, 0.001])
-            yield from self.movej(self.solve_ik(c.pose))
+            j = self.solve_ik(c.pose, rotation_axis="z")
+            if j is None:
+                return
+            yield from self.movej(j)
         self.gripper.activate()
 
     def ungrasp(self):

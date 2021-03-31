@@ -139,7 +139,11 @@ class SuctionGripper:
         return False
 
     def check_grasp(self):
-        suctioned_object = None
+        return self.grasped_object is not None
+
+    @property
+    def grasped_object(self):
+        grasped_object = None
         if self.contact_constraint is not None:
-            suctioned_object = p.getConstraintInfo(self.contact_constraint)[2]
-        return suctioned_object is not None
+            grasped_object = p.getConstraintInfo(self.contact_constraint)[2]
+        return grasped_object
