@@ -178,6 +178,7 @@ def draw_camera(
     marker_height=0.1,
     marker_color=(0, 0.9, 0.9),
     marker_width=2,
+    **kwargs,
 ):
     aspect_ratio = width / height
     fovx = 2 * np.arctan(np.tan(fovy * 0.5) * aspect_ratio)
@@ -215,7 +216,11 @@ def draw_camera(
     for segment in segments:
         lines.append(
             pybullet_planning.add_line(
-                segment[0], segment[1], color=marker_color, width=marker_width
+                segment[0],
+                segment[1],
+                color=marker_color,
+                width=marker_width,
+                **kwargs,
             )
         )
     return lines
