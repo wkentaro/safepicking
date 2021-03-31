@@ -4,6 +4,8 @@ from .coordinate import Coordinate
 
 from .look_at import look_at
 
+from .normals_from_pointcloud import normals_from_pointcloud
+
 from .opengl import *
 
 from .pointcloud_from_depth import pointcloud_from_depth
