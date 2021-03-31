@@ -31,6 +31,11 @@ class PandaRobotInterface:
         self.gripper = SuctionGripper(self.robot, self.ee)
 
         if self.pose is not None:
+            self.robot_model.translate(pose[0])
+            self.robot_model.orient_with_matrix(
+                geometry.quaternion_matrix(pose[1])[:3, :3]
+            )
+
             pybullet_planning.set_pose(self.robot, self.pose)
 
         # Get revolute joint indices of robot (skip fixed joints).
@@ -41,6 +46,7 @@ class PandaRobotInterface:
         self.homej = [0, -np.pi / 4, 0, -np.pi / 2, 0, np.pi / 4, 0]
         for joint, joint_angle in zip(self.joints, self.homej):
             p.resetJointState(self.robot, joint, joint_angle)
+        self.update_robot_model()
 
     def update_robot_model(self):
         for joint, joint_angle in zip(self.joints, self.getj()):
@@ -48,23 +54,6 @@ class PandaRobotInterface:
                 self.robot, joint
             ).decode()
             getattr(self.robot_model, joint_name).joint_angle(joint_angle)
-
-    def world_to_base(self, a_to_world):
-        if self.pose is None:
-            a_to_base = a_to_world
-        else:
-            base_to_world = self.pose
-            world_to_base = pybullet_planning.invert(base_to_world)
-            a_to_base = pybullet_planning.invert(world_to_base, a_to_world)
-        return a_to_base
-
-    def base_to_world(self, a_to_base):
-        if self.pose is None:
-            a_to_world = a_to_base
-        else:
-            base_to_world = self.pose
-            a_to_world = pybullet_planning.multiply(base_to_world, a_to_base)
-        return a_to_world
 
     def setj(self, joint_positions):
         for joint, joint_position in zip(self.joints, joint_positions):
@@ -104,7 +93,7 @@ class PandaRobotInterface:
             move_target = self.robot_model.tipLink
 
         self.update_robot_model()
-        c = geometry.Coordinate(*self.world_to_base(pose))
+        c = geometry.Coordinate(*pose)
         res = self.robot_model.inverse_kinematics(
             c.skrobot_coords,
             move_target=move_target,
@@ -246,9 +235,8 @@ class PandaRobotInterface:
 
     def get_pose(self, name):
         self.update_robot_model()
-        T_a_to_base = getattr(self.robot_model, name).worldcoords().T()
-        a_to_base = geometry.Coordinate.from_matrix(T_a_to_base).pose
-        a_to_world = self.base_to_world(a_to_base)
+        T_a_to_world = getattr(self.robot_model, name).worldcoords().T()
+        a_to_world = geometry.Coordinate.from_matrix(T_a_to_world).pose
         return a_to_world
 
     def add_camera(
