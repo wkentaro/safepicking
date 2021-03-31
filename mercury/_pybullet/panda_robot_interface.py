@@ -6,6 +6,7 @@ import pybullet as p
 import pybullet_planning
 
 from .. import geometry
+from . import utils
 from .suction_gripper import SuctionGripper
 
 import skrobot
@@ -38,8 +39,15 @@ class PandaRobotInterface:
         self.joints = [j[0] for j in joints if j[2] == p.JOINT_REVOLUTE]
 
         self.homej = [0, -np.pi / 4, 0, -np.pi / 2, 0, np.pi / 4, 0]
-        for joint in self.joints:
-            p.resetJointState(self.robot, joint, self.homej[joint])
+        for joint, joint_angle in zip(self.joints, self.homej):
+            p.resetJointState(self.robot, joint, joint_angle)
+
+    def update_robot_model(self):
+        for joint, joint_angle in zip(self.joints, self.getj()):
+            joint_name = pybullet_planning.get_joint_name(
+                self.robot, joint
+            ).decode()
+            getattr(self.robot_model, joint_name).joint_angle(joint_angle)
 
     def world_to_base(self, a_to_world):
         if self.pose is None:
@@ -49,6 +57,14 @@ class PandaRobotInterface:
             world_to_base = pybullet_planning.invert(base_to_world)
             a_to_base = pybullet_planning.invert(world_to_base, a_to_world)
         return a_to_base
+
+    def base_to_world(self, a_to_base):
+        if self.pose is None:
+            a_to_world = a_to_base
+        else:
+            base_to_world = self.pose
+            a_to_world = pybullet_planning.multiply(base_to_world, a_to_base)
+        return a_to_world
 
     def setj(self, joint_positions):
         for joint, joint_position in zip(self.joints, joint_positions):
@@ -83,17 +99,26 @@ class PandaRobotInterface:
             )
             yield i
 
-    def solve_ik(self, pose, **kwargs):
+    def solve_ik(self, pose, move_target=None, **kwargs):
+        if move_target is None:
+            move_target = self.robot_model.tipLink
+
+        self.update_robot_model()
         c = geometry.Coordinate(*self.world_to_base(pose))
-        joint_positions = self.get_skrobot().inverse_kinematics(
+        res = self.robot_model.inverse_kinematics(
             c.skrobot_coords,
-            move_target=self.robot_model.tipLink,
+            move_target=move_target,
             **kwargs,
         )
-        if joint_positions is False:
+        if res is False:
             return
-        assert len(joint_positions) == len(self.joints)
-        return joint_positions
+        j = []
+        for joint in self.joints:
+            joint_name = pybullet_planning.get_joint_name(
+                self.robot, joint
+            ).decode()
+            j.append(getattr(self.robot_model, joint_name).joint_angle())
+        return j
 
     # def _solve_ik_pybullet(self, pose):
     #     n_joints = p.getNumJoints(self.robot)
@@ -129,8 +154,7 @@ class PandaRobotInterface:
     def get_skrobot(self, attachments=None):
         attachments = attachments or []
 
-        currj = self.getj()
-        self.robot_model.angle_vector(currj)
+        self.update_robot_model()
 
         link_list = self.robot_model.link_list.copy()
         joint_list = self.robot_model.joint_list.copy()
@@ -192,3 +216,75 @@ class PandaRobotInterface:
 
     def ungrasp(self):
         self.gripper.release()
+
+    def add_link(self, name, pose, parent=None):
+        if parent is None:
+            parent = self.ee
+        parent_name = pybullet_planning.get_link_name(self.robot, parent)
+
+        link_list = self.robot_model.link_list.copy()
+        joint_list = self.robot_model.joint_list.copy()
+        parent_link = getattr(self.robot_model, parent_name)
+        link = skrobot.model.Link(
+            parent=parent_link,
+            pos=pose[0],
+            rot=geometry.quaternion_matrix(pose[1])[:3, :3],
+            name=name,
+        )
+        joint = skrobot.model.FixedJoint(
+            child_link=link,
+            parent_link=parent_link,
+            name=f"{parent_name}_to_{name}_joint",
+        )
+        link_list.append(link)
+        joint_list.append(joint)
+        self.robot_model = skrobot.model.RobotModel(
+            link_list=link_list,
+            joint_list=joint_list,
+            root_link=self.robot_model.root_link,
+        )
+
+    def get_pose(self, name):
+        self.update_robot_model()
+        T_a_to_base = getattr(self.robot_model, name).worldcoords().T()
+        a_to_base = geometry.Coordinate.from_matrix(T_a_to_base).pose
+        a_to_world = self.base_to_world(a_to_base)
+        return a_to_world
+
+    def add_camera(
+        self,
+        pose,
+        fovy=np.deg2rad(42),
+        height=480,
+        width=640,
+        parent=None,
+    ):
+        if parent is None:
+            parent = self.ee
+        self.add_link("camera_link", pose=pose, parent=parent)
+
+        pybullet_planning.draw_pose(
+            pose, parent=self.robot, parent_link=parent
+        )
+        utils.draw_camera(
+            fovy=fovy,
+            height=height,
+            width=width,
+            pose=pose,
+            parent=self.robot,
+            parent_link=parent,
+        )
+
+        self.camera = dict(fovy=fovy, height=height, width=width)
+
+    def get_camera_image(self):
+        if not hasattr(self.robot_model, "camera_link"):
+            raise ValueError
+
+        self.update_robot_model()
+        return utils.get_camera_image(
+            T_cam2world=self.robot_model.camera_link.worldcoords().T(),
+            fovy=self.camera["fovy"],
+            height=self.camera["height"],
+            width=self.camera["width"],
+        )
