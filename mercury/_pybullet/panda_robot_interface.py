@@ -43,7 +43,7 @@ class PandaRobotInterface:
         joints = [p.getJointInfo(self.robot, i) for i in range(n_joints)]
         self.joints = [j[0] for j in joints if j[2] == p.JOINT_REVOLUTE]
 
-        self.homej = [0, -np.pi / 4, 0, -np.pi / 2, 0, np.pi / 4, 0]
+        self.homej = [0, -np.pi / 4, 0, -np.pi / 2, 0, np.pi / 4, np.pi / 4]
         for joint, joint_angle in zip(self.joints, self.homej):
             p.resetJointState(self.robot, joint, joint_angle)
         self.update_robot_model()

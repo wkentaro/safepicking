@@ -58,15 +58,9 @@ def main():
             )
             object_ids.append(object_id)
 
-    if args.pause:
-        print("Please press 'n' to start")
-        while True:
-            if ord("n") in p.getKeyboardEvents():
-                break
-
     c_cam_to_ee = mercury.geometry.Coordinate()
-    c_cam_to_ee.translate([0.05, 0, -0.1])
-    c_cam_to_ee.rotate([0, 0, np.deg2rad(90)])
+    c_cam_to_ee.rotate([0, 0, np.deg2rad(45)])
+    c_cam_to_ee.translate([0.0, -0.05, -0.1])
 
     ri.add_camera(
         pose=c_cam_to_ee.pose,
@@ -74,6 +68,12 @@ def main():
         height=480,
         width=640,
     )
+
+    if args.pause:
+        print("Please press 'n' to start")
+        while True:
+            if ord("n") in p.getKeyboardEvents():
+                break
 
     c = mercury.geometry.Coordinate(*ri.get_pose("camera_link"))
     c.position = [0.4, -0.4, 0.7]

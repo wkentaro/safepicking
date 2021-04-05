@@ -67,8 +67,8 @@ def main():
             object_ids.append(object_id)
 
     c_cam_to_ee = mercury.geometry.Coordinate()
-    c_cam_to_ee.translate([0.05, 0, -0.1])
-    c_cam_to_ee.rotate([0, 0, np.deg2rad(90)])
+    c_cam_to_ee.rotate([0, 0, np.deg2rad(45)])
+    c_cam_to_ee.translate([0.0, -0.05, -0.1])
 
     fovy = np.deg2rad(42)
     height = 480
