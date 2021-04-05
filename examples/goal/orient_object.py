@@ -82,14 +82,14 @@ def main():
         *mercury.pybullet.get_pose(ri.robot, ri.ee)
     )
     c.position = obj_to_world[0]
-    c.position[2] = 0.3
+    c.position[2] = pybullet_planning.get_aabb(obj)[1][2] + 0.1
     traj = ri.planj(ri.solve_ik(c.pose, rotation_axis="z"), obstacles=[plane])
     for j in traj:
         for _ in ri.movej(j):
             p.stepSimulation()
             time.sleep(1 / 240)
 
-    for _ in ri.grasp():
+    for _ in ri.grasp(dz=0.11):
         p.stepSimulation()
         time.sleep(1 / 240)
 
@@ -165,14 +165,14 @@ def main():
         *mercury.pybullet.get_pose(ri.robot, ri.ee)
     )
     c.position = obj_to_world[0]
-    c.position[2] = 0.3
+    c.position[2] = pybullet_planning.get_aabb(obj)[1][2] + 0.1
 
     # pre-grasp-pose
     for _ in ri.movej(ri.solve_ik(c.pose)):
         p.stepSimulation()
         time.sleep(1 / 240)
 
-    for _ in ri.grasp():
+    for _ in ri.grasp(dz=0.11):
         p.stepSimulation()
         time.sleep(1 / 240)
 

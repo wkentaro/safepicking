@@ -64,7 +64,7 @@ def main():
                 p.stepSimulation()
                 time.sleep(1 / 240)
 
-        for _ in ri.grasp():
+        for _ in ri.grasp(dz=0.1):
             p.stepSimulation()
             time.sleep(1 / 240)
 

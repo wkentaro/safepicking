@@ -94,7 +94,7 @@ def main():
             p.stepSimulation()
             time.sleep(1 / 240)
 
-        for i in ri.grasp():
+        for i in ri.grasp(dz=None):
             p.stepSimulation()
             time.sleep(1 / 240)
             if i > 5 * 240:  # 5s

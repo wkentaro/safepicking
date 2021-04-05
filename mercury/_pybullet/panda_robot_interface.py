@@ -191,17 +191,27 @@ class PandaRobotInterface:
                 )
         return path
 
-    def grasp(self):
+    def grasp(self, dz):
+        if dz is None:
+            print("Warning: cheating to stop ee motion by detecting contact")
         c = geometry.Coordinate(
             *pybullet_planning.get_link_pose(self.robot, self.ee)
         )
+        dz_done = 0
         while not self.gripper.detect_contact():
             c.translate([0, 0, 0.001])
+            dz_done += 0.001
             j = self.solve_ik(c.pose, rotation_axis="z")
             if j is None:
-                return
+                raise RuntimeError("IK failed")
             yield from self.movej(j)
+            if dz is not None and dz_done >= dz:
+                break
         self.gripper.activate()
+        if dz is not None:
+            c.translate([0, 0, dz - dz_done])
+            j = self.solve_ik(c.pose, rotation_axis="z")
+            yield from self.movej(j)
 
     def ungrasp(self):
         self.gripper.release()
