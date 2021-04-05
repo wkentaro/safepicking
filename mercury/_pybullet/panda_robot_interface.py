@@ -191,7 +191,7 @@ class PandaRobotInterface:
                 )
         return path
 
-    def grasp(self, dz):
+    def grasp(self, dz, **kwargs):
         if dz is None:
             print("Warning: cheating to stop ee motion by detecting contact")
         c = geometry.Coordinate(
@@ -204,7 +204,7 @@ class PandaRobotInterface:
             j = self.solve_ik(c.pose, rotation_axis="z")
             if j is None:
                 raise RuntimeError("IK failed")
-            yield from self.movej(j)
+            yield from self.movej(j, **kwargs)
             if dz is not None and dz_done >= dz:
                 break
         self.gripper.activate()
