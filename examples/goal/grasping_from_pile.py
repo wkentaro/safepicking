@@ -16,6 +16,9 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--pause", action="store_true", help="pause")
+    parser.add_argument(
+        "--enable-visual", action="store_true", help="enable visual"
+    )
     args = parser.parse_args()
 
     pybullet_planning.connect()
@@ -30,7 +33,7 @@ def main():
     )
 
     with pybullet_planning.LockRenderer():
-        p.loadURDF("plane.urdf")
+        plane = p.loadURDF("plane.urdf")
 
         ri = mercury.pybullet.PandaRobotInterface()
 
@@ -47,10 +50,15 @@ def main():
 
             visual_file = mercury.datasets.ycb.get_visual_file(class_id)
             collision_file = mercury.pybullet.get_collision_file(visual_file)
+            if args.enable_visual:
+                visual_file = visual_file
+                rgba_color = None
+            else:
+                visual_file = collision_file
+                rgba_color = imgviz.label_colormap()[class_id] / 255
             object_id = mercury.pybullet.create_mesh_body(
-                # visual_file=visual_file,
-                visual_file=collision_file,
-                rgba_color=imgviz.label_colormap()[class_id] / 255,
+                visual_file=visual_file,
+                rgba_color=rgba_color,
                 collision_file=collision_file,
                 mass=0.1,
                 position=coord.position,
@@ -58,45 +66,74 @@ def main():
             )
             object_ids.append(object_id)
 
+    c_cam_to_ee = mercury.geometry.Coordinate()
+    c_cam_to_ee.translate([0.05, 0, -0.1])
+    c_cam_to_ee.rotate([0, 0, np.deg2rad(90)])
+
+    fovy = np.deg2rad(42)
+    height = 480
+    width = 640
+    ri.add_camera(
+        pose=c_cam_to_ee.pose,
+        fovy=fovy,
+        height=height,
+        width=width,
+    )
+
+    class StepSimulation:
+        def __init__(self):
+            self.i = 0
+
+        def __call__(self):
+            p.stepSimulation()
+            if self.i % 8 == 0:
+                rgb, depth, _ = ri.get_camera_image()
+                depth[(depth < 0.3) | (depth > 2)] = np.nan
+                tiled = imgviz.tile(
+                    [
+                        rgb,
+                        imgviz.depth2rgb(depth, min_value=0.3, max_value=0.6),
+                    ],
+                    border=(255, 255, 255),
+                )
+                imgviz.io.cv_imshow(tiled)
+                imgviz.io.cv_waitkey(1)
+            time.sleep(1 / 240)
+            self.i += 1
+
+    step_simulation = StepSimulation()
+    step_simulation()
+
     if args.pause:
         print("Please press 'n' to start")
         while True:
             if ord("n") in p.getKeyboardEvents():
                 break
 
-    c_camera_to_world = mercury.geometry.Coordinate()
-    c_camera_to_world.rotate([0, 0, np.deg2rad(-90)])
-    c_camera_to_world.rotate([np.deg2rad(-180), 0, 0])
-    c_camera_to_world.translate([0.5, -0.5, 0.7], wrt="world")
-
-    fovy = np.deg2rad(60)
-    height = 480
-    width = 640
-    pybullet_planning.draw_pose(c_camera_to_world.pose)
-    mercury.pybullet.draw_camera(fovy, width, height, c_camera_to_world.pose)
-
     while True:
-        rgb, depth, segm = mercury.pybullet.get_camera_image(
-            c_camera_to_world.matrix, fovy=fovy, height=height, width=width
-        )
+        c = mercury.geometry.Coordinate(*ri.get_pose("camera_link"))
+        c.position = [0.4, -0.4, 0.7]
+        j = ri.solve_ik(c.pose, move_target=ri.robot_model.camera_link)
+        for _ in ri.movej(j):
+            step_simulation()
+
+        rgb, depth, segm = ri.get_camera_image()
         K = mercury.geometry.opengl_intrinsic_matrix(fovy, height, width)
 
-        mask = ~np.isnan(depth) & (segm != 0)
-
-        if 0:
-            imgviz.io.cv_imshow(imgviz.tile([rgb, np.uint8(mask) * 255]))
-            imgviz.io.cv_waitkey(10)
+        mask = ~np.isnan(depth) & ~np.isin(segm, [0, 1])
 
         pcd_in_camera = mercury.geometry.pointcloud_from_depth(
             depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
         )
 
-        T_camera_to_world = c_camera_to_world.matrix
-        ee_to_world = mercury.pybullet.get_pose(ri.robot, ri.ee)
-        T_ee_to_world = mercury.geometry.transformation_matrix(*ee_to_world)
-        T_camera_to_ee = np.linalg.inv(T_ee_to_world) @ T_camera_to_world
+        camera_to_world = ri.get_pose("camera_link")
+        ee_to_world = ri.get_pose("tipLink")
+        camera_to_ee = pybullet_planning.multiply(
+            pybullet_planning.invert(ee_to_world), camera_to_world
+        )
         pcd_in_ee = mercury.geometry.transform_points(
-            pcd_in_camera, T_camera_to_ee
+            pcd_in_camera,
+            mercury.geometry.transformation_matrix(*camera_to_ee),
         )
 
         normals = mercury.geometry.normals_from_pointcloud(pcd_in_ee)
@@ -135,23 +172,24 @@ def main():
             j = ri.solve_ik(c.pose, rotation_axis="z")
             if j is None:
                 continue
+
+            path = ri.planj(j, obstacles=[plane] + object_ids)
+            if path is None:
+                continue
+
             break
+        for _ in (_ for j in path for _ in ri.movej(j)):
+            step_simulation()
 
-        for _ in ri.movej(j):
-            p.stepSimulation()
-            time.sleep(1 / 240)
-
-        for i in ri.grasp(dz=0.1):
-            p.stepSimulation()
-            time.sleep(1 / 240)
+        for i in ri.grasp(dz=0.11, speed=0.005):
+            step_simulation()
             if i > 5 * 240:
                 print("Warning: grasping is timeout")
                 break
         mercury.pybullet.step_and_sleep(1)
 
         for _ in ri.movej(ri.homej):
-            p.stepSimulation()
-            time.sleep(1 / 240)
+            step_simulation()
         mercury.pybullet.step_and_sleep(1)
 
         if ri.gripper.check_grasp():
@@ -161,8 +199,7 @@ def main():
         mercury.pybullet.step_and_sleep(1)
 
     while True:
-        p.stepSimulation()
-        time.sleep(1 / 240)
+        step_simulation()
 
 
 if __name__ == "__main__":
