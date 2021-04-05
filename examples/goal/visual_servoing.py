@@ -287,9 +287,9 @@ def main():
             c.skrobot_coords,
             move_target=robot_model.attachment_link0,
         )[:-1]
-        for i, _ in enumerate(ri.movej(j)):
+        for i in ri.movej(j):
             step_simulation()
-            if i % 24 == 0:
+            if i % 8 == 0:
                 visual_feedback()
 
         # place
@@ -328,14 +328,14 @@ def main():
                     f"==> Path planning failed. Retrying with {max_distance}"
                 )
                 continue
-            for i, j in enumerate(path):
-                for _ in ri.movej(j):
-                    step_simulation()
-                if i == 2 and visual_feedback(update=args.update):
-                    step_simulation.obj_to_ee = visual_feedback.obj_to_ee
-                    print("==> Doing re-planning")
-                    break
-                else:
+            for i, _ in enumerate((_ for j in path for _ in ri.movej(j))):
+                step_simulation()
+                if i == 16:
+                    if visual_feedback(update=args.update):
+                        step_simulation.obj_to_ee = visual_feedback.obj_to_ee
+                        print("==> Doing re-planning")
+                        break
+                elif i % 8 == 0:
                     visual_feedback()
             else:
                 print("==> Reached to the goal")
