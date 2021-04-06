@@ -102,6 +102,7 @@ def is_colliding(id1, ids2=None):
         points = pybullet.getClosestPoints(id1, id2, distance=0)
         if points:
             is_colliding = True
+            break
     return is_colliding
 
 
