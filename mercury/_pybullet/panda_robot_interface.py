@@ -191,9 +191,9 @@ class PandaRobotInterface:
                 )
         return path
 
-    def grasp(self, dz, **kwargs):
-        if dz is None:
-            print("Warning: cheating to stop ee motion by detecting contact")
+    def grasp(self, dz=None, **kwargs):
+        # NOTE: with dz=None, we assume grasp is detectable
+        # using pressure sensor in the real world.
         c = geometry.Coordinate(
             *pybullet_planning.get_link_pose(self.robot, self.ee)
         )
