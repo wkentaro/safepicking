@@ -19,6 +19,9 @@ def main():
     parser.add_argument(
         "--enable-visual", action="store_true", help="enable visual"
     )
+    parser.add_argument(
+        "--camera-config", type=int, default=0, help="camera config"
+    )
     args = parser.parse_args()
 
     pybullet_planning.connect()
@@ -68,7 +71,17 @@ def main():
 
     c_cam_to_ee = mercury.geometry.Coordinate()
     c_cam_to_ee.rotate([0, 0, np.deg2rad(45)])
-    c_cam_to_ee.translate([0.0, -0.05, -0.1])
+
+    if args.camera_config == 0:
+        c_cam_to_ee.translate([0, -0.05, -0.1])
+    elif args.camera_config == 1:
+        c_cam_to_ee.rotate([np.deg2rad(-15), 0, 0])
+        c_cam_to_ee.translate([0, -0.08, -0.2])
+    elif args.camera_config == 2:
+        c_cam_to_ee.rotate([np.deg2rad(-15), 0, 0])
+        c_cam_to_ee.translate([0, -0.08, -0.35])
+    else:
+        raise ValueError
 
     fovy = np.deg2rad(42)
     height = 480
@@ -113,6 +126,9 @@ def main():
     while True:
         c = mercury.geometry.Coordinate(*ri.get_pose("camera_link"))
         c.position = [0.4, -0.4, 0.7]
+        c.quaternion = mercury.geometry.quaternion_from_euler(
+            [np.pi, 0, np.pi / 2]
+        )
         j = ri.solve_ik(c.pose, move_target=ri.robot_model.camera_link)
         for _ in ri.movej(j):
             step_simulation()
@@ -181,7 +197,7 @@ def main():
         for _ in (_ for j in path for _ in ri.movej(j)):
             step_simulation()
 
-        for i in ri.grasp(dz=0.11, speed=0.005):
+        for i in ri.grasp(dz=None, speed=0.005):
             step_simulation()
             if i > 5 * 240:
                 print("Warning: grasping is timeout")
