@@ -84,11 +84,15 @@ class Coordinate:
 
     @property
     def matrix(self):
-        return tf.transformation_matrix(self._position, self._quaternion)
+        matrix = tf.transformation_matrix(self._position, self._quaternion)
+        matrix.setflags(write=0)
+        return matrix
 
     @property
     def euler(self):
-        return tf.euler_from_quaternion(self._quaternion)
+        euler = tf.euler_from_quaternion(self._quaternion)
+        euler.setflags(write=0)
+        return euler
 
     @property
     def pose(self):
