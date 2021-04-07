@@ -294,3 +294,10 @@ class PandaRobotInterface:
             height=self.camera["height"],
             width=self.camera["width"],
         )
+
+    def get_opengl_intrinsic_matrix(self):
+        return geometry.opengl_intrinsic_matrix(
+            fovy=self.camera["fovy"],
+            height=self.camera["height"],
+            width=self.camera["width"],
+        )
