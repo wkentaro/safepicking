@@ -103,6 +103,32 @@ class SuctionGripper:
                 )
                 p.changeConstraint(self.contact_constraint, maxForce=10)
 
+    def step_simulation(self):
+        # this function must be called after p.stepSimulation()
+        if self.grasped_object is not None:
+            points = p.getClosestPoints(
+                bodyA=self.grasped_object,
+                linkIndexA=-1,
+                bodyB=self.body,
+                linkIndexB=self.link,
+                distance=0.01,
+            )
+            if not points:
+                # surface is apart more than 1cm
+                print("Warning: dropping grasped object as surfaces are apart")
+                self.release()
+
+        # FIXME: force on contraint is noisy
+        # if self.contact_constraint is None:
+        #     return
+        # force = p.getConstraintState(self.contact_constraint)
+        # if force[2] <= -20:
+        #     print(
+        #         "Warning: dropping grasped object as force_z <= -20N:",
+        #         force[2],
+        #     )
+        #     self.release()
+
     def release(self):
         if not self.activated:
             return

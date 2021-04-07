@@ -48,6 +48,9 @@ class PandaRobotInterface:
             p.resetJointState(self.robot, joint, joint_angle)
         self.update_robot_model()
 
+    def step_simulation(self):
+        self.gripper.step_simulation()
+
     def update_robot_model(self):
         for joint, joint_angle in zip(self.joints, self.getj()):
             joint_name = pybullet_planning.get_joint_name(

@@ -22,6 +22,7 @@ def main():
     parser.add_argument(
         "--camera-config", type=int, default=0, help="camera config"
     )
+    parser.add_argument("--imshow", action="store_true", help="imshow")
     args = parser.parse_args()
 
     pybullet_planning.connect()
@@ -63,7 +64,7 @@ def main():
                 visual_file=visual_file,
                 rgba_color=rgba_color,
                 collision_file=collision_file,
-                mass=0.1,
+                mass=mercury.datasets.ycb.masses[class_id],
                 position=coord.position,
                 quaternion=coord.quaternion,
             )
@@ -84,8 +85,8 @@ def main():
         raise ValueError
 
     fovy = np.deg2rad(42)
-    height = 480
-    width = 640
+    height = 240
+    width = 320
     ri.add_camera(
         pose=c_cam_to_ee.pose,
         fovy=fovy,
@@ -99,7 +100,8 @@ def main():
 
         def __call__(self):
             p.stepSimulation()
-            if self.i % 8 == 0:
+            ri.step_simulation()
+            if args.imshow and self.i % 8 == 0:
                 rgb, depth, _ = ri.get_camera_image()
                 depth[(depth < 0.3) | (depth > 2)] = np.nan
                 tiled = imgviz.tile(
@@ -204,7 +206,35 @@ def main():
                 break
         mercury.pybullet.step_and_sleep(1)
 
-        for _ in ri.movej(ri.homej):
+        obstacles = [plane] + object_ids
+        if ri.gripper.grasped_object:
+            obstacles.remove(ri.gripper.grasped_object)
+            obj_to_world = pybullet_planning.get_pose(
+                ri.gripper.grasped_object
+            )
+            ee_to_world = ri.get_pose("tipLink")
+            obj_to_ee = pybullet_planning.multiply(
+                pybullet_planning.invert(ee_to_world), obj_to_world
+            )
+            attachments = [
+                pybullet_planning.Attachment(
+                    ri.robot, ri.ee, obj_to_ee, ri.gripper.grasped_object
+                )
+            ]
+        else:
+            attachments = None
+        path = None
+        max_distance = 0
+        while path is None:
+            path = ri.planj(
+                ri.homej,
+                obstacles=obstacles,
+                attachments=attachments,
+                max_distance=max_distance,
+            )
+            max_distance -= 0.01
+        speed = 0.005 if ri.gripper.check_grasp() else 0.01
+        for _ in (_ for j in path for _ in ri.movej(j, speed=speed)):
             step_simulation()
         mercury.pybullet.step_and_sleep(1)
 

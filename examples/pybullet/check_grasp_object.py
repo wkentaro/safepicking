@@ -26,7 +26,7 @@ def main():
 
     ri = mercury.pybullet.PandaRobotInterface()
 
-    class_id = 3
+    class_id = 16
     visual_file = mercury.datasets.ycb.get_visual_file(class_id=class_id)
     collision_file = mercury.pybullet.get_collision_file(visual_file)
     with pybullet_planning.LockRenderer():
@@ -35,7 +35,7 @@ def main():
             collision_file=collision_file,
             position=(0, 0, 0),
             quaternion=(0, 0, 0, 1),
-            mass=0.1,
+            mass=mercury.datasets.ycb.masses[class_id],
             rgba_color=imgviz.label_colormap()[class_id] / 255,
         )
     aabb_min, _ = mercury.pybullet.get_aabb(obj)
@@ -62,26 +62,32 @@ def main():
         for j in path:
             for _ in ri.movej(j):
                 p.stepSimulation()
+                ri.step_simulation()
                 time.sleep(1 / 240)
 
         for _ in ri.grasp(dz=0.1):
             p.stepSimulation()
+            ri.step_simulation()
             time.sleep(1 / 240)
 
         c = mercury.geometry.Coordinate(
             *mercury.pybullet.get_pose(ri.robot, ri.ee)
         )
 
+        speed = np.random.choice([0.01, 0.002])
+
         ri.planj(ri.homej)
         for j in path:
-            for _ in ri.movej(j):
+            for _ in ri.movej(j, speed=speed):
                 p.stepSimulation()
+                ri.step_simulation()
                 time.sleep(1 / 240)
 
         path = ri.planj(ri.solve_ik(c.pose))
         for j in path:
-            for _ in ri.movej(j):
+            for _ in ri.movej(j, speed=speed):
                 p.stepSimulation()
+                ri.step_simulation()
                 time.sleep(1 / 240)
 
         # mercury.pybullet.step_and_sleep(0.5)
@@ -92,6 +98,7 @@ def main():
         for j in path:
             for _ in ri.movej(j):
                 p.stepSimulation()
+                ri.step_simulation()
                 time.sleep(1 / 240)
 
 
