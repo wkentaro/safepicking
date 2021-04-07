@@ -8,8 +8,6 @@ import pybullet_planning
 
 import mercury
 
-from create_bin import create_bin
-
 
 def get_place_pose(object_id, class_id, bin_aabb_min, bin_aabb_max):
     position_org, quaternion_org = p.getBasePositionAndOrientation(object_id)
@@ -92,7 +90,7 @@ def main():
             )
             object_ids.append(object_id)
 
-        bin_id = create_bin(0.4, 0.35, 0.2)
+        bin_id = mercury.pybullet.create_bin(0.4, 0.35, 0.2)
         p.resetBasePositionAndOrientation(
             bin_id, posObj=[0.5, 0.5, 0.1], ornObj=[0, 0, 0, 1]
         )

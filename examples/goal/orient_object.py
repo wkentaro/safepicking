@@ -11,7 +11,6 @@ import pybullet_planning
 import mercury
 
 from bin_packing_no_act import get_place_pose
-from create_bin import create_bin
 
 
 def main():
@@ -39,7 +38,7 @@ def main():
     with pybullet_planning.LockRenderer():
         plane = p.loadURDF("plane.urdf")
 
-        bin = create_bin(0.4, 0.4, 0.2)
+        bin = mercury.pybullet.create_bin(0.4, 0.4, 0.2)
         p.resetBasePositionAndOrientation(bin, [0.5, 0.5, 0.11], [0, 0, 0, 1])
         bin_aabb = np.array(mercury.pybullet.get_aabb(bin))
         bin_aabb[0] += 0.01

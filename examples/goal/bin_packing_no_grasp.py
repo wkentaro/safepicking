@@ -10,7 +10,6 @@ import pybullet_planning
 import mercury
 
 from bin_packing_no_act import get_place_pose
-from create_bin import create_bin
 
 
 def get_pre_place_joint_positions(
@@ -129,7 +128,7 @@ def main():
 
     with pybullet_planning.LockRenderer():
         plane = p.loadURDF("plane.urdf")
-        bin = create_bin(0.4, 0.38, 0.2)
+        bin = mercury.pybullet.create_bin(0.4, 0.38, 0.2)
         bin_to_world = ([0.4, 0.4, 0.11], [0, 0, 0, 1])
         pybullet_planning.set_pose(bin, bin_to_world)
         bin_aabb = np.array(p.getAABB(bin))
@@ -137,7 +136,7 @@ def main():
         bin_aabb[1] -= 0.01
 
     with pybullet_planning.LockRenderer():
-        bin2 = create_bin(0.4, 0.38, 0.2)
+        bin2 = mercury.pybullet.create_bin(0.4, 0.38, 0.2)
         pybullet_planning.set_pose(bin2, real_to_virtual(bin_to_world))
 
     if args.pause:
