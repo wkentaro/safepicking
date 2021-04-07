@@ -204,7 +204,10 @@ class PandaRobotInterface:
             j = self.solve_ik(c.pose, rotation_axis="z")
             if j is None:
                 raise RuntimeError("IK failed")
-            yield from self.movej(j, **kwargs)
+            for i in self.movej(j, **kwargs):
+                yield i
+                if self.gripper.detect_contact():
+                    break
             if dz is not None and dz_done >= dz:
                 break
         self.gripper.activate()
