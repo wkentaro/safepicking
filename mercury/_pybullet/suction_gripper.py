@@ -6,9 +6,10 @@ from .. import geometry
 
 
 class SuctionGripper:
-    def __init__(self, body, link):
+    def __init__(self, body, link, max_force=10):
         self.body = body
         self.link = link
+        self.max_force = max_force
 
         self.activated = False
         self.contact_constraint = None
@@ -101,7 +102,10 @@ class SuctionGripper:
                     childFramePosition=(0, 0, 0),
                     childFrameOrientation=(0, 0, 0),
                 )
-                p.changeConstraint(self.contact_constraint, maxForce=10)
+                if self.max_force is not None:
+                    p.changeConstraint(
+                        self.contact_constraint, maxForce=self.max_force
+                    )
 
     def step_simulation(self):
         # this function must be called after p.stepSimulation()
@@ -117,17 +121,6 @@ class SuctionGripper:
                 # surface is apart more than 1cm
                 print("Warning: dropping grasped object as surfaces are apart")
                 self.release()
-
-        # FIXME: force on contraint is noisy
-        # if self.contact_constraint is None:
-        #     return
-        # force = p.getConstraintState(self.contact_constraint)
-        # if force[2] <= -20:
-        #     print(
-        #         "Warning: dropping grasped object as force_z <= -20N:",
-        #         force[2],
-        #     )
-        #     self.release()
 
     def release(self):
         if not self.activated:

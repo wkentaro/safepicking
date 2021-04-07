@@ -16,7 +16,7 @@ here = path.Path(__file__).abspath().parent
 
 
 class PandaRobotInterface:
-    def __init__(self, pose=None):
+    def __init__(self, pose=None, suction_max_force=10):
         self.pose = pose
 
         urdf_file = here / "assets/franka_panda/panda_suction.urdf"
@@ -28,7 +28,9 @@ class PandaRobotInterface:
         )
         self.ee = pybullet_planning.link_from_name(self.robot, "tipLink")
 
-        self.gripper = SuctionGripper(self.robot, self.ee)
+        self.gripper = SuctionGripper(
+            self.robot, self.ee, max_force=suction_max_force
+        )
 
         if self.pose is not None:
             self.robot_model.translate(pose[0])
