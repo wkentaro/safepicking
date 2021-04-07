@@ -91,13 +91,12 @@ def main():
     )
     c.position = obj_to_world[0]
     c.position[2] = pybullet_planning.get_aabb(obj)[1][2] + 0.1
-    traj = ri.planj(ri.solve_ik(c.pose, rotation_axis="z"), obstacles=[plane])
-    for j in traj:
-        for _ in ri.movej(j):
-            p.stepSimulation()
-            time.sleep(1 / 240)
+    path = ri.planj(ri.solve_ik(c.pose, rotation_axis="z"), obstacles=[plane])
+    for _ in (_ for j in path for _ in ri.movej(j)):
+        p.stepSimulation()
+        time.sleep(1 / 240)
 
-    for _ in ri.grasp(dz=0.11):
+    for _ in ri.grasp():
         p.stepSimulation()
         time.sleep(1 / 240)
 
@@ -132,19 +131,22 @@ def main():
         if joint_positions is False:
             continue
 
-        traj = ri.planj(
-            joint_positions[:-1],
-            obstacles=[plane, bin],
-            attachments=attachments,
-        )
-        if traj is None:
+        for max_distance in [0, -0.01, -0.02]:
+            path = ri.planj(
+                joint_positions[:-1],
+                obstacles=[plane, bin],
+                attachments=attachments,
+                max_distance=max_distance,
+            )
+            if path:
+                break
+        if path is None:
             continue
 
         break
-    for j in traj:
-        for _ in ri.movej(j):
-            p.stepSimulation()
-            time.sleep(1 / 240)
+    for _ in (_ for j in path for _ in ri.movej(j)):
+        p.stepSimulation()
+        time.sleep(1 / 240)
 
     mercury.pybullet.step_and_sleep(1)
 
@@ -163,11 +165,12 @@ def main():
     for _ in ri.movej(ri.solve_ik(c.pose, rotation_axis="z")):
         p.stepSimulation()
         time.sleep(1 / 240)
-    traj = ri.planj(ri.homej, obstacles=[plane, bin, obj])
-    for j in traj:
-        for _ in ri.movej(j):
-            p.stepSimulation()
-            time.sleep(1 / 240)
+    path = None
+    while path is None:
+        path = ri.planj(ri.homej, obstacles=[plane, bin, obj])
+    for _ in (_ for j in path for _ in ri.movej(j)):
+        p.stepSimulation()
+        time.sleep(1 / 240)
 
     c = mercury.geometry.Coordinate(
         *mercury.pybullet.get_pose(ri.robot, ri.ee)
@@ -180,7 +183,7 @@ def main():
         p.stepSimulation()
         time.sleep(1 / 240)
 
-    for _ in ri.grasp(dz=0.11):
+    for _ in ri.grasp(dz=None):
         p.stepSimulation()
         time.sleep(1 / 240)
 
@@ -196,14 +199,12 @@ def main():
     ]
 
     # reset-pose
-    traj = ri.planj(ri.homej, obstacles=[plane])
-    for j in traj:
-        for _ in ri.movej(j):
-            p.stepSimulation()
-            time.sleep(1 / 240)
+    path = ri.planj(ri.homej, obstacles=[plane])
+    for _ in (_ for j in path for _ in ri.movej(j)):
+        p.stepSimulation()
+        time.sleep(1 / 240)
 
     # place-pose
-    path = None
     place_pose = get_place_pose(obj, class_id, bin_aabb[0], bin_aabb[1])
     while True:
         robot_model = ri.get_skrobot(attachments)
@@ -214,15 +215,16 @@ def main():
         if j is False:
             continue
         path = ri.planj(
-            j[:-1], obstacles=[plane, bin], attachments=attachments
+            j[:-1],
+            obstacles=[plane, bin],
+            attachments=attachments,
         )
         if path is None:
             continue
         break
-    for j in path:
-        for _ in ri.movej(j):
-            p.stepSimulation()
-            time.sleep(1 / 240)
+    for _ in (_ for j in path for _ in ri.movej(j)):
+        p.stepSimulation()
+        time.sleep(1 / 240)
 
     mercury.pybullet.step_and_sleep(1)
 
@@ -232,11 +234,10 @@ def main():
     obj_to_world = pybullet_planning.multiply(ee_to_world, obj_to_ee)
     pybullet_planning.draw_pose(obj_to_world)
 
-    traj = ri.planj(ri.homej, obstacles=[plane, bin])
-    for j in traj:
-        for _ in ri.movej(j):
-            p.stepSimulation()
-            time.sleep(1 / 240)
+    path = ri.planj(ri.homej, obstacles=[plane, bin])
+    for _ in (_ for j in path for _ in ri.movej(j)):
+        p.stepSimulation()
+        time.sleep(1 / 240)
 
     mercury.pybullet.step_and_sleep()
 
