@@ -196,7 +196,7 @@ class PandaRobotInterface:
                 )
         return path
 
-    def grasp(self, dz=None, **kwargs):
+    def grasp(self, dz=None, max_dz=None, **kwargs):
         # NOTE: with dz=None, we assume grasp is detectable
         # using pressure sensor in the real world.
         c = geometry.Coordinate(
@@ -214,6 +214,8 @@ class PandaRobotInterface:
                 if self.gripper.detect_contact():
                     break
             if dz is not None and dz_done >= dz:
+                break
+            if max_dz is not None and dz_done >= max_dz:
                 break
         self.gripper.activate()
         if dz is not None:
@@ -367,7 +369,7 @@ class PandaRobotInterface:
         for _ in (_ for j in path for _ in self.movej(j)):
             yield
 
-        for _ in self.grasp(dz=None, speed=0.001):
+        for _ in self.grasp(dz=None, max_dz=0.11, speed=0.005):
             yield
 
         obstacles = [plane] + object_ids
@@ -397,6 +399,6 @@ class PandaRobotInterface:
                 max_distance=max_distance,
             )
             max_distance -= 0.01
-        speed = 0.001 if self.gripper.check_grasp() else 0.01
+        speed = 0.005 if self.gripper.check_grasp() else 0.01
         for _ in (_ for j in path for _ in self.movej(j, speed=speed)):
             yield
