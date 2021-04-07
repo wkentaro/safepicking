@@ -4,7 +4,7 @@
 
   <xacro:include filename="suction/suction-base.urdf" />
   <joint name="link8_to_baseLink" type="fixed">
-    <origin rpy="0 0 0" xyz="0 0 0"/>
+    <origin rpy="0 0 ${ 3.14 / 4}" xyz="0 0 0"/>
     <parent link="panda_link8"/>
     <child link="baseLink"/>
     <axis xyz="0 0 0"/>
