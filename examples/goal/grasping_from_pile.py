@@ -5,7 +5,6 @@ import time
 import imgviz
 import numpy as np
 import pybullet as p
-import pybullet_planning
 
 import mercury
 
@@ -70,114 +69,12 @@ def main():
         for _ in ri.movej(j):
             step_simulation()
 
-        rgb, depth, segm = ri.get_camera_image()
-        K = ri.get_opengl_intrinsic_matrix()
-
-        mask = ~np.isnan(depth) & ~np.isin(segm, [plane, ri.robot])
-
-        pcd_in_camera = mercury.geometry.pointcloud_from_depth(
-            depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
-        )
-
-        camera_to_world = ri.get_pose("camera_link")
-        ee_to_world = ri.get_pose("tipLink")
-        camera_to_ee = pybullet_planning.multiply(
-            pybullet_planning.invert(ee_to_world), camera_to_world
-        )
-        pcd_in_ee = mercury.geometry.transform_points(
-            pcd_in_camera,
-            mercury.geometry.transformation_matrix(*camera_to_ee),
-        )
-
-        normals = mercury.geometry.normals_from_pointcloud(pcd_in_ee)
-
-        mask = mask.reshape(-1)
-        pcd_in_ee = pcd_in_ee.reshape(-1, 3)
-        normals = normals.reshape(-1, 3)
-
-        indices = np.where(mask)[0]
-        np.random.shuffle(indices)
-
-        if indices.size == 0:
-            break
-
-        for index in indices:
-            position = pcd_in_ee[index]
-            quaternion = mercury.geometry.quaternion_from_vec2vec(
-                [0, 0, 1], normals[index]
-            )
-            T_ee_to_ee_af_in_ee = mercury.geometry.transformation_matrix(
-                position, quaternion
-            )
-
-            T_ee_to_world = mercury.geometry.transformation_matrix(
-                *mercury.pybullet.get_pose(ri.robot, ri.ee)
-            )
-            T_ee_to_ee = np.eye(4)
-            T_ee_af_to_ee = T_ee_to_ee_af_in_ee @ T_ee_to_ee
-            T_ee_af_to_world = T_ee_to_world @ T_ee_af_to_ee
-
-            c = mercury.geometry.Coordinate(
-                *mercury.geometry.pose_from_matrix(T_ee_af_to_world)
-            )
-            c.translate([0, 0, -0.1])
-
-            j = ri.solve_ik(c.pose, rotation_axis="z")
-            if j is None:
-                continue
-
-            path = ri.planj(j, obstacles=[plane] + object_ids)
-            if path is None:
-                continue
-
-            break
-        for _ in (_ for j in path for _ in ri.movej(j)):
+        for _ in ri.random_grasp(plane, object_ids):
             step_simulation()
 
-        for i in ri.grasp(dz=None, speed=0.005):
-            step_simulation()
-            if i > 5 * 240:
-                print("Warning: grasping is timeout")
-                break
-        mercury.pybullet.step_and_sleep(1)
-
-        obstacles = [plane] + object_ids
         if ri.gripper.grasped_object:
-            obstacles.remove(ri.gripper.grasped_object)
-            obj_to_world = pybullet_planning.get_pose(
-                ri.gripper.grasped_object
-            )
-            ee_to_world = ri.get_pose("tipLink")
-            obj_to_ee = pybullet_planning.multiply(
-                pybullet_planning.invert(ee_to_world), obj_to_world
-            )
-            attachments = [
-                pybullet_planning.Attachment(
-                    ri.robot, ri.ee, obj_to_ee, ri.gripper.grasped_object
-                )
-            ]
-        else:
-            attachments = None
-        path = None
-        max_distance = 0
-        while path is None:
-            path = ri.planj(
-                ri.homej,
-                obstacles=obstacles,
-                attachments=attachments,
-                max_distance=max_distance,
-            )
-            max_distance -= 0.01
-        speed = 0.005 if ri.gripper.check_grasp() else 0.01
-        for _ in (_ for j in path for _ in ri.movej(j, speed=speed)):
-            step_simulation()
-        mercury.pybullet.step_and_sleep(1)
-
-        if ri.gripper.check_grasp():
             p.removeBody(ri.gripper.grasped_object)
         ri.ungrasp()
-
-        mercury.pybullet.step_and_sleep(1)
 
     while True:
         step_simulation()

@@ -301,3 +301,102 @@ class PandaRobotInterface:
             height=self.camera["height"],
             width=self.camera["width"],
         )
+
+    def random_grasp(self, plane, object_ids):
+        # This should be called after moving camera to observe the scene.
+        _, depth, segm = self.get_camera_image()
+        K = self.get_opengl_intrinsic_matrix()
+
+        mask = ~np.isnan(depth) & np.isin(segm, object_ids)
+        if mask.sum() == 0:
+            return
+
+        pcd_in_camera = geometry.pointcloud_from_depth(
+            depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
+        )
+
+        camera_to_world = self.get_pose("camera_link")
+        ee_to_world = self.get_pose("tipLink")
+        camera_to_ee = pybullet_planning.multiply(
+            pybullet_planning.invert(ee_to_world), camera_to_world
+        )
+        pcd_in_ee = geometry.transform_points(
+            pcd_in_camera,
+            geometry.transformation_matrix(*camera_to_ee),
+        )
+
+        normals = geometry.normals_from_pointcloud(pcd_in_ee)
+
+        mask = mask.reshape(-1)
+        pcd_in_ee = pcd_in_ee.reshape(-1, 3)
+        normals = normals.reshape(-1, 3)
+
+        indices = np.where(mask)[0]
+        np.random.shuffle(indices)
+
+        for index in indices:
+            position = pcd_in_ee[index]
+            quaternion = geometry.quaternion_from_vec2vec(
+                [0, 0, 1], normals[index]
+            )
+            T_ee_to_ee_af_in_ee = geometry.transformation_matrix(
+                position, quaternion
+            )
+
+            T_ee_to_world = geometry.transformation_matrix(
+                *utils.get_pose(self.robot, self.ee)
+            )
+            T_ee_to_ee = np.eye(4)
+            T_ee_af_to_ee = T_ee_to_ee_af_in_ee @ T_ee_to_ee
+            T_ee_af_to_world = T_ee_to_world @ T_ee_af_to_ee
+
+            c = geometry.Coordinate(
+                *geometry.pose_from_matrix(T_ee_af_to_world)
+            )
+            c.translate([0, 0, -0.1])
+
+            j = self.solve_ik(c.pose, rotation_axis="z")
+            if j is None:
+                continue
+
+            path = self.planj(j, obstacles=[plane] + object_ids)
+            if path is None:
+                continue
+
+            break
+        for _ in (_ for j in path for _ in self.movej(j)):
+            yield
+
+        for _ in self.grasp(dz=None, speed=0.001):
+            yield
+
+        obstacles = [plane] + object_ids
+        if self.gripper.grasped_object:
+            obstacles.remove(self.gripper.grasped_object)
+            obj_to_world = pybullet_planning.get_pose(
+                self.gripper.grasped_object
+            )
+            ee_to_world = self.get_pose("tipLink")
+            obj_to_ee = pybullet_planning.multiply(
+                pybullet_planning.invert(ee_to_world), obj_to_world
+            )
+            attachments = [
+                pybullet_planning.Attachment(
+                    self.robot, self.ee, obj_to_ee, self.gripper.grasped_object
+                )
+            ]
+        else:
+            attachments = None
+        path = None
+        max_distance = 0
+        while path is None:
+            path = self.planj(
+                self.homej,
+                obstacles=obstacles,
+                attachments=attachments,
+                max_distance=max_distance,
+            )
+            max_distance -= 0.01
+        speed = 0.001 if self.gripper.check_grasp() else 0.01
+        for _ in (_ for j in path for _ in self.movej(j, speed=speed)):
+            yield
