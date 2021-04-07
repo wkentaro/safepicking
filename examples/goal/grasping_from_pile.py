@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import argparse
 import time
 
 import imgviz
@@ -10,87 +9,28 @@ import pybullet_planning
 
 import mercury
 
+import utils
+
 
 def main():
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    parser.add_argument("--pause", action="store_true", help="pause")
-    parser.add_argument(
-        "--enable-visual", action="store_true", help="enable visual"
-    )
-    parser.add_argument(
-        "--camera-config", type=int, default=0, help="camera config"
-    )
+    parser = utils.get_parser()
     parser.add_argument("--imshow", action="store_true", help="imshow")
     args = parser.parse_args()
 
-    pybullet_planning.connect()
-    pybullet_planning.add_data_path()
-    p.setGravity(0, 0, -9.8)
+    plane = utils.init_world()
 
-    p.resetDebugVisualizerCamera(
-        cameraDistance=1.5,
-        cameraYaw=90,
-        cameraPitch=-50,
-        cameraTargetPosition=(0, 0, 0),
+    ri = mercury.pybullet.PandaRobotInterface()
+    ri.add_camera(
+        pose=utils.get_camera_pose(args.camera_config),
+        height=240,
+        width=320,
     )
 
-    with pybullet_planning.LockRenderer():
-        plane = p.loadURDF("plane.urdf")
-
-        ri = mercury.pybullet.PandaRobotInterface()
-
-        data = np.load("assets/pile_001.npz")
-        object_ids = []
-        for class_id, position, quaternion in zip(
-            data["class_ids"], data["positions"], data["quaternions"]
-        ):
-            coord = mercury.geometry.Coordinate(
-                position=position,
-                quaternion=quaternion,
-            )
-            coord.translate([0.4, -0.4, 0], wrt="world")
-
-            visual_file = mercury.datasets.ycb.get_visual_file(class_id)
-            collision_file = mercury.pybullet.get_collision_file(visual_file)
-            if args.enable_visual:
-                visual_file = visual_file
-                rgba_color = None
-            else:
-                visual_file = collision_file
-                rgba_color = imgviz.label_colormap()[class_id] / 255
-            object_id = mercury.pybullet.create_mesh_body(
-                visual_file=visual_file,
-                rgba_color=rgba_color,
-                collision_file=collision_file,
-                mass=mercury.datasets.ycb.masses[class_id],
-                position=coord.position,
-                quaternion=coord.quaternion,
-            )
-            object_ids.append(object_id)
-
-    c_cam_to_ee = mercury.geometry.Coordinate()
-
-    if args.camera_config == 0:
-        c_cam_to_ee.translate([0, -0.05, -0.1])
-    elif args.camera_config == 1:
-        c_cam_to_ee.rotate([np.deg2rad(-15), 0, 0])
-        c_cam_to_ee.translate([0, -0.08, -0.2])
-    elif args.camera_config == 2:
-        c_cam_to_ee.rotate([np.deg2rad(-15), 0, 0])
-        c_cam_to_ee.translate([0, -0.08, -0.35])
-    else:
-        raise ValueError
-
-    fovy = np.deg2rad(42)
-    height = 240
-    width = 320
-    ri.add_camera(
-        pose=c_cam_to_ee.pose,
-        fovy=fovy,
-        height=height,
-        width=width,
+    object_ids = utils.load_pile(
+        base_pose=([0.4, -0.4, 0], [0, 0, 0, 1]),
+        npz_file="assets/pile_001.npz",
+        enable_visual=args.enable_visual,
+        mass=0.1,
     )
 
     class StepSimulation:
@@ -118,11 +58,7 @@ def main():
     step_simulation = StepSimulation()
     step_simulation()
 
-    if args.pause:
-        print("Please press 'n' to start")
-        while True:
-            if ord("n") in p.getKeyboardEvents():
-                break
+    utils.pause(args.pause)
 
     while True:
         c = mercury.geometry.Coordinate(*ri.get_pose("camera_link"))
@@ -135,9 +71,9 @@ def main():
             step_simulation()
 
         rgb, depth, segm = ri.get_camera_image()
-        K = mercury.geometry.opengl_intrinsic_matrix(fovy, height, width)
+        K = ri.get_opengl_intrinsic_matrix()
 
-        mask = ~np.isnan(depth) & ~np.isin(segm, [0, 1])
+        mask = ~np.isnan(depth) & ~np.isin(segm, [plane, ri.robot])
 
         pcd_in_camera = mercury.geometry.pointcloud_from_depth(
             depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
