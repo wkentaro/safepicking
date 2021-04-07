@@ -3,6 +3,7 @@
 import argparse
 import time
 
+import imgviz
 import numpy as np
 import pybullet as p
 import pybullet_planning
@@ -18,6 +19,9 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--pause", action="store_true", help="pause")
+    parser.add_argument(
+        "--enable-visual", action="store_true", help="enable visual"
+    )
     parser.add_argument("--class-id", type=int, default=3, help="class id")
     args = parser.parse_args()
 
@@ -50,10 +54,14 @@ def main():
         position = np.random.uniform(*spawn_space)
         quaternion = np.random.random((4,))
         quaternion /= np.linalg.norm(quaternion)
+        if args.enable_visual:
+            rgba_color = None
+        else:
+            visual_file = collision_file
+            rgba_color = imgviz.label_colormap()[class_id] / 255
         obj = mercury.pybullet.create_mesh_body(
-            # visual_file=collision_file,
-            # rgba_color=imgviz.label_colormap()[class_id] / 255,
             visual_file=visual_file,
+            rgba_color=rgba_color,
             collision_file=collision_file,
             position=position,
             quaternion=quaternion,
