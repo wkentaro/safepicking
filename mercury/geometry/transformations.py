@@ -1,5 +1,6 @@
 import numpy as np
 import trimesh.transformations as ttf
+from trimesh.transformations import angle_between_vectors  # NOQA
 from trimesh.transformations import transform_around  # NOQA
 from trimesh.transformations import translation_from_matrix  # NOQA
 from trimesh.transformations import translation_matrix  # NOQA

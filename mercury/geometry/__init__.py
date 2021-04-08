@@ -12,6 +12,7 @@ from .pointcloud_from_depth import pointcloud_from_depth
 
 from .quaternion_from_vec2vec import quaternion_from_vec2vec
 
+from .transformations import angle_between_vectors
 from .transformations import transform_around
 from .transformations import transform_points
 from .transformations import transformation_matrix
