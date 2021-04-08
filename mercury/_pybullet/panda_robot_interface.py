@@ -314,13 +314,14 @@ class PandaRobotInterface:
             width=self.camera["width"],
         )
 
-    def random_grasp(self, plane, object_ids):
+    def random_grasp(self, bg_object_ids, object_ids):
         # This should be called after moving camera to observe the scene.
         _, depth, segm = self.get_camera_image()
         K = self.get_opengl_intrinsic_matrix()
 
         mask = ~np.isnan(depth) & np.isin(segm, object_ids)
         if mask.sum() == 0:
+            print("Warning: mask is empty")
             return
 
         pcd_in_camera = geometry.pointcloud_from_depth(
@@ -339,6 +340,7 @@ class PandaRobotInterface:
 
         normals = geometry.normals_from_pointcloud(pcd_in_ee)
 
+        segm = segm.reshape(-1)
         mask = mask.reshape(-1)
         pcd_in_ee = pcd_in_ee.reshape(-1, 3)
         normals = normals.reshape(-1, 3)
@@ -347,6 +349,7 @@ class PandaRobotInterface:
         np.random.shuffle(indices)
 
         for index in indices:
+            object_id = segm[index]
             position = pcd_in_ee[index]
             quaternion = geometry.quaternion_from_vec2vec(
                 [0, 0, 1], normals[index]
@@ -367,11 +370,21 @@ class PandaRobotInterface:
             )
             c.translate([0, 0, -0.1])
 
+            vec = geometry.transform_points([[0, 0, 0], [0, 0, 1]], c.matrix)
+            if 0:
+                pybullet_planning.add_line(vec[0], vec[1], width=3)
+            v0 = [0, 0, -1]
+            v1 = vec[1] - vec[0]
+            v1 /= np.linalg.norm(v1)
+            angle = geometry.angle_between_vectors(v0, v1)
+            if angle > np.deg2rad(45):
+                continue
+
             j = self.solve_ik(c.pose, rotation_axis="z")
             if j is None:
                 continue
 
-            path = self.planj(j, obstacles=[plane] + object_ids)
+            path = self.planj(j, obstacles=bg_object_ids + object_ids)
             if path is None:
                 continue
 
@@ -379,36 +392,32 @@ class PandaRobotInterface:
         for _ in (_ for j in path for _ in self.movej(j)):
             yield
 
+        obj_to_world = pybullet_planning.get_pose(object_id)
+
         for _ in self.grasp(dz=None, max_dz=0.11, speed=0.005):
             yield
 
-        obstacles = [plane] + object_ids
-        if self.gripper.grasped_object:
-            obstacles.remove(self.gripper.grasped_object)
-            obj_to_world = pybullet_planning.get_pose(
-                self.gripper.grasped_object
+        obstacles = bg_object_ids + object_ids
+        obstacles.remove(object_id)
+        ee_to_world = self.get_pose("tipLink")
+        obj_to_ee = pybullet_planning.multiply(
+            pybullet_planning.invert(ee_to_world), obj_to_world
+        )
+        self.attachments = [
+            pybullet_planning.Attachment(
+                self.robot, self.ee, obj_to_ee, object_id
             )
-            ee_to_world = self.get_pose("tipLink")
-            obj_to_ee = pybullet_planning.multiply(
-                pybullet_planning.invert(ee_to_world), obj_to_world
-            )
-            attachments = [
-                pybullet_planning.Attachment(
-                    self.robot, self.ee, obj_to_ee, self.gripper.grasped_object
-                )
-            ]
-        else:
-            attachments = None
+        ]
+
         path = None
         max_distance = 0
         while path is None:
             path = self.planj(
                 self.homej,
                 obstacles=obstacles,
-                attachments=attachments,
+                attachments=self.attachments,
                 max_distance=max_distance,
             )
             max_distance -= 0.01
-        speed = 0.005 if self.gripper.check_grasp() else 0.01
-        for _ in (_ for j in path for _ in self.movej(j, speed=speed)):
+        for _ in (_ for j in path for _ in self.movej(j, speed=0.005)):
             yield
