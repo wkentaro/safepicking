@@ -392,6 +392,7 @@ class PandaRobotInterface:
         for _ in (_ for j in path for _ in self.movej(j)):
             yield
 
+        # XXX: getting ground truth object pose
         obj_to_world = pybullet_planning.get_pose(object_id)
 
         for _ in self.grasp(dz=None, max_dz=0.11, speed=0.005):

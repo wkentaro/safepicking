@@ -33,6 +33,8 @@ def main():
 
     utils.pause(args.pause)
 
+    np.random.seed(args.seed)
+
     while True:
         c = mercury.geometry.Coordinate(*ri.get_pose("camera_link"))
         c.position = [0.4, -0.4, 0.7]
@@ -43,7 +45,17 @@ def main():
         for _ in ri.movej(j):
             step_simulation()
 
+        i = 0
         for _ in ri.random_grasp([plane], object_ids):
+            step_simulation()
+            i += 1
+        if i == 0:
+            print("Completed the task")
+            break
+
+        utils.draw_grasped_object(ri)
+
+        for _ in range(240):
             step_simulation()
 
         # ---------------------------------------------------------------------

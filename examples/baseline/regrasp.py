@@ -30,16 +30,10 @@ def main():
         enable_visual=args.enable_visual,
         mass=0.1,
     )
-
     for obj in object_ids:
         pybullet_planning.draw_pose(
             ([0, 0, 0], [0, 0, 0, 1]), length=0.15, width=3, parent=obj
         )
-
-    step_simulation = utils.StepSimulation(ri=ri)
-    step_simulation()
-
-    utils.pause(args.pause)
 
     table = pybullet_planning.create_box(
         0.4, 0.4, 0.2, color=[150 / 255, 111 / 255, 51 / 255, 1]
@@ -52,7 +46,12 @@ def main():
     )
     pybullet_planning.draw_aabb(regrasp_aabb)
 
-    np.random.seed(2)
+    step_simulation = utils.StepSimulation(ri=ri)
+    step_simulation()
+
+    utils.pause(args.pause)
+
+    np.random.seed(args.seed)
 
     while True:
         c = mercury.geometry.Coordinate(*ri.get_pose("camera_link"))
@@ -64,12 +63,19 @@ def main():
         for _ in ri.movej(j):
             step_simulation()
 
+        i = 0
         for _ in ri.random_grasp([plane], object_ids):
             step_simulation()
+            i += 1
+        if i == 0:
+            print("Completed the task")
+            break
 
         if not ri.gripper.check_grasp():
             ri.ungrasp()
             continue
+
+        utils.draw_grasped_object(ri)
 
         done = False
         for i in itertools.count():
@@ -100,6 +106,8 @@ def main():
                 object_ids=object_ids,
                 step_simulation=step_simulation,
             )
+
+        utils.draw_grasped_object(ri)
 
         p.removeBody(ri.gripper.grasped_object)
         ri.ungrasp()
