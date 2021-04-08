@@ -46,7 +46,7 @@ def main():
     )
     pybullet_planning.draw_aabb(regrasp_aabb)
 
-    step_simulation = utils.StepSimulation(ri=ri)
+    step_simulation = utils.StepSimulation(ri=ri, imshow=args.imshow)
     step_simulation()
 
     utils.pause(args.pause)

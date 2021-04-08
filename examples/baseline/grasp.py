@@ -28,7 +28,7 @@ def main():
         mass=0.1,
     )
 
-    step_simulation = utils.StepSimulation(ri=ri)
+    step_simulation = utils.StepSimulation(ri=ri, imshow=args.imshow)
     step_simulation()
 
     utils.pause(args.pause)
