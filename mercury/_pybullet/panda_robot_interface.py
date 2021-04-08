@@ -170,7 +170,7 @@ class PandaRobotInterface:
         return skrobot.model.RobotModel(
             link_list=link_list,
             joint_list=joint_list,
-            root_link=self.robot_model.root_link,
+            # root_link=self.robot_model.root_link,
         )
 
     def planj(
@@ -250,7 +250,7 @@ class PandaRobotInterface:
         self.robot_model = skrobot.model.RobotModel(
             link_list=link_list,
             joint_list=joint_list,
-            root_link=self.robot_model.root_link,
+            # root_link=self.robot_model.root_link,
         )
 
     def get_pose(self, name):
