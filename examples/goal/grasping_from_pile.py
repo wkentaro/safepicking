@@ -1,8 +1,5 @@
 #!/usr/bin/env python
 
-import time
-
-import imgviz
 import numpy as np
 import pybullet as p
 
@@ -13,7 +10,6 @@ import utils
 
 def main():
     parser = utils.get_parser()
-    parser.add_argument("--imshow", action="store_true", help="imshow")
     args = parser.parse_args()
 
     plane = utils.init_world()
@@ -32,29 +28,7 @@ def main():
         mass=0.1,
     )
 
-    class StepSimulation:
-        def __init__(self):
-            self.i = 0
-
-        def __call__(self):
-            p.stepSimulation()
-            ri.step_simulation()
-            if args.imshow and self.i % 8 == 0:
-                rgb, depth, _ = ri.get_camera_image()
-                depth[(depth < 0.3) | (depth > 2)] = np.nan
-                tiled = imgviz.tile(
-                    [
-                        rgb,
-                        imgviz.depth2rgb(depth, min_value=0.3, max_value=0.6),
-                    ],
-                    border=(255, 255, 255),
-                )
-                imgviz.io.cv_imshow(tiled)
-                imgviz.io.cv_waitkey(1)
-            time.sleep(1 / 240)
-            self.i += 1
-
-    step_simulation = StepSimulation()
+    step_simulation = utils.StepSimulation(ri=ri)
     step_simulation()
 
     utils.pause(args.pause)

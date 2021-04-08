@@ -1,4 +1,5 @@
 import argparse
+import time
 
 import imgviz
 import numpy as np
@@ -19,6 +20,7 @@ def get_parser():
     parser.add_argument(
         "--camera-config", type=int, default=0, help="camera config"
     )
+    parser.add_argument("--imshow", action="store_true", help="imshow")
     return parser
 
 
@@ -95,3 +97,29 @@ def pause(enabled):
         while True:
             if ord("n") in p.getKeyboardEvents():
                 break
+
+
+class StepSimulation:
+    def __init__(self, ri, imshow=False):
+        self.ri = ri
+        self.imshow = imshow
+
+        self.i = 0
+
+    def __call__(self):
+        p.stepSimulation()
+        self.ri.step_simulation()
+        if self.imshow and self.i % 8 == 0:
+            rgb, depth, _ = self.ri.get_camera_image()
+            depth[(depth < 0.3) | (depth > 2)] = np.nan
+            tiled = imgviz.tile(
+                [
+                    rgb,
+                    imgviz.depth2rgb(depth, min_value=0.3, max_value=0.6),
+                ],
+                border=(255, 255, 255),
+            )
+            imgviz.io.cv_imshow(tiled)
+            imgviz.io.cv_waitkey(1)
+        time.sleep(1 / 240)
+        self.i += 1
