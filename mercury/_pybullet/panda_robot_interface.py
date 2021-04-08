@@ -1,3 +1,4 @@
+import contextlib
 import itertools
 
 import numpy as np
@@ -144,6 +145,15 @@ class PandaRobotInterface:
     #                 pose,
     #             )
     #     return joint_positions
+
+    @contextlib.contextmanager
+    def enabling_attachments(self):
+        robot_model = self.robot_model
+        try:
+            self.robot_model = self.get_skrobot(attachments=self.attachments)
+            yield
+        finally:
+            self.robot_model = robot_model
 
     def get_skrobot(self, attachments=None):
         attachments = attachments or []
