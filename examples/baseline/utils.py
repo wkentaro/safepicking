@@ -23,6 +23,7 @@ def get_parser():
     )
     parser.add_argument("--imshow", action="store_true", help="imshow")
     parser.add_argument("--seed", type=int, default=0, help="seed")
+    parser.add_argument("--retime", type=float, default=1, help="retime")
     return parser
 
 
@@ -102,11 +103,14 @@ def pause(enabled):
 
 
 class StepSimulation:
-    def __init__(self, ri, imshow=False):
+    def __init__(self, ri, imshow=False, retime=1):
         self.ri = ri
         self.imshow = imshow
+        self.retime = retime
 
         self.i = 0
+        self.obj_v_list = []
+        self.obj_v_enabled = True
 
     def __call__(self):
         p.stepSimulation()
@@ -123,8 +127,19 @@ class StepSimulation:
             )
             imgviz.io.cv_imshow(tiled)
             imgviz.io.cv_waitkey(1)
-        time.sleep(1 / 240 / 2)
+        events = p.getKeyboardEvents()
+        if events.get(ord("k")) == p.KEY_WAS_RELEASED:
+            for obj_v in self.obj_v_list:
+                if self.obj_v_enabled:
+                    p.changeVisualShape(obj_v, -1, rgbaColor=(0, 1, 0, 0))
+                else:
+                    p.changeVisualShape(obj_v, -1, rgbaColor=(0, 1, 0, 0.5))
+            self.obj_v_enabled = not self.obj_v_enabled
+        time.sleep(1 / 240 / self.retime)
         self.i += 1
+
+    def append_obj_v(self, obj_v):
+        self.obj_v_list.append(obj_v)
 
 
 def get_canonical_quaternion(class_id):
@@ -197,13 +212,14 @@ def place_to_regrasp(
                 ri.setj(path[-1])
                 c = mercury.geometry.Coordinate(*ri.get_pose("tipLink"))
                 c.translate([0, 0, -0.05])
-                j2 = ri.solve_ik(c.pose, rotation_axis=None)
-        if j2 is None:
-            print("j2 is None")
+                j = ri.solve_ik(c.pose, rotation_axis=None)
+                path2 = ri.planj(j)
+        if path2 is None:
+            print("path2 is None")
             continue
 
         break
-    for _ in (_ for j in path for _ in ri.movej(j)):
+    for _ in (_ for j in path for _ in ri.movej(j, speed=0.005)):
         step_simulation()
 
     for _ in range(240):
@@ -214,7 +230,7 @@ def place_to_regrasp(
     for _ in range(240):
         step_simulation()
 
-    for _ in ri.movej(j2):
+    for _ in (_ for j in path2 for _ in ri.movej(j, speed=0.005)):
         step_simulation()
 
     path = None
@@ -259,3 +275,38 @@ def draw_grasped_object(ri):
     time.sleep(1)
 
     p.removeBody(obj)
+
+
+def get_place_pose(object_id, bin_aabb_min, bin_aabb_max):
+    position_org, quaternion_org = p.getBasePositionAndOrientation(object_id)
+
+    visual_shape_data = p.getVisualShapeData(object_id)
+    class_name = visual_shape_data[0][4].decode().split("/")[-2]
+    class_id = mercury.datasets.ycb.class_names.tolist().index(class_name)
+    quaternion = get_canonical_quaternion(class_id)
+
+    with pp.LockRenderer():
+        with pp.WorldSaver():
+            p.resetBasePositionAndOrientation(
+                object_id, position_org, quaternion
+            )
+
+            aabb_min, aabb_max = np.array(p.getAABB(object_id))
+            position_lt = bin_aabb_min - (aabb_min - position_org)
+            position_rb = bin_aabb_max + (aabb_min - position_org)
+
+            with pp.LockRenderer():
+                z = position_lt[2]
+                for x in np.linspace(position_lt[0], position_rb[0]):
+                    for y in np.linspace(position_lt[1], position_rb[1]):
+                        position = (x, y, z)
+                        pp.set_pose(object_id, (position, quaternion))
+                        if not mercury.pybullet.is_colliding(object_id):
+                            break
+                    else:
+                        continue
+                    break
+                else:
+                    position, quaternion = None, None
+
+    return position, quaternion

@@ -348,6 +348,7 @@ class PandaRobotInterface:
         indices = np.where(mask)[0]
         np.random.shuffle(indices)
 
+        path = None
         for index in indices:
             object_id = segm[index]
             position = pcd_in_ee[index]
@@ -389,6 +390,8 @@ class PandaRobotInterface:
                 continue
 
             break
+        if path is None:
+            return
         for _ in (_ for j in path for _ in self.movej(j)):
             yield
 
@@ -399,16 +402,19 @@ class PandaRobotInterface:
             yield
 
         obstacles = bg_object_ids + object_ids
-        obstacles.remove(object_id)
-        ee_to_world = self.get_pose("tipLink")
-        obj_to_ee = pybullet_planning.multiply(
-            pybullet_planning.invert(ee_to_world), obj_to_world
-        )
-        self.attachments = [
-            pybullet_planning.Attachment(
-                self.robot, self.ee, obj_to_ee, object_id
+        if self.gripper.check_grasp():
+            obstacles.remove(object_id)
+            ee_to_world = self.get_pose("tipLink")
+            obj_to_ee = pybullet_planning.multiply(
+                pybullet_planning.invert(ee_to_world), obj_to_world
             )
-        ]
+            self.attachments = [
+                pybullet_planning.Attachment(
+                    self.robot, self.ee, obj_to_ee, object_id
+                )
+            ]
+        else:
+            self.attachments = []
 
         path = None
         max_distance = 0
