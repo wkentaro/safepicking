@@ -55,8 +55,10 @@ class PandaRobotInterface:
     def step_simulation(self):
         self.gripper.step_simulation()
 
-    def update_robot_model(self):
-        for joint, joint_angle in zip(self.joints, self.getj()):
+    def update_robot_model(self, j=None):
+        if j is None:
+            j = self.getj()
+        for joint, joint_angle in zip(self.joints, j):
             joint_name = pybullet_planning.get_joint_name(
                 self.robot, joint
             ).decode()
@@ -95,19 +97,27 @@ class PandaRobotInterface:
             )
             yield i
 
-    def solve_ik(self, pose, move_target=None, **kwargs):
+    def solve_ik(self, pose, move_target=None, n_init=10, **kwargs):
         if move_target is None:
             move_target = self.robot_model.tipLink
 
+        sample_fn = pybullet_planning.get_sample_fn(self.robot, self.joints)
+
         self.update_robot_model()
-        c = geometry.Coordinate(*pose)
-        res = self.robot_model.inverse_kinematics(
-            c.skrobot_coords,
-            move_target=move_target,
-            **kwargs,
-        )
-        if res is False:
-            return
+        with pybullet_planning.LockRenderer(), pybullet_planning.WorldSaver():
+            c = geometry.Coordinate(*pose)
+            for _ in range(n_init):
+                result = self.robot_model.inverse_kinematics(
+                    c.skrobot_coords,
+                    move_target=move_target,
+                    **kwargs,
+                )
+                if result is not False:
+                    break
+                self.update_robot_model(sample_fn())
+            else:
+                logger.warning("Failed to solve IK")
+                return
         j = []
         for joint in self.joints:
             joint_name = pybullet_planning.get_joint_name(
