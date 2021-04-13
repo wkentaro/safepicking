@@ -1,6 +1,7 @@
 import contextlib
 import itertools
 
+from loguru import logger
 import numpy as np
 import path
 import pybullet as p
@@ -322,7 +323,7 @@ class PandaRobotInterface:
 
         mask = ~np.isnan(depth) & np.isin(segm, object_ids)
         if mask.sum() == 0:
-            print("Warning: mask is empty")
+            logger.warning("mask is empty")
             return
 
         pcd_in_camera = geometry.pointcloud_from_depth(

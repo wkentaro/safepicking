@@ -3,6 +3,7 @@ import itertools
 import time
 
 import imgviz
+from loguru import logger
 import numpy as np
 import pybullet as p
 import pybullet_planning as pp
@@ -194,7 +195,7 @@ def place_to_regrasp(
                     break
                 c.rotate([0, 0, np.random.uniform(-np.pi, np.pi)], wrt="world")
         if j is None:
-            print("j is None")
+            logger.warning("j is None")
             continue
 
         obstacles = bg_object_ids + object_ids
@@ -205,7 +206,7 @@ def place_to_regrasp(
             attachments=ri.attachments,
         )
         if path is None:
-            print("path is None")
+            logger.warning("path is None")
             continue
 
         with pp.LockRenderer():
@@ -216,7 +217,7 @@ def place_to_regrasp(
                 j = ri.solve_ik(c.pose, rotation_axis=None)
                 path2 = ri.planj(j)
         if path2 is None:
-            print("path2 is None")
+            logger.warning("path2 is None")
             continue
 
         break

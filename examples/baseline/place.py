@@ -4,6 +4,7 @@ import itertools
 
 import numpy as np
 import pybullet_planning
+from loguru import logger
 
 import mercury
 
@@ -72,7 +73,7 @@ def main():
             step_simulation()
             i += 1
         if i == 0:
-            print("Completed the task")
+            logger.success("Completed the task")
             break
 
         if not ri.gripper.check_grasp():
@@ -110,7 +111,7 @@ def main():
                             move_target=ri.robot_model.attachment_link0,
                         )
                     if j is None:
-                        print("j is None")
+                        logger.warning("j is None")
                         done = False
                         break
 
@@ -120,7 +121,7 @@ def main():
                         j, obstacles=obstacles, attachments=ri.attachments
                     )
                     if path is None:
-                        print("path is None")
+                        logger.warning("path is None")
                         done = False
                         break
 
