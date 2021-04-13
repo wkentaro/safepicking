@@ -235,6 +235,7 @@ class PandaRobotInterface:
 
     def ungrasp(self):
         self.gripper.release()
+        p.removeBody(self.virtual_grasped_object)
 
     def add_link(self, name, pose, parent=None):
         if parent is None:
@@ -413,6 +414,29 @@ class PandaRobotInterface:
                     self.robot, self.ee, obj_to_ee, object_id
                 )
             ]
+
+            self.virtual_grasped_object = utils.duplicate(
+                object_id,
+                mass=1e-12,
+                rgba_color=(0, 1, 0, 0.5),
+                position=obj_to_world[0],
+                quaternion=obj_to_world[1],
+            )
+            p.setCollisionFilterGroupMask(
+                self.virtual_grasped_object, -1, 0, 0
+            )
+            p.createConstraint(
+                parentBodyUniqueId=self.robot,
+                parentLinkIndex=self.ee,
+                childBodyUniqueId=self.virtual_grasped_object,
+                childLinkIndex=-1,
+                jointType=p.JOINT_FIXED,
+                jointAxis=(0, 0, 0),
+                parentFramePosition=obj_to_ee[0],
+                parentFrameOrientation=obj_to_ee[1],
+                childFramePosition=(0, 0, 0),
+                childFrameOrientation=(0, 0, 0, 1),
+            )
         else:
             self.attachments = []
 

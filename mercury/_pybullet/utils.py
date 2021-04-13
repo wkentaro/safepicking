@@ -236,9 +236,9 @@ def duplicate(body_id, visual=True, collision=True, **kwargs):
         visual_file = None
 
     if collision:
-        collision_data = pybullet.getCollisionShapeData(body_id)
-        assert len(collision_data) == 1
-        collision_file = collision_data[0][4].decode()
+        collision_file = pybullet.getUserData(
+            pybullet.getUserDataId(body_id, "collision_file")
+        ).decode()
     else:
         collision_file = None
 

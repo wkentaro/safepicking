@@ -73,6 +73,7 @@ def load_pile(base_pose, npz_file, mass=None, enable_visual=False):
             position=coord.position,
             quaternion=coord.quaternion,
         )
+        p.addUserData(object_id, "collision_file", collision_file)
         object_ids.append(object_id)
     return object_ids
 
