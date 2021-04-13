@@ -183,16 +183,16 @@ def place_to_regrasp(
                 position = np.random.uniform(*regrasp_aabb)
                 position[2] -= aabb[0][2]
                 c = mercury.geometry.Coordinate(position, quaternion)
-                c.rotate([0, 0, np.random.uniform(-np.pi, np.pi)], wrt="world")
-                obj_af_to_world = c.pose
-
-                pp.set_pose(object_id, c.pose)
 
         with ri.enabling_attachments():
-            j = ri.solve_ik(
-                obj_af_to_world,
-                move_target=ri.robot_model.attachment_link0,
-            )
+            for _ in range(10):
+                j = ri.solve_ik(
+                    c.pose,  # obj_af_to_world
+                    move_target=ri.robot_model.attachment_link0,
+                )
+                if j is not None:
+                    break
+                c.rotate([0, 0, np.random.uniform(-np.pi, np.pi)], wrt="world")
         if j is None:
             print("j is None")
             continue
