@@ -312,3 +312,71 @@ def get_place_pose(object_id, bin_aabb_min, bin_aabb_max):
                     position, quaternion = None, None
 
     return position, quaternion
+
+
+def plan_placement(ri, place_aabb, bg_object_ids, object_ids):
+    object_id = ri.attachments[0].child
+    place_pose = get_place_pose(
+        object_id=object_id,
+        bin_aabb_min=place_aabb[0],
+        bin_aabb_max=place_aabb[1],
+    )
+    with ri.enabling_attachments():
+        j = ri.solve_ik(
+            place_pose,
+            move_target=ri.robot_model.attachment_link0,
+        )
+    if j is None:
+        logger.warning("j is None")
+        return place_pose, None
+
+    obstacles = bg_object_ids + object_ids
+    obstacles.remove(object_id)
+    path = ri.planj(j, obstacles=obstacles, attachments=ri.attachments)
+    if path is None:
+        logger.warning("path is None")
+        return place_pose, None
+
+    return place_pose, path
+
+
+def place(
+    ri, object_id, place_pose, path, bg_object_ids, object_ids, step_simulation
+):
+    obj_v = mercury.pybullet.duplicate(
+        object_id,
+        collision=False,
+        rgba_color=[0, 1, 0, 0.5],
+        position=place_pose[0],
+        quaternion=place_pose[1],
+    )
+    step_simulation.append_obj_v(obj_v)
+
+    for _ in (_ for j in path for _ in ri.movej(j, speed=0.005)):
+        step_simulation()
+
+    for _ in range(240):
+        step_simulation()
+
+    ri.ungrasp()
+
+    for _ in range(240):
+        step_simulation()
+
+    c = mercury.geometry.Coordinate(*ri.get_pose("tipLink"))
+    c.translate([0, 0, -0.05])
+    j = ri.solve_ik(c.pose, rotation_axis=None)
+    for _ in ri.movej(j, speed=0.005):
+        step_simulation()
+
+    max_distance = 0
+    path = None
+    while path is None:
+        path = ri.planj(
+            ri.homej,
+            obstacles=bg_object_ids + object_ids,
+            max_distance=max_distance,
+        )
+        max_distance -= 0.01
+    for _ in (_ for j in path for _ in ri.movej(j)):
+        step_simulation()

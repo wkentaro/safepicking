@@ -46,7 +46,7 @@ def main():
     )
     pybullet_planning.draw_aabb(regrasp_aabb)
 
-    place_aabb = ((0.2, 0.2, 0), (0.6, 0.6, 0.2))
+    place_aabb = ((0.2, 0.2, 0), (0.7, 0.6, 0.2))
     pybullet_planning.draw_aabb(place_aabb, width=2)
 
     step_simulation = utils.StepSimulation(
@@ -100,29 +100,10 @@ def main():
                         ri.ungrasp()
                         continue
 
-                    object_id = ri.attachments[0].child
-                    place_pose = utils.get_place_pose(
-                        object_id=object_id,
-                        bin_aabb_min=place_aabb[0],
-                        bin_aabb_max=place_aabb[1],
-                    )
-                    with ri.enabling_attachments():
-                        j = ri.solve_ik(
-                            place_pose,
-                            move_target=ri.robot_model.attachment_link0,
-                        )
-                    if j is None:
-                        logger.warning("j is None")
-                        done = False
-                        break
-
-                    obstacles = [plane, table] + object_ids
-                    obstacles.remove(object_id)
-                    path = ri.planj(
-                        j, obstacles=obstacles, attachments=ri.attachments
+                    place_pose, path = utils.plan_placement(
+                        ri, place_aabb, [plane, table], object_ids
                     )
                     if path is None:
-                        logger.warning("path is None")
                         done = False
                         break
 
@@ -139,43 +120,15 @@ def main():
                 step_simulation=step_simulation,
             )
 
-        obj_v = mercury.pybullet.duplicate(
-            object_id,
-            collision=False,
-            rgba_color=[0, 1, 0, 0.5],
-            position=place_pose[0],
-            quaternion=place_pose[1],
+        utils.place(
+            ri,
+            ri.attachments[0].child,
+            place_pose,
+            path,
+            bg_object_ids=[plane, table],
+            object_ids=object_ids,
+            step_simulation=step_simulation,
         )
-        step_simulation.append_obj_v(obj_v)
-
-        for _ in (_ for j in path for _ in ri.movej(j, speed=0.005)):
-            step_simulation()
-
-        for _ in range(240):
-            step_simulation()
-
-        ri.ungrasp()
-
-        for _ in range(240):
-            step_simulation()
-
-        c = mercury.geometry.Coordinate(*ri.get_pose("tipLink"))
-        c.translate([0, 0, -0.05])
-        j = ri.solve_ik(c.pose, rotation_axis=None)
-        for _ in ri.movej(j, speed=0.005):
-            step_simulation()
-
-        max_distance = 0
-        path = None
-        while path is None:
-            path = ri.planj(
-                ri.homej,
-                obstacles=[plane, table] + object_ids,
-                max_distance=max_distance,
-            )
-            max_distance -= 0.01
-        for _ in (_ for j in path for _ in ri.movej(j)):
-            step_simulation()
 
     while True:
         step_simulation()
