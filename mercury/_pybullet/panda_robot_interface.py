@@ -390,14 +390,17 @@ class PandaRobotInterface:
             v1 /= np.linalg.norm(v1)
             angle = geometry.angle_between_vectors(v0, v1)
             if angle > np.deg2rad(45):
+                logger.warning("angle > 45deg")
                 continue
 
             j = self.solve_ik(c.pose, rotation_axis="z")
             if j is None:
+                logger.warning("j is None")
                 continue
 
             path = self.planj(j, obstacles=bg_object_ids + object_ids)
             if path is None:
+                logger.warning("path is None")
                 continue
 
             break
