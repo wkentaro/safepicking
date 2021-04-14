@@ -73,12 +73,18 @@ def main():
             step_simulation()
             i += 1
         if i == 0:
+            for _ in ri.movej(ri.homej):
+                step_simulation()
             logger.success("Completed the task")
             break
 
         if not ri.gripper.check_grasp():
             ri.ungrasp()
             continue
+
+        ri.homej[0] = np.pi / 2
+        for _ in ri.movej(ri.homej):
+            step_simulation()
 
         done = False
         for i in itertools.count():
@@ -129,6 +135,10 @@ def main():
             object_ids=object_ids,
             step_simulation=step_simulation,
         )
+
+        ri.homej[0] = 0
+        for _ in ri.movej(ri.homej):
+            step_simulation()
 
     while True:
         step_simulation()
