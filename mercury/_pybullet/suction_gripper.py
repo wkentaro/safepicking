@@ -1,3 +1,4 @@
+from loguru import logger
 import numpy as np
 import pybullet as p
 import pybullet_planning
@@ -57,12 +58,17 @@ class SuctionGripper:
 
             mass = p.getDynamicsInfo(obj_id, -1)[0]
             if mass > 0:
-                if angle > np.deg2rad(20):
-                    print(
-                        "Warning: failed to grasp with surface angle >15 deg: "
+                threshold = np.deg2rad(10)  # deg
+                if angle > threshold:
+                    logger.warning(
+                        "failed to grasp with surface angle "
+                        f">{np.rad2deg(threshold):.1f} deg: "
                         f"{np.rad2deg(angle):.1f} deg"
                     )
                     return
+                logger.info(
+                    f"grasping surface angle: {np.rad2deg(angle):.1f} deg"
+                )
 
                 # simulate compliance of suction gripper
                 T_obj_to_obj_af_in_ee = geometry.transformation_matrix(
