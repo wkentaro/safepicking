@@ -117,7 +117,7 @@ class StepSimulation:
     def __call__(self):
         p.stepSimulation()
         self.ri.step_simulation()
-        if self.imshow and self.i % 8 == 0:
+        if self.imshow and self.i % (8 * self.retime) == 0:
             rgb, depth, _ = self.ri.get_camera_image()
             depth[(depth < 0.3) | (depth > 2)] = np.nan
             tiled = imgviz.tile(
