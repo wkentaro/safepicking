@@ -104,20 +104,19 @@ class PandaRobotInterface:
         sample_fn = pybullet_planning.get_sample_fn(self.robot, self.joints)
 
         self.update_robot_model()
-        with pybullet_planning.LockRenderer(), pybullet_planning.WorldSaver():
-            c = geometry.Coordinate(*pose)
-            for _ in range(n_init):
-                result = self.robot_model.inverse_kinematics(
-                    c.skrobot_coords,
-                    move_target=move_target,
-                    **kwargs,
-                )
-                if result is not False:
-                    break
-                self.update_robot_model(sample_fn())
-            else:
-                logger.warning("Failed to solve IK")
-                return
+        c = geometry.Coordinate(*pose)
+        for _ in range(n_init):
+            result = self.robot_model.inverse_kinematics(
+                c.skrobot_coords,
+                move_target=move_target,
+                **kwargs,
+            )
+            if result is not False:
+                break
+            self.update_robot_model(sample_fn())
+        else:
+            logger.warning("Failed to solve IK")
+            return
         j = []
         for joint in self.joints:
             joint_name = pybullet_planning.get_joint_name(
