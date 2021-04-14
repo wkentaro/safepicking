@@ -2,9 +2,9 @@
 
 import itertools
 
+from loguru import logger
 import numpy as np
 import pybullet_planning
-from loguru import logger
 
 import mercury
 
@@ -38,7 +38,7 @@ def main():
     table = pybullet_planning.create_box(
         0.4, 0.4, 0.2, color=[150 / 255, 111 / 255, 51 / 255, 1]
     )
-    pybullet_planning.set_pose(table, ([0, 0.5, 0.1], [0, 0, 0, 1]))
+    pybullet_planning.set_pose(table, ([-0.4, 0.4, 0.1], [0, 0, 0, 1]))
     aabb = pybullet_planning.get_aabb(table)
     regrasp_aabb = (
         [aabb[0][0] + 0.1, aabb[0][1] + 0.1, aabb[1][2]],
@@ -46,7 +46,7 @@ def main():
     )
     pybullet_planning.draw_aabb(regrasp_aabb)
 
-    place_aabb = ((0.4, 0.3, 0), (0.8, 0.7, 0.2))
+    place_aabb = ((0.2, 0.2, 0), (0.6, 0.6, 0.2))
     pybullet_planning.draw_aabb(place_aabb, width=2)
 
     step_simulation = utils.StepSimulation(
@@ -85,11 +85,12 @@ def main():
             if i > 0:
                 while True:
                     c = mercury.geometry.Coordinate(*ri.get_pose("tipLink"))
-                    c.position = [0, 0.4, 0.7]
-                    c.rotate([0, 0, np.deg2rad(-90)])
-                    c.rotate([np.deg2rad(10), 0, 0])
+                    c.position = np.mean(regrasp_aabb, axis=0)
+                    c.position[2] = 0.7
                     j = ri.solve_ik(
-                        c.pose, move_target=ri.robot_model.camera_link
+                        c.pose,
+                        move_target=ri.robot_model.camera_link,
+                        rotation_axis="z",
                     )
                     for _ in ri.movej(j):
                         step_simulation()
