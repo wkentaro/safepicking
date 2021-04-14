@@ -462,6 +462,7 @@ class PandaRobotInterface:
                 attachments=self.attachments,
                 max_distance=max_distance,
             )
+            logger.warning("path is None")
             max_distance -= 0.01
         for _ in (_ for j in path for _ in self.movej(j, speed=0.005)):
             yield
