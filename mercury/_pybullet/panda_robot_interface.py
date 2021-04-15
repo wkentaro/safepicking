@@ -453,6 +453,11 @@ class PandaRobotInterface:
         else:
             self.attachments = []
 
+    def move_to_homej(self, bg_object_ids, object_ids):
+        obstacles = bg_object_ids + object_ids
+        if self.attachments:
+            obstacles.remove(self.attachments[0].child)
+
         path = None
         max_distance = 0
         while path is None:

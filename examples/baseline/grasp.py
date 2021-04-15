@@ -53,6 +53,9 @@ def main():
             print("Completed the task")
             break
 
+        for _ in ri.move_to_homej([plane], object_ids):
+            step_simulation()
+
         utils.draw_grasped_object(ri)
 
         for _ in range(240):

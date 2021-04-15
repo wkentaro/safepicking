@@ -67,6 +67,8 @@ def main():
         for _ in ri.random_grasp([plane], object_ids):
             step_simulation()
             i += 1
+        for _ in ri.move_to_homej([plane], object_ids):
+            step_simulation()
         if i == 0:
             print("Completed the task")
             break
@@ -91,6 +93,8 @@ def main():
                     for _ in ri.movej(j):
                         step_simulation()
                     for _ in ri.random_grasp([plane, table], object_ids):
+                        step_simulation()
+                    for _ in ri.move_to_homej([plane, table], object_ids):
                         step_simulation()
                     if ri.gripper.check_grasp():
                         break
