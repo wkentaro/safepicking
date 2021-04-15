@@ -325,12 +325,21 @@ class PandaRobotInterface:
             width=self.camera["width"],
         )
 
-    def random_grasp(self, bg_object_ids, object_ids):
+    def random_grasp(
+        self,
+        bg_object_ids,
+        object_ids,
+        target_object_ids=None,
+        max_angle=np.deg2rad(45),
+    ):
         # This should be called after moving camera to observe the scene.
         _, depth, segm = self.get_camera_image()
         K = self.get_opengl_intrinsic_matrix()
 
-        mask = ~np.isnan(depth) & np.isin(segm, object_ids)
+        if target_object_ids is None:
+            target_object_ids = object_ids
+
+        mask = ~np.isnan(depth) & np.isin(segm, target_object_ids)
         if mask.sum() == 0:
             logger.warning("mask is empty")
             return
@@ -389,8 +398,8 @@ class PandaRobotInterface:
             v1 = vec[1] - vec[0]
             v1 /= np.linalg.norm(v1)
             angle = geometry.angle_between_vectors(v0, v1)
-            if angle > np.deg2rad(45):
-                logger.warning("angle > 45deg")
+            if angle > max_angle:
+                logger.warning(f"angle > {np.rad2deg(max_angle)} deg")
                 continue
 
             j = self.solve_ik(c.pose, rotation_axis="z")
