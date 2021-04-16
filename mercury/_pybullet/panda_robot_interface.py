@@ -97,7 +97,7 @@ class PandaRobotInterface:
             )
             yield i
 
-    def solve_ik(self, pose, move_target=None, n_init=10, **kwargs):
+    def solve_ik(self, pose, move_target=None, n_init=5, **kwargs):
         if move_target is None:
             move_target = self.robot_model.tipLink
 
@@ -245,7 +245,8 @@ class PandaRobotInterface:
 
     def ungrasp(self):
         self.gripper.release()
-        p.removeBody(self.virtual_grasped_object)
+        if hasattr(self, "virtual_grasped_object"):
+            p.removeBody(self.virtual_grasped_object)
 
     def add_link(self, name, pose, parent=None):
         if parent is None:
@@ -327,13 +328,15 @@ class PandaRobotInterface:
 
     def random_grasp(
         self,
+        depth,
+        segm,
         bg_object_ids,
         object_ids,
         target_object_ids=None,
         max_angle=np.deg2rad(45),
+        num_trial=10,
     ):
         # This should be called after moving camera to observe the scene.
-        _, depth, segm = self.get_camera_image()
         K = self.get_opengl_intrinsic_matrix()
 
         if target_object_ids is None:
@@ -369,7 +372,7 @@ class PandaRobotInterface:
         np.random.shuffle(indices)
 
         path = None
-        for index in indices:
+        for index in indices[:num_trial]:
             object_id = segm[index]
             position = pcd_in_ee[index]
             quaternion = geometry.quaternion_from_vec2vec(
@@ -420,6 +423,10 @@ class PandaRobotInterface:
 
         # XXX: getting ground truth object pose
         obj_to_world = pybullet_planning.get_pose(object_id)
+        pos, qua = obj_to_world
+        pos += np.random.normal(0, [0.01 / 3, 0.01 / 3, 0.01 / 3], 3)
+        qua += np.random.normal(0, 0.03 / 3, 4)
+        obj_to_world = pos, qua
 
         for _ in self.grasp(dz=None, max_dz=0.11, speed=0.005):
             yield

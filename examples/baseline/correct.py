@@ -2,6 +2,7 @@
 
 import itertools
 
+import imgviz
 from loguru import logger
 import numpy as np
 import pybullet_planning
@@ -17,7 +18,7 @@ def main():
 
     np.random.seed(args.seed)
 
-    plane = utils.init_world()
+    plane = utils.init_world(camera_distance=1.2)
 
     ri = mercury.pybullet.PandaRobotInterface()
     ri.add_camera(
@@ -26,8 +27,9 @@ def main():
         width=320,
     )
 
+    pile_pose = ([0, -0.5, 0], [0, 0, 0, 1])
     object_ids = utils.load_pile(
-        base_pose=([0.4, -0.4, 0], [0, 0, 0, 1]),
+        base_pose=pile_pose,
         npz_file="assets/pile_001.npz",
         enable_visual=args.enable_visual,
         mass=0.1,
@@ -38,9 +40,9 @@ def main():
         )
 
     table = pybullet_planning.create_box(
-        0.4, 0.4, 0.2, color=[150 / 255, 111 / 255, 51 / 255, 1]
+        0.4, 0.4, 0.1, color=[150 / 255, 111 / 255, 51 / 255, 1]
     )
-    pybullet_planning.set_pose(table, ([-0.4, 0.4, 0.1], [0, 0, 0, 1]))
+    pybullet_planning.set_pose(table, ([0.5, 0, 0.1], [0, 0, 0, 1]))
     aabb = pybullet_planning.get_aabb(table)
     regrasp_aabb = (
         [aabb[0][0] + 0.1, aabb[0][1] + 0.1, aabb[1][2]],
@@ -48,7 +50,7 @@ def main():
     )
     pybullet_planning.draw_aabb(regrasp_aabb)
 
-    place_aabb = ((0.2, 0.2, 0), (0.7, 0.6, 0.2))
+    place_aabb = ((-0.3, 0.3, 0), (0.3, 0.6, 0.2))
     pybullet_planning.draw_aabb(place_aabb, width=2)
 
     step_simulation = utils.StepSimulation(
@@ -59,8 +61,13 @@ def main():
     utils.pause(args.pause)
 
     while True:
+        ri.homej[0] = -np.pi / 2
+        for _ in ri.movej(ri.homej):
+            step_simulation()
+
         c = mercury.geometry.Coordinate(*ri.get_pose("camera_link"))
-        c.position = [0.4, -0.4, 0.7]
+        c.position = pile_pose[0]
+        c.position[2] = 0.7
         c.quaternion = mercury.geometry.quaternion_from_euler(
             [np.pi, 0, np.pi / 2]
         )
@@ -69,7 +76,8 @@ def main():
             step_simulation()
 
         i = 0
-        for _ in ri.random_grasp([plane], object_ids):
+        _, depth, segm = ri.get_camera_image()
+        for _ in ri.random_grasp(depth, segm, [plane], object_ids):
             step_simulation()
             i += 1
         for _ in ri.move_to_homej([plane, table], object_ids):
@@ -84,16 +92,17 @@ def main():
             ri.ungrasp()
             continue
 
-        ri.homej[0] = np.pi / 2
-        for _ in ri.movej(ri.homej):
+        ri.homej[0] = 0
+        for _ in ri.move_to_homej([plane, table], object_ids):
             step_simulation()
 
+        regrasp_pose = np.mean(regrasp_aabb, axis=0)
         done = False
         for i in itertools.count():
             if i > 0:
                 while True:
                     c = mercury.geometry.Coordinate(*ri.get_pose("tipLink"))
-                    c.position = np.mean(regrasp_aabb, axis=0)
+                    c.position = regrasp_pose[0]
                     c.position[2] = 0.7
                     j = ri.solve_ik(
                         c.pose,
@@ -102,7 +111,14 @@ def main():
                     )
                     for _ in ri.movej(j):
                         step_simulation()
-                    for _ in ri.random_grasp([plane, table], object_ids):
+                    _, depth, segm = ri.get_camera_image()
+                    for _ in ri.random_grasp(
+                        depth,
+                        segm,
+                        [plane, table],
+                        object_ids,
+                        max_angle=np.deg2rad(10),
+                    ):
                         step_simulation()
                     for _ in ri.move_to_homej([plane, table], object_ids):
                         step_simulation()
@@ -110,9 +126,12 @@ def main():
                         ri.ungrasp()
                         continue
 
-                    place_pose, path = utils.plan_placement(
-                        ri, place_aabb, [plane, table], object_ids
-                    )
+                    ri.homej[0] = np.pi / 2
+                    with pybullet_planning.LockRenderer(), pybullet_planning.WorldSaver():  # NOQA
+                        ri.setj(ri.homej)
+                        place_pose, path = utils.plan_placement(
+                            ri, place_aabb, [plane, table], object_ids
+                        )
                     if path is None:
                         done = False
                         break
@@ -122,7 +141,8 @@ def main():
                 if done:
                     break
 
-            done = utils.place_to_regrasp(
+            ri.homej[0] = 0
+            regrasp_pose, done = utils.place_to_regrasp(
                 ri,
                 regrasp_aabb,
                 bg_object_ids=[plane, table],
@@ -142,10 +162,6 @@ def main():
             step_simulation=step_simulation,
         )
 
-        ri.homej[0] = 0
-        for _ in ri.movej(ri.homej):
-            step_simulation()
-
         c = mercury.geometry.Coordinate(*ri.get_pose("tipLink"))
         c.position = place_pose[0]
         c.position[2] = 0.7
@@ -158,41 +174,74 @@ def main():
             continue
         for _ in ri.movej(j):
             step_simulation()
+        j_camera = j
 
         while True:
-            for _ in ri.random_grasp(
-                [plane, table],
-                object_ids,
-                target_object_ids=[object_id],
-            ):
-                step_simulation()
-            if not ri.gripper.check_grasp():
-                ri.ungrasp()
-                for _ in ri.movej(j):
-                    step_simulation()
-                continue
-            break
+            with utils.stash_objects(object_ids):
+                mask_v = ri.get_camera_image()[2] == utils.virtual_objects[-1]
+            with utils.stash_objects(utils.virtual_objects):
+                rgb, depth, segm = ri.get_camera_image()
+                mask = segm == object_id
 
-        with ri.enabling_attachments():
-            j = ri.solve_ik(
-                place_pose, move_target=ri.robot_model.attachment_link0
+            iou = (mask_v ^ mask).sum() / mask.sum()
+
+            imgviz.io.cv_imshow(
+                imgviz.tile([rgb, np.uint8(mask_v ^ mask) * 255]),
+                "correct_camera",
             )
-        for _ in ri.movej(j, speed=0.001):
-            step_simulation()
+            imgviz.io.cv_waitkey(500)
 
-        for _ in range(120):
-            step_simulation()
+            if iou < 0.2:
+                logger.info("iou < 0.2")
+                break
 
-        ri.ungrasp()
+            while True:
+                with utils.stash_objects(utils.virtual_objects):
+                    _, depth, segm = ri.get_camera_image()
+                for _ in ri.random_grasp(
+                    depth=depth,
+                    segm=segm,
+                    bg_object_ids=[plane, table],
+                    object_ids=object_ids,
+                    target_object_ids=[object_id],
+                    max_angle=np.deg2rad(10),
+                ):
+                    step_simulation()
+                if not ri.gripper.check_grasp():
+                    ri.ungrasp()
+                    for _ in ri.movej(j):
+                        step_simulation()
+                    continue
+                break
 
-        for _ in range(120):
-            step_simulation()
+            with ri.enabling_attachments():
+                j = ri.solve_ik(
+                    place_pose, move_target=ri.robot_model.attachment_link0
+                )
+            path = ri.planj(
+                j, attachments=ri.attachments, obstacles=[plane, table]
+            )
+            if path is None:
+                path = [j]
+            for _ in (_ for j in path for _ in ri.movej(j, speed=0.001)):
+                step_simulation()
 
-        c = mercury.geometry.Coordinate(*ri.get_pose("tipLink"))
-        c.translate([0, 0, -0.05])
-        j = ri.solve_ik(c.pose, rotation_axis=None)
-        for _ in ri.movej(j):
-            step_simulation()
+            for _ in range(240):
+                step_simulation()
+
+            ri.ungrasp()
+
+            for _ in range(240):
+                step_simulation()
+
+            c = mercury.geometry.Coordinate(*ri.get_pose("tipLink"))
+            c.translate([0, 0, -0.05])
+            j = ri.solve_ik(c.pose, rotation_axis=None)
+            for _ in ri.movej(j):
+                step_simulation()
+
+            for _ in ri.movej(j_camera):
+                step_simulation()
 
         for _ in ri.move_to_homej([plane, table], object_ids):
             step_simulation()

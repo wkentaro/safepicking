@@ -1,4 +1,5 @@
 import argparse
+import contextlib
 import itertools
 import time
 
@@ -28,13 +29,13 @@ def get_parser():
     return parser
 
 
-def init_world():
+def init_world(camera_distance=1.5):
     pp.connect()
     pp.add_data_path()
     p.setGravity(0, 0, -9.8)
 
     p.resetDebugVisualizerCamera(
-        cameraDistance=1.5,
+        cameraDistance=camera_distance,
         cameraYaw=90,
         cameraPitch=-60,
         cameraTargetPosition=(0, 0, 0),
@@ -127,7 +128,7 @@ class StepSimulation:
                 ],
                 border=(255, 255, 255),
             )
-            imgviz.io.cv_imshow(tiled)
+            imgviz.io.cv_imshow(tiled, "wrist_camera")
             imgviz.io.cv_waitkey(1)
         events = p.getKeyboardEvents()
         if events.get(ord("k")) == p.KEY_WAS_RELEASED:
@@ -157,7 +158,7 @@ def get_canonical_quaternion(class_id):
 def place_to_regrasp(
     ri, regrasp_aabb, bg_object_ids, object_ids, step_simulation
 ):
-    n_trial = 20
+    n_trial = 5
 
     object_id = ri.attachments[0].child
     visual_shape_data = p.getVisualShapeData(object_id)
@@ -185,15 +186,14 @@ def place_to_regrasp(
                 position[2] -= aabb[0][2]
                 c = mercury.geometry.Coordinate(position, quaternion)
 
+        regrasp_pose = c.pose  # obj_af_to_world
+
         with ri.enabling_attachments():
-            for _ in range(10):
-                j = ri.solve_ik(
-                    c.pose,  # obj_af_to_world
-                    move_target=ri.robot_model.attachment_link0,
-                )
-                if j is not None:
-                    break
-                c.rotate([0, 0, np.random.uniform(-np.pi, np.pi)], wrt="world")
+            j = ri.solve_ik(
+                regrasp_pose,
+                move_target=ri.robot_model.attachment_link0,
+                rthre=np.deg2rad(15),
+            )
         if j is None:
             logger.warning("j is None")
             continue
@@ -204,6 +204,7 @@ def place_to_regrasp(
             j,
             obstacles=obstacles,
             attachments=ri.attachments,
+            extra_disabled_collisions=[((ri.robot, ri.ee), (object_id, -1))],
         )
         if path is None:
             logger.warning("path is None")
@@ -244,7 +245,7 @@ def place_to_regrasp(
     for _ in (_ for j in path for _ in ri.movej(j)):
         step_simulation()
 
-    return i < n_trial
+    return regrasp_pose, i < n_trial
 
 
 def draw_grasped_object(ri):
@@ -332,12 +333,31 @@ def plan_placement(ri, place_aabb, bg_object_ids, object_ids):
 
     obstacles = bg_object_ids + object_ids
     obstacles.remove(object_id)
-    path = ri.planj(j, obstacles=obstacles, attachments=ri.attachments)
+    path = ri.planj(
+        j,
+        obstacles=obstacles,
+        attachments=ri.attachments,
+        extra_disabled_collisions=[((ri.robot, ri.ee), (object_id, -1))],
+    )
     if path is None:
         logger.warning("path is None")
         return place_pose, None
 
     return place_pose, path
+
+
+virtual_objects = []
+
+
+@contextlib.contextmanager
+def stash_objects(object_ids):
+    try:
+        with pp.LockRenderer(), pp.WorldSaver():
+            for obj in object_ids:
+                pp.set_pose(obj, ((0, 0, 0), (0, 0, 0, 1)))
+            yield
+    finally:
+        pass
 
 
 def place(
@@ -350,7 +370,7 @@ def place(
         position=place_pose[0],
         quaternion=place_pose[1],
     )
-    step_simulation.append_obj_v(obj_v)
+    virtual_objects.append(obj_v)
 
     for _ in (_ for j in path for _ in ri.movej(j, speed=0.005)):
         step_simulation()
