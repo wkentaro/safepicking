@@ -4,6 +4,9 @@ from .coordinate import Coordinate
 
 from .look_at import look_at
 
+from .neighbors import average_distance
+from .neighbors import nearest_neighbors
+
 from .normals_from_pointcloud import normals_from_pointcloud
 
 from .opengl import *
