@@ -46,7 +46,10 @@ def main():
             step_simulation()
 
         i = 0
-        for _ in ri.random_grasp([plane], object_ids):
+        _, depth, segm = ri.get_camera_image()
+        for _ in ri.random_grasp(
+            depth, segm, bg_object_ids=[plane], object_ids=object_ids
+        ):
             step_simulation()
             i += 1
         if i == 0:

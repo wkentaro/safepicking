@@ -12,6 +12,8 @@ def main():
     parser = utils.get_parser()
     args = parser.parse_args()
 
+    np.random.seed(args.seed)
+
     plane = utils.init_world()
 
     ri = mercury.pybullet.PandaRobotInterface()
@@ -43,7 +45,14 @@ def main():
         for _ in ri.movej(j):
             step_simulation()
 
-        for _ in ri.random_grasp(plane, object_ids):
+        _, depth, segm = ri.get_camera_image()
+        for _ in ri.random_grasp(
+            depth, segm, bg_object_ids=[plane], object_ids=object_ids
+        ):
+            step_simulation()
+        for _ in ri.move_to_homej(
+            bg_object_ids=[plane], object_ids=object_ids
+        ):
             step_simulation()
 
         if ri.gripper.grasped_object:

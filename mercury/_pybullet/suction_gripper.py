@@ -23,9 +23,6 @@ class SuctionGripper:
 
         points = p.getContactPoints(bodyA=self.body, linkIndexA=self.link)
         if points:
-            if len(points) > 1:
-                print(f"Warning: contact points size is >1: {len(points)}")
-
             # Handle contact between suction with a rigid object.
             point = points[-1]
 
@@ -37,17 +34,26 @@ class SuctionGripper:
             point_on_ee = point[5]
             point_on_obj = point[6]
 
+            # in obj coordinates
+            obj_to_world = pybullet_planning.get_pose(point[2])
+            T_world_to_obj = geometry.transformation_matrix(
+                *pybullet_planning.invert(obj_to_world)
+            )
+            grasp_point_on_obj = geometry.transform_points(
+                [point_on_obj], T_world_to_obj
+            )[0]
+
+            # in ee coordinates
             ee_to_world = pybullet_planning.get_link_pose(self.body, self.link)
             world_to_ee = pybullet_planning.invert(ee_to_world)
             T_world_to_ee = geometry.transformation_matrix(*world_to_ee)
-
-            # in ee coordinates
             point_on_ee = geometry.transform_points(
                 [point_on_ee], T_world_to_ee
             )[0]
             point_on_obj = geometry.transform_points(
                 [point_on_obj], T_world_to_ee
             )[0]
+            grasp_point_on_ee = point_on_ee
 
             v_ee_to_obj = (point_on_obj - point_on_ee) * np.sign(
                 contact_distance
@@ -87,15 +93,17 @@ class SuctionGripper:
                     np.linalg.inv(T_world_to_ee) @ T_obj_af_to_ee
                 )
 
-                body_to_world = p.getLinkState(self.body, self.link)[:2]
+                ee_to_world = p.getLinkState(self.body, self.link)[:2]
                 if 0:  # w/o compliance
                     obj_to_world = p.getBasePositionAndOrientation(obj_id)
                 else:  # w/ compliance
                     obj_to_world = geometry.pose_from_matrix(T_obj_af_to_world)
-                world_to_body = pybullet_planning.invert(body_to_world)
-                obj_to_body = pybullet_planning.multiply(
-                    world_to_body, obj_to_world
+                world_to_ee = pybullet_planning.invert(ee_to_world)
+                obj_to_ee = pybullet_planning.multiply(
+                    world_to_ee, obj_to_world
                 )
+                self.grasp_point_on_obj = grasp_point_on_obj
+                self.grasp_point_on_ee = grasp_point_on_ee
                 self.contact_constraint = p.createConstraint(
                     parentBodyUniqueId=self.body,
                     parentLinkIndex=self.link,
@@ -103,8 +111,8 @@ class SuctionGripper:
                     childLinkIndex=contact_link,
                     jointType=p.JOINT_FIXED,
                     jointAxis=(0, 0, 0),
-                    parentFramePosition=obj_to_body[0],
-                    parentFrameOrientation=obj_to_body[1],
+                    parentFramePosition=obj_to_ee[0],
+                    parentFrameOrientation=obj_to_ee[1],
                     childFramePosition=(0, 0, 0),
                     childFrameOrientation=(0, 0, 0),
                 )
@@ -116,16 +124,21 @@ class SuctionGripper:
     def step_simulation(self):
         # this function must be called after p.stepSimulation()
         if self.grasped_object is not None:
-            points = p.getClosestPoints(
-                bodyA=self.grasped_object,
-                linkIndexA=-1,
-                bodyB=self.body,
-                linkIndexB=self.link,
-                distance=0.01,
-            )
-            if not points:
+            obj_to_world = pybullet_planning.get_pose(self.grasped_object)
+            grasp_point_on_obj = geometry.transform_points(
+                [self.grasp_point_on_obj],
+                geometry.transformation_matrix(*obj_to_world),
+            )[0]
+            ee_to_world = pybullet_planning.get_link_pose(self.body, self.link)
+            grasp_point_on_ee = geometry.transform_points(
+                [self.grasp_point_on_ee],
+                geometry.transformation_matrix(*ee_to_world),
+            )[0]
+
+            distance = np.linalg.norm(grasp_point_on_ee - grasp_point_on_obj)
+            if distance > 0.01:
                 # surface is apart more than 1cm
-                print("Warning: dropping grasped object as surfaces are apart")
+                logger.warning("dropping grasped object as surfaces are apart")
                 self.release()
 
     def release(self):
