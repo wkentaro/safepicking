@@ -82,8 +82,6 @@ def main():
         for _ in ri.move_to_homej([plane, table], object_ids):
             step_simulation()
         if i == 0:
-            for _ in ri.movej(ri.homej):
-                step_simulation()
             logger.success("Completed the task")
             break
 
@@ -160,6 +158,8 @@ def main():
             object_ids=object_ids,
             step_simulation=step_simulation,
         )
+
+        # correct {{
 
         c = mercury.geometry.Coordinate(*ri.get_pose("tipLink"))
         c.position = place_pose[0]
@@ -244,6 +244,8 @@ def main():
 
         for _ in ri.move_to_homej([plane, table], object_ids):
             step_simulation()
+
+        # }} correct
 
     while True:
         step_simulation()
