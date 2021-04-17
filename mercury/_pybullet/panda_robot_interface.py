@@ -416,6 +416,10 @@ class PandaRobotInterface:
                 continue
 
             break
+        else:
+            import IPython
+
+            IPython.embed()  # NOQA
         if path is None:
             return
         for _ in (_ for j in path for _ in self.movej(j)):

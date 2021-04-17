@@ -161,9 +161,7 @@ def place_to_regrasp(
     n_trial = 5
 
     object_id = ri.attachments[0].child
-    visual_shape_data = p.getVisualShapeData(object_id)
-    class_name = visual_shape_data[0][4].decode().split("/")[-2]
-    class_id = mercury.datasets.ycb.class_names.tolist().index(class_name)
+    class_id = get_class_id(object_id)
 
     for i in itertools.count():
         with pp.LockRenderer():
@@ -251,9 +249,7 @@ def place_to_regrasp(
 def get_place_pose(object_id, bin_aabb_min, bin_aabb_max):
     position_org, quaternion_org = p.getBasePositionAndOrientation(object_id)
 
-    visual_shape_data = p.getVisualShapeData(object_id)
-    class_name = visual_shape_data[0][4].decode().split("/")[-2]
-    class_id = mercury.datasets.ycb.class_names.tolist().index(class_name)
+    class_id = get_class_id(object_id)
     quaternion = get_canonical_quaternion(class_id)
 
     with pp.LockRenderer():
@@ -368,3 +364,10 @@ def place(
         max_distance -= 0.01
     for _ in (_ for j in path for _ in ri.movej(j)):
         step_simulation()
+
+
+def get_class_id(object_id):
+    visual_shape_data = p.getVisualShapeData(object_id)
+    class_name = visual_shape_data[0][4].decode().split("/")[-2]
+    class_id = mercury.datasets.ycb.class_names.tolist().index(class_name)
+    return class_id

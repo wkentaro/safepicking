@@ -2,7 +2,6 @@
 
 import itertools
 
-import imgviz
 from loguru import logger
 import numpy as np
 import pybullet_planning
@@ -177,22 +176,21 @@ def main():
         j_camera = j
 
         while True:
-            with utils.stash_objects(object_ids):
-                mask_v = ri.get_camera_image()[2] == utils.virtual_objects[-1]
-            with utils.stash_objects(utils.virtual_objects):
-                rgb, depth, segm = ri.get_camera_image()
-                mask = segm == object_id
+            obj_to_world = pybullet_planning.get_pose(object_id)
 
-            iou = (mask_v ^ mask).sum() / mask.sum()
-
-            imgviz.io.cv_imshow(
-                imgviz.tile([rgb, np.uint8(mask_v ^ mask) * 255]),
-                "correct_camera",
+            class_id = utils.get_class_id(object_id)
+            pcd_file = mercury.datasets.ycb.get_pcd_file(class_id=class_id)
+            pcd = np.loadtxt(pcd_file)
+            pcd_target = mercury.geometry.transform_points(
+                pcd, mercury.geometry.transformation_matrix(*place_pose)
             )
-            imgviz.io.cv_waitkey(500)
-
-            if iou < 0.2:
-                logger.info("iou < 0.2")
+            pcd_source = mercury.geometry.transform_points(
+                pcd, mercury.geometry.transformation_matrix(*obj_to_world)
+            )
+            auc = mercury.geometry.average_distance_auc(pcd_target, pcd_source)
+            logger.info(auc)
+            if auc >= 0.5:
+                logger.success("auc >= 0.5")
                 break
 
             while True:
@@ -218,10 +216,11 @@ def main():
                 j = ri.solve_ik(
                     place_pose, move_target=ri.robot_model.attachment_link0
                 )
-            path = ri.planj(
-                j, attachments=ri.attachments, obstacles=[plane, table]
-            )
+            obstacles = [plane, table] + object_ids
+            obstacles.remove(object_id)
+            path = ri.planj(j, attachments=ri.attachments, obstacles=obstacles)
             if path is None:
+                logger.warning("path is None")
                 path = [j]
             for _ in (_ for j in path for _ in ri.movej(j, speed=0.001)):
                 step_simulation()
