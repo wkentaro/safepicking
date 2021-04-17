@@ -248,38 +248,6 @@ def place_to_regrasp(
     return regrasp_pose, i < n_trial
 
 
-def draw_grasped_object(ri):
-    if not ri.gripper.grasped_object:
-        return
-    visual_shape_data = p.getVisualShapeData(ri.gripper.grasped_object)
-    visual_file = visual_shape_data[0][4].decode()
-    obj = mercury.pybullet.create_mesh_body(
-        visual_file=visual_file,
-        mass=0.001,
-        rgba_color=[0, 1, 0, 0.5],
-    )
-    obj_to_ee = ri.attachments[0].grasp_pose
-    ee_to_world = ri.get_pose("tipLink")
-    obj_to_world = pp.multiply(ee_to_world, obj_to_ee)
-    pp.set_pose(obj, obj_to_world)
-    p.createConstraint(
-        parentBodyUniqueId=ri.robot,
-        parentLinkIndex=ri.ee,
-        childBodyUniqueId=obj,
-        childLinkIndex=-1,
-        jointType=p.JOINT_FIXED,
-        jointAxis=(0, 0, 0),
-        parentFramePosition=obj_to_ee[0],
-        parentFrameOrientation=obj_to_ee[1],
-        childFramePosition=(0, 0, 0),
-        childFrameOrientation=(0, 0, 0),
-    )
-
-    time.sleep(1)
-
-    p.removeBody(obj)
-
-
 def get_place_pose(object_id, bin_aabb_min, bin_aabb_max):
     position_org, quaternion_org = p.getBasePositionAndOrientation(object_id)
 

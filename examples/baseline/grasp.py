@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from loguru import logger
 import numpy as np
 import pybullet as p
 
@@ -28,7 +29,9 @@ def main():
         mass=0.1,
     )
 
-    step_simulation = utils.StepSimulation(ri=ri, imshow=args.imshow)
+    step_simulation = utils.StepSimulation(
+        ri=ri, imshow=args.imshow, retime=args.retime
+    )
     step_simulation()
 
     utils.pause(args.pause)
@@ -53,15 +56,10 @@ def main():
             step_simulation()
             i += 1
         if i == 0:
-            print("Completed the task")
+            logger.success("Completed the task")
             break
 
         for _ in ri.move_to_homej([plane], object_ids):
-            step_simulation()
-
-        utils.draw_grasped_object(ri)
-
-        for _ in range(240):
             step_simulation()
 
         # ---------------------------------------------------------------------
