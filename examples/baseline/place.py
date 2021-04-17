@@ -94,7 +94,6 @@ def main():
             step_simulation()
 
         regrasp_pose = np.mean(regrasp_aabb, axis=0)
-        done = False
         for i in itertools.count():
             if i > 0:
                 while True:
@@ -122,24 +121,19 @@ def main():
                     if not ri.gripper.check_grasp():
                         ri.ungrasp()
                         continue
-
-                    ri.homej[0] = np.pi / 2
-                    with pybullet_planning.LockRenderer(), pybullet_planning.WorldSaver():  # NOQA
-                        ri.setj(ri.homej)
-                        place_pose, path = utils.plan_placement(
-                            ri, place_aabb, [plane, table], object_ids
-                        )
-                    if path is None:
-                        done = False
-                        break
-
                     break
 
-                if done:
-                    break
+            ri.homej[0] = np.pi / 2
+            with pybullet_planning.LockRenderer(), pybullet_planning.WorldSaver():  # NOQA
+                ri.setj(ri.homej)
+                place_pose, path = utils.plan_placement(
+                    ri, place_aabb, [plane, table], object_ids
+                )
+            if path is not None:
+                break
 
             ri.homej[0] = 0
-            regrasp_pose, done = utils.place_to_regrasp(
+            regrasp_pose, _ = utils.place_to_regrasp(
                 ri,
                 regrasp_aabb,
                 bg_object_ids=[plane, table],
