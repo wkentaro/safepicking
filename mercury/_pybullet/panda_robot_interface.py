@@ -185,6 +185,7 @@ class PandaRobotInterface:
                 parent_link=self.robot_model.tipLink,
                 name=f"attachment_joint{i}",
             )
+            link.joint = joint
             link_list.append(link)
             joint_list.append(joint)
         return skrobot.model.RobotModel(
@@ -267,6 +268,7 @@ class PandaRobotInterface:
             parent_link=parent_link,
             name=f"{parent_name}_to_{name}_joint",
         )
+        link.joint = joint
         link_list.append(link)
         joint_list.append(joint)
         self.robot_model = skrobot.model.RobotModel(

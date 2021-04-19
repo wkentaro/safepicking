@@ -187,10 +187,28 @@ def place_to_regrasp(
         regrasp_pose = c.pose  # obj_af_to_world
 
         with ri.enabling_attachments():
+            obj_to_world = ri.get_pose("attachment_link0")
+
+            move_target_to_world = mercury.geometry.Coordinate(*obj_to_world)
+            move_target_to_world.transform(
+                np.linalg.inv(
+                    mercury.geometry.quaternion_matrix(regrasp_pose[1])
+                ),
+                wrt="local",
+            )
+            move_target_to_world = move_target_to_world.pose
+            regrasp_pose = regrasp_pose[0], [0, 0, 0, 1]
+
+            ee_to_world = ri.get_pose("tipLink")
+            move_target_to_ee = pp.multiply(
+                pp.invert(ee_to_world), move_target_to_world
+            )
+            ri.add_link("move_target", pose=move_target_to_ee)
+
             j = ri.solve_ik(
                 regrasp_pose,
-                move_target=ri.robot_model.attachment_link0,
-                rthre=np.deg2rad(15),
+                move_target=ri.robot_model.move_target,
+                rotation_axis="z",
             )
         if j is None:
             logger.warning("j is None")
