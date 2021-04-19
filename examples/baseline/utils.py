@@ -389,3 +389,92 @@ def get_class_id(object_id):
     class_name = visual_shape_data[0][4].decode().split("/")[-2]
     class_id = mercury.datasets.ycb.class_names.tolist().index(class_name)
     return class_id
+
+
+def correct(
+    ri, object_id, place_pose, bg_object_ids, object_ids, step_simulation
+):
+    c = mercury.geometry.Coordinate(*ri.get_pose("tipLink"))
+    c.position = place_pose[0]
+    c.position[2] = 0.7
+    j = ri.solve_ik(
+        c.pose,
+        move_target=ri.robot_model.camera_link,
+        rotation_axis="z",
+    )
+    if j is None:
+        logger.warning("j is None")
+        return
+    for _ in ri.movej(j):
+        step_simulation()
+    j_camera = j
+
+    while True:
+        obj_to_world = pp.get_pose(object_id)
+
+        class_id = get_class_id(object_id)
+        pcd_file = mercury.datasets.ycb.get_pcd_file(class_id=class_id)
+        pcd = np.loadtxt(pcd_file)
+        pcd_target = mercury.geometry.transform_points(
+            pcd, mercury.geometry.transformation_matrix(*place_pose)
+        )
+        pcd_source = mercury.geometry.transform_points(
+            pcd, mercury.geometry.transformation_matrix(*obj_to_world)
+        )
+        auc = mercury.geometry.average_distance_auc(pcd_target, pcd_source)
+        logger.info(auc)
+        if auc >= 0.5:
+            logger.success("auc >= 0.5")
+            break
+
+        while True:
+            with stash_objects(virtual_objects):
+                _, depth, segm = ri.get_camera_image()
+            for _ in ri.random_grasp(
+                depth=depth,
+                segm=segm,
+                bg_object_ids=bg_object_ids,
+                object_ids=object_ids,
+                target_object_ids=[object_id],
+                max_angle=np.deg2rad(10),
+            ):
+                step_simulation()
+            if not ri.gripper.check_grasp():
+                ri.ungrasp()
+                for _ in ri.movej(j):
+                    step_simulation()
+                continue
+            break
+
+        with ri.enabling_attachments():
+            j = ri.solve_ik(
+                place_pose, move_target=ri.robot_model.attachment_link0
+            )
+        obstacles = bg_object_ids + object_ids
+        obstacles.remove(object_id)
+        path = ri.planj(j, attachments=ri.attachments, obstacles=obstacles)
+        if path is None:
+            logger.warning("path is None")
+            path = [j]
+        for _ in (_ for j in path for _ in ri.movej(j, speed=0.001)):
+            step_simulation()
+
+        for _ in range(240):
+            step_simulation()
+
+        ri.ungrasp()
+
+        for _ in range(240):
+            step_simulation()
+
+        c = mercury.geometry.Coordinate(*ri.get_pose("tipLink"))
+        c.translate([0, 0, -0.05])
+        j = ri.solve_ik(c.pose, rotation_axis=None)
+        for _ in ri.movej(j):
+            step_simulation()
+
+        for _ in ri.movej(j_camera):
+            step_simulation()
+
+    for _ in ri.move_to_homej(bg_object_ids, object_ids):
+        step_simulation()
