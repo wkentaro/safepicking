@@ -9,6 +9,7 @@ import pybullet_planning
 
 from .. import geometry
 from . import utils
+from .ompl_planning import PbPlanner
 from .suction_gripper import SuctionGripper
 
 import skrobot
@@ -34,6 +35,8 @@ class PandaRobotInterface:
             self.robot, self.ee, max_force=suction_max_force
         )
 
+        self.attachments = []
+
         if self.pose is not None:
             self.robot_model.translate(pose[0])
             self.robot_model.orient_with_matrix(
@@ -51,6 +54,15 @@ class PandaRobotInterface:
         for joint, joint_angle in zip(self.joints, self.homej):
             p.resetJointState(self.robot, joint, joint_angle)
         self.update_robot_model()
+
+    def get_bounds(self):
+        lower_bounds = []
+        upper_bounds = []
+        for joint in self.joints:
+            lower, upper = p.getJointInfo(self.robot, joint)[8:10]
+            lower_bounds.append(lower)
+            upper_bounds.append(upper)
+        return lower_bounds, upper_bounds
 
     def step_simulation(self):
         self.gripper.step_simulation()
@@ -194,27 +206,36 @@ class PandaRobotInterface:
             # root_link=self.robot_model.root_link,
         )
 
-    def planj(
-        self,
-        targj,
-        obstacles=None,
-        attachments=None,
-        self_collisions=True,
-        **kwargs,
-    ):
-        obstacles = [] if obstacles is None else obstacles
-        attachments = [] if attachments is None else attachments
-        with pybullet_planning.LockRenderer():
-            with pybullet_planning.WorldSaver():
-                path = pybullet_planning.plan_joint_motion(
-                    body=self.robot,
-                    joints=self.joints,
-                    end_conf=targj,
-                    obstacles=obstacles,
-                    attachments=attachments,
-                    self_collisions=self_collisions,
-                    **kwargs,
-                )
+    def planj(self, j, obstacles=None, min_distances=None):
+        ndof = len(self.joints)
+
+        planner = PbPlanner(
+            self, obstacles=obstacles, min_distances=min_distances
+        )
+
+        if not planner.validityChecker.isValid(self.getj()):
+            logger.warning("Start state is invalid")
+            return
+
+        if not planner.validityChecker.isValid(j):
+            logger.warning("Goal state is invalid")
+            return
+
+        result = planner.plan(self.getj(), j)
+
+        if result is None:
+            logger.warning("No solution found")
+            return
+
+        state_count = result.getStateCount()
+        path = np.zeros((state_count, ndof), dtype=float)
+        for i_state in range(state_count):
+            state = result.getState(i_state)
+            j = np.zeros((ndof,), dtype=float)
+            for i_dof in range(ndof):
+                j[i_dof] = state[i_dof]
+            path[i_state] = j
+
         return path
 
     def grasp(self, dz=None, max_dz=None, **kwargs):
@@ -248,6 +269,7 @@ class PandaRobotInterface:
         self.gripper.release()
         if hasattr(self, "virtual_grasped_object"):
             p.removeBody(self.virtual_grasped_object)
+        self.attachments = []
 
     def add_link(self, name, pose, parent=None):
         if parent is None:
@@ -477,15 +499,21 @@ class PandaRobotInterface:
             obstacles.remove(self.attachments[0].child)
 
         path = None
-        max_distance = 0
+        min_distance = 0
         while path is None:
+            min_distances = {}
+            for link in pybullet_planning.get_links(self.robot):
+                min_distances[(self.robot, link)] = min_distance
+            for attachment in self.attachments:
+                min_distances[(attachment.child, -1)] = min_distance
+
             path = self.planj(
                 self.homej,
                 obstacles=obstacles,
-                attachments=self.attachments,
-                max_distance=max_distance,
+                min_distances=min_distances,
             )
             logger.warning("path is None")
-            max_distance -= 0.01
+
+            min_distance -= 0.01
         for _ in (_ for j in path for _ in self.movej(j, speed=0.005)):
             yield

@@ -216,12 +216,7 @@ def place_to_regrasp(
 
         obstacles = bg_object_ids + object_ids
         obstacles.remove(object_id)
-        path = ri.planj(
-            j,
-            obstacles=obstacles,
-            attachments=ri.attachments,
-            extra_disabled_collisions=[((ri.robot, ri.ee), (object_id, -1))],
-        )
+        path = ri.planj(j, obstacles=obstacles)
         if path is None:
             logger.warning("path is None")
             continue
@@ -252,13 +247,7 @@ def place_to_regrasp(
     for _ in (_ for j in path2 for _ in ri.movej(j, speed=0.005)):
         step_simulation()
 
-    path = None
-    while path is None:
-        path = ri.planj(
-            ri.homej,
-            obstacles=bg_object_ids + object_ids,
-        )
-    for _ in (_ for j in path for _ in ri.movej(j)):
+    for _ in ri.move_to_homej(bg_object_ids, object_ids):
         step_simulation()
 
     return regrasp_pose, i < n_trial
@@ -315,12 +304,7 @@ def plan_placement(ri, place_aabb, bg_object_ids, object_ids):
 
     obstacles = bg_object_ids + object_ids
     obstacles.remove(object_id)
-    path = ri.planj(
-        j,
-        obstacles=obstacles,
-        attachments=ri.attachments,
-        extra_disabled_collisions=[((ri.robot, ri.ee), (object_id, -1))],
-    )
+    path = ri.planj(j, obstacles=obstacles)
     if path is None:
         logger.warning("path is None")
         return place_pose, None
@@ -371,15 +355,19 @@ def place(
     for _ in ri.movej(j, speed=0.005):
         step_simulation()
 
-    max_distance = 0
+    min_distance = 0
     path = None
     while path is None:
+        min_distances = {}
+        for attachment in ri.attachments:
+            min_distances[(attachment.child, -1)] = min_distance
+
         path = ri.planj(
             ri.homej,
             obstacles=bg_object_ids + object_ids,
-            max_distance=max_distance,
+            min_distances=min_distances,
         )
-        max_distance -= 0.01
+        min_distance -= 0.01
     for _ in (_ for j in path for _ in ri.movej(j)):
         step_simulation()
 
@@ -452,7 +440,7 @@ def correct(
             )
         obstacles = bg_object_ids + object_ids
         obstacles.remove(object_id)
-        path = ri.planj(j, attachments=ri.attachments, obstacles=obstacles)
+        path = ri.planj(j, obstacles=obstacles)
         if path is None:
             logger.warning("path is None")
             path = [j]

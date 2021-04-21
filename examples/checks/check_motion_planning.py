@@ -44,7 +44,7 @@ def main():
         parentFrameOrientation=(0, 0, 0, 1),
         childFramePosition=(0, 0, 0),
     )
-    attachments = [
+    ri.attachments = [
         pybullet_planning.Attachment(
             ri.robot, ri.ee, [(0, 0, 0.04), (0, 0, 0, 1)], cube
         )
@@ -62,11 +62,14 @@ def main():
 
     obstacles = [plane, box]
 
+    j1 = ri.solve_ik(c1.pose)
+    j2 = ri.solve_ik(c2.pose)
+
     while True:
         traj = ri.planj(
-            ri.solve_ik(c1.pose),
+            j1,
             obstacles=obstacles,
-            attachments=attachments,
+            min_distances={(ri.robot, ri.ee): 0.1},
         )
         for j in traj:
             for _ in ri.movej(j):
@@ -74,9 +77,9 @@ def main():
                 time.sleep(1 / 240)
 
         traj = ri.planj(
-            ri.solve_ik(c2.pose),
+            j2,
             obstacles=obstacles,
-            attachments=attachments,
+            min_distances={(ri.attachments[0].child, -1): 0.1},
         )
         for j in traj:
             for _ in ri.movej(j):
