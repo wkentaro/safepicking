@@ -6,5 +6,8 @@ all:
 install_anaconda3:
 	@Makefile.scripts/install_anaconda3.sh
 
-install: install_anaconda3
+install_ompl:
+	@Makefile.scripts/install_ompl.sh
+
+install: install_anaconda3 install_ompl
 	@Makefile.scripts/install.sh
