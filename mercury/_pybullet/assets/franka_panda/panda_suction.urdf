@@ -249,6 +249,12 @@
       </geometry>
       <material name="DarkGrey"/>
     </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="suction/base.obj" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
   </link>
   <link name="midLink">
     <contact>
@@ -268,6 +274,12 @@
       </geometry>
       <material name="DarkGrey"/>
     </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="suction/mid.obj" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
   </link>
   <joint name="baseLink-midLink" type="fixed">
     <origin rpy="0 0 0" xyz="0 0 0.025"/>
@@ -337,12 +349,12 @@
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
-      <!-- <geometry>
-        <mesh filename="suction/tip.obj" scale="0.001 0.001 0.001"/>
-      </geometry> -->
       <geometry>
-        <cylinder length="0.028" radius="0.001"/>
+        <mesh filename="suction/tip.obj" scale="0.001 0.001 0.001"/>
       </geometry>
+      <!-- <geometry> -->
+      <!--   <cylinder length="0.028" radius="0.001"/> -->
+      <!-- </geometry> -->
     </collision>
   </link>
   <!-- <link name="asdfLink">
