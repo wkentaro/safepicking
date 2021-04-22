@@ -1,5 +1,4 @@
 import argparse
-import contextlib
 import itertools
 import time
 
@@ -315,17 +314,6 @@ def plan_placement(ri, place_aabb, bg_object_ids, object_ids):
 virtual_objects = []
 
 
-@contextlib.contextmanager
-def stash_objects(object_ids):
-    try:
-        with pp.LockRenderer(), pp.WorldSaver():
-            for obj in object_ids:
-                pp.set_pose(obj, ((0, 0, 0), (0, 0, 0, 1)))
-            yield
-    finally:
-        pass
-
-
 def place(
     ri, object_id, place_pose, path, bg_object_ids, object_ids, step_simulation
 ):
@@ -416,7 +404,7 @@ def correct(
             break
 
         while True:
-            with stash_objects(virtual_objects):
+            with mercury.pybullet.stash_objects(virtual_objects):
                 _, depth, segm = ri.get_camera_image()
             for _ in ri.random_grasp(
                 depth=depth,

@@ -1,3 +1,4 @@
+import contextlib
 import itertools
 import shlex
 import subprocess
@@ -247,3 +248,14 @@ def duplicate(body_id, visual=True, collision=True, **kwargs):
         collision_file=collision_file,
         **kwargs,
     )
+
+
+@contextlib.contextmanager
+def stash_objects(object_ids):
+    try:
+        with pybullet_planning.LockRenderer(), pybullet_planning.WorldSaver():
+            for obj in object_ids:
+                pybullet_planning.set_pose(obj, ((0, 0, 1000), (0, 0, 0, 1)))
+            yield
+    finally:
+        pass
