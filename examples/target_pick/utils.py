@@ -1,4 +1,3 @@
-import imgviz
 import numpy as np
 import pybullet as p
 import pybullet_planning as pp
@@ -50,12 +49,11 @@ def create_pile(class_ids, num_instances, random_state=None):
         visual_file = mercury.datasets.ycb.get_visual_file(class_id=class_id)
         collision_file = mercury.pybullet.get_collision_file(visual_file)
         unique_id = mercury.pybullet.create_mesh_body(
-            visual_file=collision_file,
+            visual_file=visual_file,
             collision_file=collision_file,
             mass=mercury.datasets.ycb.masses[class_id],
             position=coord.position,
             quaternion=coord.quaternion,
-            rgba_color=imgviz.label_colormap()[class_id] / 255,
         )
         p.addUserData(unique_id, "class_id", str(class_id))
 

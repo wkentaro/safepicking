@@ -33,6 +33,7 @@ def create_mesh_body(
     quaternion=None,
     mass=0,
     rgba_color=None,
+    texture=True,
 ):
     if rgba_color is not None and len(rgba_color) == 3:
         rgba_color = [rgba_color[0], rgba_color[1], rgba_color[2], 1]
@@ -64,6 +65,8 @@ def create_mesh_body(
         baseOrientation=quaternion,
         useMaximalCoordinates=False,
     )
+    if not texture:
+        pybullet.changeVisualShape(unique_id, -1, textureUniqueId=-1)
     return unique_id
 
 
