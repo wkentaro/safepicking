@@ -11,9 +11,9 @@ def init():
 
     if not root_dir.exists():
         gdown.cached_download(
-            url="https://drive.google.com/uc?id=1PKEJ8SVIVLukvmeIBexp6_XmJetHoOf2",  # NOQA
+            url="https://drive.google.com/uc?id=1BoXR3rNqWIoILDQK8yiB6FWgvHGpjtJe",  # NOQA
             path=root_dir + ".zip",
-            md5="540c37435e4a16546850a83690b2db9b",
+            md5="054b845708318a9d38a3f080572dcb3c",
             postprocess=gdown.extractall,
         )
 
