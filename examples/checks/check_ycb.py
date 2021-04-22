@@ -32,7 +32,7 @@ def main():
         raise ValueError
 
     tiled = []
-    class_names = mercury.datasets.ycb.init()[1]
+    class_names = mercury.datasets.ycb.class_names
     for class_id in tqdm.tqdm(class_ids):
         visual_file = mercury.datasets.ycb.get_visual_file(class_id)
         obj = mercury.pybullet.create_mesh_body(
