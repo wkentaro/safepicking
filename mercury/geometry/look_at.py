@@ -53,6 +53,8 @@ def look_at(
 
     # create new axes
     z_axis: np.ndarray = normalize(target - eye)
+    if np.cross(up, z_axis).sum() == 0:
+        up = np.array([0, -1, 0], dtype=float)
     x_axis: np.ndarray = normalize(np.cross(up, z_axis))
     y_axis: np.ndarray = normalize(np.cross(z_axis, x_axis))
 
