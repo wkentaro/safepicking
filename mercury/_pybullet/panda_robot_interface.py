@@ -268,6 +268,10 @@ class PandaRobotInterface:
                 raise RuntimeError("IK failed")
             for i in self.movej(j, **kwargs):
                 yield i
+                if min_dz is not None and dz_done < min_dz:
+                    continue
+                if self.gripper.detect_contact():
+                    break
             if min_dz is not None and dz_done < min_dz:
                 continue
             if self.gripper.detect_contact():
