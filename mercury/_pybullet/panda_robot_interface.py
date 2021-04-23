@@ -19,7 +19,7 @@ here = path.Path(__file__).abspath().parent
 
 
 class PandaRobotInterface:
-    def __init__(self, pose=None, suction_max_force=10):
+    def __init__(self, pose=None, suction_max_force=10, planner="RRTConnect"):
         self.pose = pose
 
         urdf_file = here / "assets/franka_panda/panda_suction.urdf"
@@ -54,6 +54,8 @@ class PandaRobotInterface:
         for joint, joint_angle in zip(self.joints, self.homej):
             p.resetJointState(self.robot, joint, joint_angle)
         self.update_robot_model()
+
+        self.planner = planner
 
     def get_bounds(self):
         lower_bounds = []
@@ -207,10 +209,16 @@ class PandaRobotInterface:
         )
 
     def planj(self, j, obstacles=None, min_distances=None):
+        if self.planner == "Naive":
+            return [j]
+
         ndof = len(self.joints)
 
         planner = PbPlanner(
-            self, obstacles=obstacles, min_distances=min_distances
+            self,
+            obstacles=obstacles,
+            min_distances=min_distances,
+            planner=self.planner,
         )
 
         if not planner.validityChecker.isValid(self.getj()):
@@ -231,21 +239,24 @@ class PandaRobotInterface:
         path = np.zeros((state_count, ndof), dtype=float)
         for i_state in range(state_count):
             state = result.getState(i_state)
-            j = np.zeros((ndof,), dtype=float)
+            path_i = np.zeros((ndof,), dtype=float)
             for i_dof in range(ndof):
-                j[i_dof] = state[i_dof]
-            path[i_state] = j
+                path_i[i_dof] = state[i_dof]
+            path[i_state] = path_i
+
+        # FIXME: planner can ignore goal with len(path) == 2
+        if not np.allclose(path[-1], j):
+            assert len(path) == 2
+            path = path[:-1]
 
         return path
 
-    def grasp(self, dz=None, max_dz=None, **kwargs):
-        # NOTE: with dz=None, we assume grasp is detectable
-        # using pressure sensor in the real world.
+    def grasp(self, min_dz=None, max_dz=None, **kwargs):
         c = geometry.Coordinate(
             *pybullet_planning.get_link_pose(self.robot, self.ee)
         )
         dz_done = 0
-        while not self.gripper.detect_contact():
+        while True:
             c.translate([0, 0, 0.001])
             dz_done += 0.001
             j = self.solve_ik(c.pose, rotation_axis="z")
@@ -253,22 +264,19 @@ class PandaRobotInterface:
                 raise RuntimeError("IK failed")
             for i in self.movej(j, **kwargs):
                 yield i
-                # if self.gripper.detect_contact():
-                #     break
-            if dz is not None and dz_done >= dz:
+            if min_dz is not None and dz_done < min_dz:
+                continue
+            if self.gripper.detect_contact():
                 break
             if max_dz is not None and dz_done >= max_dz:
                 break
         self.gripper.activate()
-        if dz is not None:
-            c.translate([0, 0, dz - dz_done])
-            j = self.solve_ik(c.pose, rotation_axis="z")
-            yield from self.movej(j)
 
     def ungrasp(self):
         self.gripper.release()
         if hasattr(self, "virtual_grasped_object"):
             p.removeBody(self.virtual_grasped_object)
+            del self.virtual_grasped_object
         self.attachments = []
 
     def add_link(self, name, pose, parent=None):
@@ -359,7 +367,12 @@ class PandaRobotInterface:
         target_object_ids=None,
         max_angle=np.deg2rad(45),
         num_trial=10,
+        random_state=None,
+        noise=True,
     ):
+        if random_state is None:
+            random_state = np.random.RandomState()
+
         # This should be called after moving camera to observe the scene.
         K = self.get_opengl_intrinsic_matrix()
 
@@ -393,7 +406,7 @@ class PandaRobotInterface:
         normals = normals.reshape(-1, 3)
 
         indices = np.where(mask)[0]
-        np.random.shuffle(indices)
+        random_state.shuffle(indices)
 
         path = None
         for index in indices[:num_trial]:
@@ -447,12 +460,13 @@ class PandaRobotInterface:
 
         # XXX: getting ground truth object pose
         obj_to_world = pybullet_planning.get_pose(object_id)
-        pos, qua = obj_to_world
-        pos += np.random.normal(0, [0.01 / 3, 0.01 / 3, 0.01 / 3], 3)
-        qua += np.random.normal(0, 0.03 / 3, 4)
-        obj_to_world = pos, qua
+        if noise:
+            pos, qua = obj_to_world
+            pos += random_state.normal(0, [0.003, 0.003, 0.003], 3)
+            qua += random_state.normal(0, 0.01, 4)
+            obj_to_world = pos, qua
 
-        for _ in self.grasp(dz=None, max_dz=0.11, speed=0.005):
+        for _ in self.grasp(min_dz=0.08, max_dz=0.12, speed=0.005):
             yield
 
         obstacles = bg_object_ids + object_ids
@@ -471,9 +485,10 @@ class PandaRobotInterface:
             self.virtual_grasped_object = utils.duplicate(
                 object_id,
                 mass=1e-12,
-                rgba_color=(0, 1, 0, 0.5),
                 position=obj_to_world[0],
                 quaternion=obj_to_world[1],
+                rgba_color=(0, 1, 0, 0.5),
+                texture=False,
             )
             p.setCollisionFilterGroupMask(
                 self.virtual_grasped_object, -1, 0, 0
@@ -493,27 +508,30 @@ class PandaRobotInterface:
         else:
             self.attachments = []
 
-    def move_to_homej(self, bg_object_ids, object_ids):
+    def move_to_homej(self, bg_object_ids, object_ids, speed=0.01):
         obstacles = bg_object_ids + object_ids
-        if self.attachments:
+        if self.attachments and self.attachments[0].child in obstacles:
             obstacles.remove(self.attachments[0].child)
 
-        path = None
+        js = None
         min_distance = 0
-        while path is None:
+        while True:
             min_distances = {}
             for link in pybullet_planning.get_links(self.robot):
                 min_distances[(self.robot, link)] = min_distance
             for attachment in self.attachments:
                 min_distances[(attachment.child, -1)] = min_distance
 
-            path = self.planj(
+            js = self.planj(
                 self.homej,
                 obstacles=obstacles,
                 min_distances=min_distances,
             )
-            logger.warning("path is None")
-
-            min_distance -= 0.01
-        for _ in (_ for j in path for _ in self.movej(j, speed=0.005)):
-            yield
+            if js is None:
+                logger.warning(f"js is None w/ min_distance={min_distance}")
+                min_distance -= 0.01
+            else:
+                break
+        for j in js:
+            for _ in self.movej(j, speed=speed):
+                yield

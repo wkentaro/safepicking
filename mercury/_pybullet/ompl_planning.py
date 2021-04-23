@@ -97,7 +97,9 @@ class pbValidityChecker(ob.StateValidityChecker):
 
 
 class PbPlanner:
-    def __init__(self, ri, obstacles=None, min_distances=None):
+    def __init__(
+        self, ri, obstacles=None, min_distances=None, planner="RRTConnect"
+    ):
         ndof = len(ri.joints)
 
         lower, upper = ri.get_bounds()
@@ -117,6 +119,8 @@ class PbPlanner:
         self.si.setStateValidityChecker(self.validityChecker)
         self.si.setup()
 
+        self.planner = planner
+
     def plan(self, start_q, goal_q):
         # start and goal configs
         start = ob.State(self.space)
@@ -133,7 +137,7 @@ class PbPlanner:
         pdef.setOptimizationObjective(
             ob.PathLengthOptimizationObjective(self.si)
         )
-        optimizingPlanner = og.RRTConnect(self.si)
+        optimizingPlanner = getattr(og, self.planner)(self.si)
         optimizingPlanner.setRange(0.1)
         optimizingPlanner.setProblemDefinition(pdef)
         optimizingPlanner.setup()
