@@ -67,7 +67,8 @@ def create_mesh_body(
     )
     if not texture:
         pybullet.changeVisualShape(unique_id, -1, textureUniqueId=-1)
-    pybullet.addUserData(unique_id, "collision_file", collision_file)
+    if collision_file:
+        pybullet.addUserData(unique_id, "collision_file", collision_file)
     return unique_id
 
 
