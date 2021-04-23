@@ -7,6 +7,7 @@ from loguru import logger
 import numpy as np
 import path
 import pybullet as p
+import pybullet_planning as pp
 
 import mercury
 
@@ -23,7 +24,8 @@ def main():
     parser.add_argument("export_file", type=path.Path, help="export file")
     args = parser.parse_args()
 
-    utils.init_world(camera_distance=1)
+    pp.connect()
+    utils.init_simulation(camera_distance=1)
 
     data = np.load(args.export_file)
     num_instances = len(data["class_id"])

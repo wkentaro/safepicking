@@ -32,7 +32,8 @@ def main():
         logger.warning(f"File already exists: {export_file}")
         sys.exit(0)
 
-    utils.init_world(camera_distance=1, use_gui=not args.nogui)
+    pp.connect(use_gui=not args.nogui)
+    utils.init_simulation(camera_distance=1)
 
     object_ids = utils.create_pile(
         class_ids=[2, 3, 5, 11, 12, 15, 16],

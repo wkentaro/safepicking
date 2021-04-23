@@ -5,8 +5,7 @@ import pybullet_planning as pp
 import mercury
 
 
-def init_world(camera_distance=1.5, use_gui=True):
-    pp.connect(use_gui=use_gui)
+def init_simulation(camera_distance=1.5):
     pp.add_data_path()
     p.setGravity(0, 0, -9.8)
 

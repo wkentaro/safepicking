@@ -5,6 +5,7 @@ import time
 
 import numpy as np
 import pybullet as p
+import pybullet_planning as pp
 
 import mercury
 
@@ -18,7 +19,8 @@ def main():
     parser.add_argument("--seed", type=int, default=1, help="random seed")
     args = parser.parse_args()
 
-    utils.init_world(camera_distance=1)
+    pp.connect()
+    utils.init_simulation(camera_distance=1)
 
     unique_ids = utils.create_pile(
         class_ids=[2, 3, 5, 11, 12, 15, 16],
