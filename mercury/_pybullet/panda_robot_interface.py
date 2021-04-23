@@ -88,7 +88,7 @@ class PandaRobotInterface:
             joint_positions.append(p.getJointState(self.robot, joint)[0])
         return joint_positions
 
-    def movej(self, targj, speed=0.01):
+    def movej(self, targj, speed=0.01, timeout=10):
         assert len(targj) == len(self.joints)
         for i in itertools.count():
             currj = [p.getJointState(self.robot, i)[0] for i in self.joints]
@@ -110,6 +110,10 @@ class PandaRobotInterface:
                 positionGains=gains,
             )
             yield i
+
+            if i >= (timeout * 240):
+                logger.error("timeout in joint motor control")
+                return
 
     def solve_ik(self, pose, move_target=None, n_init=5, **kwargs):
         if move_target is None:
