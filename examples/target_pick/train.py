@@ -4,6 +4,7 @@ import argparse
 import datetime
 import socket
 
+from loguru import logger
 import numpy as np
 import path
 import pytz
@@ -62,6 +63,9 @@ def main():
 
     # Setup env
     ###################
+
+    logger.remove()
+    logger.add(log_dir / "log.txt")
 
     env = PickFromPileEnv(gui=False)
 
