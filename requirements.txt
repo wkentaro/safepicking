@@ -1,6 +1,7 @@
 black
 hacking
 imgviz
+loguru
 open3d
 path.py
 pre-commit
