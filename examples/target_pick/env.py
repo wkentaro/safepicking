@@ -195,12 +195,13 @@ class PickFromPileEnv(Env):
             j = self.ri.solve_ik(
                 c.pose, move_target=self.ri.robot_model.camera_link
             )
-            js = self.ri.planj(j)
-            for j in js:
-                for _ in self.ri.movej(j):
-                    p.stepSimulation()
-                    if self.gui:
-                        time.sleep(1 / 240 / self.retime)
+            if j is None:
+                continue
+
+            for _ in self.ri.movej(j):
+                p.stepSimulation()
+                if self.gui:
+                    time.sleep(1 / 240 / self.retime)
 
             rgb, depth, segm = self.ri.get_camera_image()
 
