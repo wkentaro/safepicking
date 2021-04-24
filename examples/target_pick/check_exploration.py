@@ -2,19 +2,8 @@
 
 import pprint
 
-import numpy as np
-
-from yarr.agents.agent import ActResult
-
+from agent import DqnAgent
 from env import PickFromPileEnv
-
-
-def agent(env, obs):
-    for action in np.random.permutation(len(env.actions)):
-        act_result = ActResult(action=action)
-        if env.validate_action(act_result):
-            break
-    return act_result
 
 
 def main():
@@ -22,11 +11,18 @@ def main():
     obs = env.reset()
     pprint.pprint(obs)
 
+    agent = DqnAgent(env=env)
+    agent.build(training=False)
+
     while True:
-        act_result = agent(env, obs)
+        for key in obs:
+            obs[key] = obs[key][None, None, :]
+        act_result = agent.act(
+            step=-1, observation=obs, deterministic=False, env=env
+        )
         transition = env.step(act_result)
         print(
-            f"action={act_result.action}, reward={transition.reward}, ",
+            f"action={act_result.action}, reward={transition.reward}, "
             f"terminal={transition.terminal}",
         )
         if transition.terminal:

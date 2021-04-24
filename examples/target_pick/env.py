@@ -25,6 +25,7 @@ here = path.Path(__file__).abspath().parent
 class PickFromPileEnv(Env):
 
     piles_dir = here / "logs/export_pile"
+    class_ids = [2, 3, 5, 11, 12, 15, 16]
 
     def __init__(self, gui=True, retime=1, planner="RRTConnect"):
         self.gui = gui
@@ -47,10 +48,10 @@ class PickFromPileEnv(Env):
                             actions.append([dx, dy, dz, da, db, dg])
         self.actions = actions
 
-        grasp_pose = gym.spaces.Box(
+        grasp_position = gym.spaces.Box(
             low=-np.inf,
             high=np.inf,
-            shape=(7,),
+            shape=(3,),
             dtype=np.float32,
         )
         past_actions = gym.spaces.Box(
@@ -60,10 +61,10 @@ class PickFromPileEnv(Env):
             dtype=np.uint8,
         )
         grasp_flags = gym.spaces.Box(low=0, high=1, shape=(8,), dtype=np.uint8)
-        object_classes = gym.spaces.Box(
+        object_labels = gym.spaces.Box(
             low=0,
             high=1,
-            shape=(8, 22),
+            shape=(8, len(self.class_ids)),
             dtype=np.uint8,
         )
         object_poses = gym.spaces.Box(
@@ -74,14 +75,15 @@ class PickFromPileEnv(Env):
         )
         self.observation_space = gym.spaces.Dict(
             dict(
-                grasp_pose=grasp_pose,
+                grasp_position=grasp_position,
                 past_actions=past_actions,
                 grasp_flags=grasp_flags,
-                object_classes=object_classes,
+                object_labels=object_labels,
                 object_poses=object_poses,
             )
         )
 
+    @property
     def action_shape(self):
         return ()
 
@@ -229,7 +231,7 @@ class PickFromPileEnv(Env):
             else:
                 self.ri.ungrasp()
 
-        self.grasp_pose = self.ri.get_pose("tipLink")
+        self.grasp_position = self.ri.get_pose("tipLink")[0].astype(np.float32)
         self.object_ids = object_ids
         self.target_object_id = object_ids[target_index]
         self.past_actions = np.zeros((4, len(self.actions)), dtype=np.uint8)
@@ -244,7 +246,9 @@ class PickFromPileEnv(Env):
         target_object_id = self.target_object_id
 
         grasp_flags = np.zeros((len(object_ids),), dtype=np.uint8)
-        object_classes = np.zeros((len(object_ids), 22), dtype=np.uint8)
+        object_labels = np.zeros(
+            (len(object_ids), len(self.class_ids)), dtype=np.uint8
+        )
         object_poses = np.zeros((len(object_ids), 7), dtype=np.float32)
         for i, object_id in enumerate(object_ids):
             if object_id == target_object_id:
@@ -255,14 +259,16 @@ class PickFromPileEnv(Env):
             else:
                 grasp_flags[i] = 0
                 object_to_world = pp.get_pose(object_id)
-            object_classes[i] = np.eye(22)[utils.get_class_id(object_id)]
+            class_id = utils.get_class_id(object_id)
+            object_label = self.class_ids.index(class_id)
+            object_labels[i] = np.eye(len(self.class_ids))[object_label]
             object_poses[i] = np.hstack(object_to_world)
 
         obs = dict(
-            grasp_pose=np.hstack(self.grasp_pose).astype(np.float32),
+            grasp_position=self.grasp_position,
             past_actions=self.past_actions,
             grasp_flags=grasp_flags,
-            object_classes=object_classes,
+            object_labels=object_labels,
             object_poses=object_poses,
         )
 
@@ -291,8 +297,16 @@ class PickFromPileEnv(Env):
         return self.ri.solve_ik(c.pose)
 
     def step(self, act_result):
-        j = self.validate_action(act_result)
-        assert j is not None
+        if hasattr(act_result, "j"):
+            j = act_result.j
+        else:
+            j = self.validate_action(act_result)
+
+        if j is None:
+            logger.error("failed to solve IK")
+            return Transition(
+                observation=self.get_obs(), reward=0, terminal=True
+            )
 
         for _ in self.ri.movej(j, speed=0.001):
             p.stepSimulation()
