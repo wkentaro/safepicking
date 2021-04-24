@@ -13,13 +13,17 @@ fi
 
 echo_bold "==> Installing OMPL"
 
+mkdir -p $ROOT/src
 cd $ROOT/src
-git clone https://github.com/ompl/ompl.git
+if [ ! -d ompl ]; then
+  git clone https://github.com/ompl/ompl.git
+fi
 cd ompl
 
-pip install pyplusplus
+pip install pyplusplus castxml
 
 mkdir -p build
+cd build
 cmake .. -DOMPL_BUILD_PYBINDINGS=TRUE
 make -j update_bindings
 make -j
