@@ -1,0 +1,3 @@
+[flake8]
+exclude = .?*, src/
+ignore = E741, H238, W503, W504, E203
