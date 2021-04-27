@@ -1,15 +1,29 @@
 #!/usr/bin/env python
 
+import argparse
 import pprint
+import time
+
+from loguru import logger
 
 from agent import DqnAgent
 from env import PickFromPileEnv
 
 
 def main():
-    env = PickFromPileEnv(gui=True, retime=10)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument("--nogui", action="store_true", help="no gui")
+    parser.add_argument("--print-obs", action="store_true", help="print obs")
+    args = parser.parse_args()
+
+    env = PickFromPileEnv(gui=not args.nogui, retime=10)
+    t_start = time.time()
     obs = env.reset()
-    pprint.pprint(obs)
+    logger.info(f"{time.time() - t_start:.2f} [s]")
+    if args.print_obs:
+        pprint.pprint(obs)
 
     agent = DqnAgent(env=env)
     agent.build(training=False)
@@ -20,13 +34,17 @@ def main():
         act_result = agent.act(
             step=-1, observation=obs, deterministic=False, env=env
         )
+        t_start = time.time()
         transition = env.step(act_result)
-        print(
+        logger.info(f"{time.time() - t_start:.2f} [s]")
+        logger.info(
             f"action={act_result.action}, reward={transition.reward}, "
             f"terminal={transition.terminal}",
         )
         if transition.terminal:
+            t_start = time.time()
             obs = env.reset()
+            logger.info(f"{time.time() - t_start:.2f} [s]")
         else:
             obs = transition.observation
 
