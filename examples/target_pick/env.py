@@ -205,10 +205,7 @@ class PickFromPileEnv(Env):
             if j is None:
                 continue
 
-            for _ in self.ri.movej(j):
-                p.stepSimulation()
-                if self.gui:
-                    time.sleep(pp.get_time_step() / self.retime)
+            self.ri.setj(j)
 
             rgb, depth, segm = self.ri.get_camera_image()
 
