@@ -50,7 +50,7 @@ def main():
     hparams["git_hash"] = None
     hparams["hostname"] = socket.gethostname()
 
-    now = datetime.datetime.now(pytz.timezone("Europe/London"))
+    now = datetime.datetime.now(pytz.timezone("Japan"))
     hparams["timestamp"] = now.isoformat()
 
     log_dir = now.strftime("%Y%m%d_%H%M%S") + "_" + hparams["name"]
