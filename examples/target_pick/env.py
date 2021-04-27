@@ -208,7 +208,7 @@ class PickFromPileEnv(Env):
             for _ in self.ri.movej(j):
                 p.stepSimulation()
                 if self.gui:
-                    time.sleep(1 / 240 / self.retime)
+                    time.sleep(pp.get_time_step() / self.retime)
 
             rgb, depth, segm = self.ri.get_camera_image()
 
@@ -223,13 +223,13 @@ class PickFromPileEnv(Env):
             ):
                 p.stepSimulation()
                 if self.gui:
-                    time.sleep(1 / 240 / self.retime)
+                    time.sleep(pp.get_time_step() / self.retime)
 
-            for _ in range(240):
+            for _ in range(int(round(1 / pp.get_time_step()))):
                 p.stepSimulation()
                 self.ri.step_simulation()
                 if self.gui:
-                    time.sleep(1 / 240 / self.retime)
+                    time.sleep(pp.get_time_step() / self.retime)
 
             if (
                 self.ri.gripper.check_grasp()
@@ -328,7 +328,7 @@ class PickFromPileEnv(Env):
             if step_callback:
                 step_callback()
             if self.gui:
-                time.sleep(1 / 240 / self.retime)
+                time.sleep(pp.get_time_step() / self.retime)
 
         self.i += 1
 
@@ -339,7 +339,7 @@ class PickFromPileEnv(Env):
                 if step_callback:
                     step_callback()
                 if self.gui:
-                    time.sleep(1 / 240 / self.retime)
+                    time.sleep(pp.get_time_step() / self.retime)
             reward = int(self.ri.gripper.check_grasp())
             terminal = True
         else:

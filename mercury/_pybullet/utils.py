@@ -136,8 +136,8 @@ def get_pose(body_id, link_id=-1, parent_body_id=None, parent_link_id=-1):
 def step_and_sleep(seconds=np.inf):
     for i in itertools.count():
         pybullet.stepSimulation()
-        time.sleep(1 / 240)
-        if int(round(i / 240)) >= seconds:
+        time.sleep(pybullet_planning.get_time_step())
+        if int(round(i * pybullet_planning.get_time_step())) >= seconds:
             break
 
 
