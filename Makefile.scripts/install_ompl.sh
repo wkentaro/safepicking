@@ -11,6 +11,12 @@ if [ -e $ROOT/src/ompl/py-bindings/ompl/base/_base.so ]; then
   exit 0
 fi
 
+echo_bold "==> Installing dependencies"
+
+conda_install cmake boost==1.71.0 eigen
+
+pip_install pyplusplus castxml
+
 echo_bold "==> Installing OMPL"
 
 mkdir -p $ROOT/src
@@ -19,8 +25,6 @@ if [ ! -d ompl ]; then
   git clone https://github.com/ompl/ompl.git
 fi
 cd ompl
-
-pip install pyplusplus castxml
 
 mkdir -p build
 cd build
