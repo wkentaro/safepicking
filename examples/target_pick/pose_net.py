@@ -32,8 +32,7 @@ class PoseNet(torch.nn.Module):
 
     def forward(
         self,
-        grasp_position,
-        past_actions,
+        ee_pose,
         object_labels,
         object_poses,
         grasp_flags,
@@ -47,15 +46,15 @@ class PoseNet(torch.nn.Module):
         )
 
         batch_indices = torch.where(is_valid.sum(dim=1))[0]
-        grasp_position = grasp_position[batch_indices]
-        past_actions = past_actions[batch_indices]
+        ee_pose = ee_pose[batch_indices]
         h = h[batch_indices]
 
         h = h.reshape(batch_indices.shape[0] * O, h.shape[2])
         h = self.fc_encoder(h)
         h = h.reshape(batch_indices.shape[0], O, h.shape[1])  # BOE
 
-        h_context = torch.cat([grasp_position, past_actions], dim=1)
+        # h_context = torch.cat([grasp_position, past_actions], dim=1)
+        h_context = ee_pose
         h_context = self.fc_context(h_context)  # BE
         h_context = h_context[:, None, :].repeat_interleave(O, dim=1)
 
