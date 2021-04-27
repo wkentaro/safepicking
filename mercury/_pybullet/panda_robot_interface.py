@@ -88,7 +88,7 @@ class PandaRobotInterface:
             joint_positions.append(p.getJointState(self.robot, joint)[0])
         return joint_positions
 
-    def movej(self, targj, speed=0.01, timeout=10):
+    def movej(self, targj, speed=0.01, timeout=5):
         assert len(targj) == len(self.joints)
         for i in itertools.count():
             currj = [p.getJointState(self.robot, i)[0] for i in self.joints]
