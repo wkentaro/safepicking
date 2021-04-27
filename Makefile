@@ -9,5 +9,8 @@ install_anaconda3:
 install_ompl:
 	@Makefile.scripts/install_ompl.sh
 
-install: install_anaconda3 install_ompl
+install_yarr:
+	@Makefile.scripts/install_yarr.sh
+
+install: install_anaconda3 install_ompl install_yarr
 	@Makefile.scripts/install.sh
