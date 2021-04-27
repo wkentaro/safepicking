@@ -1,4 +1,5 @@
 black
+gym
 hacking
 imgviz
 loguru
