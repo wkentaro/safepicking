@@ -48,10 +48,16 @@ class PickFromPileEnv(Env):
                             actions.append([dx, dy, dz, da, db, dg])
         self.actions = actions
 
-        grasp_position = gym.spaces.Box(
+        grasp_pose = gym.spaces.Box(
             low=-np.inf,
             high=np.inf,
-            shape=(3,),
+            shape=(7,),
+            dtype=np.float32,
+        )
+        ee_pose = gym.spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=(7,),
             dtype=np.float32,
         )
         past_actions = gym.spaces.Box(
@@ -75,7 +81,8 @@ class PickFromPileEnv(Env):
         )
         self.observation_space = gym.spaces.Dict(
             dict(
-                grasp_position=grasp_position,
+                grasp_pose=grasp_pose,
+                ee_pose=ee_pose,
                 past_actions=past_actions,
                 grasp_flags=grasp_flags,
                 object_labels=object_labels,
@@ -233,7 +240,9 @@ class PickFromPileEnv(Env):
                 self.ri.ungrasp()
         self.ri.planner = self.planner  # Use specified planner in step()
 
-        self.grasp_position = self.ri.get_pose("tipLink")[0].astype(np.float32)
+        self.grasp_pose = np.hstack(self.ri.get_pose("tipLink")).astype(
+            np.float32
+        )
         self.object_ids = object_ids
         self.target_object_id = object_ids[target_index]
         self.past_actions = np.zeros((4, len(self.actions)), dtype=np.uint8)
@@ -266,8 +275,11 @@ class PickFromPileEnv(Env):
             object_labels[i] = np.eye(len(self.class_ids))[object_label]
             object_poses[i] = np.hstack(object_to_world)
 
+        ee_pose = np.hstack(ri.get_pose("tipLink")).astype(np.float32)
+
         obs = dict(
-            grasp_position=self.grasp_position,
+            grasp_pose=self.grasp_pose,
+            ee_pose=ee_pose,
             past_actions=self.past_actions,
             grasp_flags=grasp_flags,
             object_labels=object_labels,

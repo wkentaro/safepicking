@@ -2,12 +2,12 @@ import torch
 
 
 class PoseNet(torch.nn.Module):
-    def __init__(self, n_action, n_past_action):
+    def __init__(self, n_action):
         super().__init__()
 
-        # grasp_pose: 3
+        # ee_pose: 7
         self.fc_context = torch.nn.Sequential(
-            torch.nn.Linear(3 + n_past_action * n_action, 10),
+            torch.nn.Linear(7, 10),
             torch.nn.ReLU(),
         )
 
@@ -28,7 +28,6 @@ class PoseNet(torch.nn.Module):
 
         self.fc_output = torch.nn.Sequential(
             torch.nn.Linear(20, n_action),
-            # torch.nn.Sigmoid(),
         )
 
     def forward(

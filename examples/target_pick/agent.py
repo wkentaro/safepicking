@@ -15,23 +15,22 @@ class DqnModel(torch.nn.Module):
     def __init__(self, env):
         super().__init__()
 
-        self.module = PoseNet(
-            n_action=len(env.actions),
-            n_past_action=4,
-        )
+        self.module = PoseNet(n_action=len(env.actions))
 
     def forward(self, observation):
-        grasp_position = observation["grasp_position"]
-        past_actions = observation["past_actions"]
-        past_actions = past_actions.reshape(past_actions.shape[0], -1)
+        ee_pose = observation["ee_pose"]
+
+        # grasp_pose = observation["grasp_pose"]
+        # grasp_position = observation["grasp_pose"][:, :3]
+        # past_actions = observation["past_actions"]
+        # past_actions = past_actions.reshape(past_actions.shape[0], -1)
 
         object_labels = observation["object_labels"]
         object_poses = observation["object_poses"]
         grasp_flags = observation["grasp_flags"]
 
         return self.module(
-            grasp_position=grasp_position,
-            past_actions=past_actions,
+            ee_pose=ee_pose,
             grasp_flags=grasp_flags,
             object_labels=object_labels,
             object_poses=object_poses,
