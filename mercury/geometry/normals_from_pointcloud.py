@@ -1,5 +1,4 @@
 import numpy as np
-import open3d
 
 
 def normals_from_pointcloud(points):
@@ -12,6 +11,8 @@ def normals_from_pointcloud(points):
 
 
 def _normals_from_pointcloud_unorganized(points):
+    import open3d
+
     assert points.shape[1] == 3
 
     nonnan = ~np.isnan(points).any(axis=1)
