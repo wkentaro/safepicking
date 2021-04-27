@@ -2,15 +2,15 @@
 
 import argparse
 import json
-import time
 
 from loguru import logger
 import numpy as np
 import path
-import pybullet as p
 import pybullet_planning as pp
 
+from agent import DqnAgent
 from env import PickFromPileEnv
+
 import utils
 
 
@@ -23,16 +23,13 @@ def main():
     )
     parser.add_argument("export_file", type=path.Path, help="export file")
     parser.add_argument(
-        "--planner",
-        choices=["RRTConnect", "Naive"],
-        required=True,
-        help="planner",
+        "--weight-dir", type=path.Path, help="weight dir", required=True
     )
     parser.add_argument("--seed", type=int, default=0, help="random seed")
     parser.add_argument("--nogui", action="store_true", help="no gui")
     args = parser.parse_args()
 
-    log_dir = here / f"logs/{args.planner}"
+    log_dir = args.weight_dir.parent.parent
     scene_id = args.export_file.stem
     json_file = log_dir / f"eval/{scene_id}/{args.seed}.json"
 
@@ -40,26 +37,23 @@ def main():
         logger.info(f"result file already exists: {json_file}")
         return
 
-    env = PickFromPileEnv(gui=not args.nogui, planner=args.planner)
-    env.reset(
+    env = PickFromPileEnv(gui=not args.nogui, planner="RRTConnect")
+    obs = env.reset(
         random_state=np.random.RandomState(args.seed),
         pile_file=args.export_file,
     )
 
+    agent = DqnAgent(env=env)
+    agent.build(training=False)
+    agent.load_weights(args.weight_dir)
+
     ri = env.ri
-    plane = env.plane
     object_ids = env.object_ids
     target_object_id = env.target_object_id
 
     velocities = {}
-    for _ in ri.move_to_homej(
-        bg_object_ids=[plane], object_ids=object_ids, speed=0.001
-    ):
-        p.stepSimulation()
-        ri.step_simulation()
-        if not args.nogui:
-            time.sleep(1 / 240)
 
+    def step_callback():
         for object_id in object_ids:
             if object_id == target_object_id:
                 continue
@@ -67,6 +61,22 @@ def main():
                 velocities.get(object_id, 0),
                 np.linalg.norm(pp.get_velocity(object_id)[0]),
             )
+
+    while True:
+        for key in obs:
+            obs[key] = obs[key][None, None, :]
+        act_result = agent.act(
+            step=-1, observation=obs, deterministic=True, env=env
+        )
+        transition = env.step(act_result, step_callback=step_callback)
+        print(
+            f"action={act_result.action}, reward={transition.reward}, "
+            f"terminal={transition.terminal}",
+        )
+        if transition.terminal:
+            break
+        else:
+            obs = transition.observation
 
     success = ri.gripper.check_grasp()
     if success:
@@ -85,7 +95,7 @@ def main():
     logger.info(f"sum_of_velocities: {sum(velocities.values()):.3f}")
 
     data = dict(
-        planner=args.planner,
+        planner="Learned",
         scene_id=scene_id,
         seed=args.seed,
         success=success,

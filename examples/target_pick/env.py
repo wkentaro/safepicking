@@ -126,7 +126,7 @@ class PickFromPileEnv(Env):
         self.plane = p.loadURDF("plane.urdf")
 
         self.ri = mercury.pybullet.PandaRobotInterface(
-            suction_max_force=10, planner=self.planner
+            suction_max_force=10, planner="RRTConnect"
         )
         c_cam_to_ee = mercury.geometry.Coordinate()
         c_cam_to_ee.translate([0, -0.05, -0.1])
@@ -231,6 +231,7 @@ class PickFromPileEnv(Env):
                 break
             else:
                 self.ri.ungrasp()
+        self.ri.planner = self.planner  # Use specified planner in step()
 
         self.grasp_position = self.ri.get_pose("tipLink")[0].astype(np.float32)
         self.object_ids = object_ids
@@ -297,7 +298,7 @@ class PickFromPileEnv(Env):
 
         return self.ri.solve_ik(c.pose)
 
-    def step(self, act_result):
+    def step(self, act_result, step_callback=None):
         if hasattr(act_result, "j"):
             j = act_result.j
         else:
@@ -312,6 +313,8 @@ class PickFromPileEnv(Env):
         for _ in self.ri.movej(j, speed=0.001):
             p.stepSimulation()
             self.ri.step_simulation()
+            if step_callback:
+                step_callback()
             if self.gui:
                 time.sleep(1 / 240 / self.retime)
 
@@ -321,6 +324,8 @@ class PickFromPileEnv(Env):
             for _ in self.ri.movej(self.ri.homej, speed=0.001, timeout=30):
                 p.stepSimulation()
                 self.ri.step_simulation()
+                if step_callback:
+                    step_callback()
                 if self.gui:
                     time.sleep(1 / 240 / self.retime)
             reward = int(self.ri.gripper.check_grasp())
