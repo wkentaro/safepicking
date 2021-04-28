@@ -110,8 +110,6 @@ class StepSimulation:
         self.retime = retime
 
         self.i = 0
-        self.obj_v_list = []
-        self.obj_v_enabled = True
 
     def __call__(self):
         p.stepSimulation()
@@ -128,19 +126,8 @@ class StepSimulation:
             )
             imgviz.io.cv_imshow(tiled, "wrist_camera")
             imgviz.io.cv_waitkey(1)
-        events = p.getKeyboardEvents()
-        if events.get(ord("k")) == p.KEY_WAS_RELEASED:
-            for obj_v in self.obj_v_list:
-                if self.obj_v_enabled:
-                    p.changeVisualShape(obj_v, -1, rgbaColor=(0, 1, 0, 0))
-                else:
-                    p.changeVisualShape(obj_v, -1, rgbaColor=(0, 1, 0, 0.5))
-            self.obj_v_enabled = not self.obj_v_enabled
         time.sleep(1 / 240 / self.retime)
         self.i += 1
-
-    def append_obj_v(self, obj_v):
-        self.obj_v_list.append(obj_v)
 
 
 def get_canonical_quaternion(class_id):
