@@ -384,9 +384,8 @@ def correct(
             pcd, mercury.geometry.transformation_matrix(*obj_to_world)
         )
         auc = mercury.geometry.average_distance_auc(pcd_target, pcd_source)
-        logger.info(auc)
         if auc >= 0.5:
-            logger.success("auc >= 0.5")
+            logger.success(f"auc: {auc:.3f} >= 0.5")
             break
 
         while True:
