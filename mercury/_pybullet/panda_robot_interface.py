@@ -111,7 +111,7 @@ class PandaRobotInterface:
             )
             yield i
 
-            if i >= (timeout * 240):
+            if i >= (timeout / pybullet_planning.get_time_step()):
                 logger.error("timeout in joint motor control")
                 return
 
