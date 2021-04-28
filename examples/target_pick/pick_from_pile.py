@@ -28,11 +28,12 @@ def main():
         required=True,
         help="planner",
     )
+    parser.add_argument("--pose-noise", action="store_true", help="pose noise")
     parser.add_argument("--seed", type=int, default=0, help="random seed")
     parser.add_argument("--nogui", action="store_true", help="no gui")
     args = parser.parse_args()
 
-    log_dir = here / f"logs/{args.planner}"
+    log_dir = here / f"logs/{args.planner}-pose_noise_{args.pose_noise}"
     scene_id = args.export_file.stem
     json_file = log_dir / f"eval/{scene_id}/{args.seed}.json"
 
@@ -40,7 +41,9 @@ def main():
         logger.info(f"result file already exists: {json_file}")
         return
 
-    env = PickFromPileEnv(gui=not args.nogui, planner=args.planner)
+    env = PickFromPileEnv(
+        gui=not args.nogui, planner=args.planner, pose_noise=args.pose_noise
+    )
     obs = env.reset(
         random_state=np.random.RandomState(args.seed),
         pile_file=args.export_file,

@@ -27,14 +27,17 @@ class PickFromPileEnv(Env):
     piles_dir = here / "logs/export_pile"
     class_ids = [2, 3, 5, 11, 12, 15, 16]
 
-    def __init__(self, gui=True, retime=1, planner="RRTConnect"):
-        self.gui = gui
-        self.retime = retime
+    def __init__(
+        self, gui=True, retime=1, planner="RRTConnect", pose_noise=False
+    ):
+        self._gui = gui
+        self._retime = retime
         self.planner = planner
+        self._pose_noise = pose_noise
 
         self.plane = None
         self.ri = None
-        self.pile_files = list(sorted(self.piles_dir.listdir()))
+        self._pile_files = list(sorted(self.piles_dir.listdir()))
 
         dpos = 0.05
         drot = np.deg2rad(15)
@@ -134,10 +137,10 @@ class PickFromPileEnv(Env):
         if random_state is None:
             random_state = np.random.RandomState()
         if pile_file is None:
-            pile_file = random_state.choice(self.pile_files)
+            pile_file = random_state.choice(self._pile_files)
 
         if not pp.is_connected():
-            pp.connect(use_gui=self.gui)
+            pp.connect(use_gui=self._gui)
             pp.add_data_path()
 
         p.resetSimulation()
@@ -229,6 +232,7 @@ class PickFromPileEnv(Env):
             object_state = self.get_object_state(
                 object_ids=object_ids,
                 target_object_id=object_ids[target_index],
+                random_state=random_state,
             )
 
             for _ in self.ri.random_grasp(
@@ -241,14 +245,14 @@ class PickFromPileEnv(Env):
                 noise=False,
             ):
                 p.stepSimulation()
-                if self.gui:
-                    time.sleep(pp.get_time_step() / self.retime)
+                if self._gui:
+                    time.sleep(pp.get_time_step() / self._retime)
 
             for _ in range(int(round(1 / pp.get_time_step()))):
                 p.stepSimulation()
                 self.ri.step_simulation()
-                if self.gui:
-                    time.sleep(pp.get_time_step() / self.retime)
+                if self._gui:
+                    time.sleep(pp.get_time_step() / self._retime)
 
             if (
                 self.ri.gripper.check_grasp()
@@ -271,7 +275,11 @@ class PickFromPileEnv(Env):
 
         return self.get_obs()
 
-    def get_object_state(self, object_ids, target_object_id):
+    def get_object_state(
+        self, object_ids, target_object_id, random_state=None
+    ):
+        if random_state is None:
+            random_state = np.random.RandomState()
         grasp_flags = np.zeros((len(object_ids),), dtype=np.uint8)
         object_labels = np.zeros(
             (len(object_ids), len(self.class_ids)), dtype=np.uint8
@@ -286,6 +294,11 @@ class PickFromPileEnv(Env):
             else:
                 grasp_flags[i] = object_id == target_object_id
                 object_to_world = pp.get_pose(object_id)
+                if self._pose_noise:
+                    object_to_world = (
+                        object_to_world[0] + random_state.normal(0, 0.003, 3),
+                        object_to_world[1] + random_state.normal(0, 0.01, 4),
+                    )
             class_id = utils.get_class_id(object_id)
             object_label = self.class_ids.index(class_id)
             object_labels[i] = np.eye(len(self.class_ids))[object_label]
@@ -355,8 +368,8 @@ class PickFromPileEnv(Env):
             self.ri.step_simulation()
             if step_callback:
                 step_callback()
-            if self.gui:
-                time.sleep(pp.get_time_step() / self.retime)
+            if self._gui:
+                time.sleep(pp.get_time_step() / self._retime)
 
         self.i += 1
 
@@ -366,8 +379,8 @@ class PickFromPileEnv(Env):
                 self.ri.step_simulation()
                 if step_callback:
                     step_callback()
-                if self.gui:
-                    time.sleep(pp.get_time_step() / self.retime)
+                if self._gui:
+                    time.sleep(pp.get_time_step() / self._retime)
             reward = int(self.ri.gripper.check_grasp())
             terminal = True
         else:

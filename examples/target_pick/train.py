@@ -41,6 +41,7 @@ def main():
         choices=["closedloop_pose_net", "openloop_pose_net"],
         help="model",
     )
+    parser.add_argument("--pose-noise", action="store_true", help="pose noise")
     parser.add_argument(
         "--train-envs", type=int, default=5, help="number of train envs"
     )
@@ -84,7 +85,7 @@ def main():
     # Setup env
     ###################
 
-    env = PickFromPileEnv(gui=False)
+    env = PickFromPileEnv(gui=False, pose_noise=hparams["pose_noise"])
 
     # Setup replay buffer
     #####################
@@ -108,7 +109,7 @@ def main():
     # Setup rl algorithm
     ####################
 
-    agent = DqnAgent(env=env, model=args.model)
+    agent = DqnAgent(env=env, model=hparams["model"])
 
     stat_accumulator = SimpleAccumulator()
 
@@ -116,7 +117,7 @@ def main():
         env=env,
         agent=agent,
         replay_buffer=replay_buffer,
-        train_envs=args.train_envs,
+        train_envs=hparams["train_envs"],
         eval_envs=0,
         episodes=999999,
         episode_length=5,
