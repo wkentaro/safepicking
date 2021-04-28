@@ -12,41 +12,57 @@ from pose_net import PoseNet
 
 
 class DqnModel(torch.nn.Module):
-    def __init__(self, env):
+    def __init__(self, env, model):
         super().__init__()
 
-        self.module = PoseNet(n_action=len(env.actions))
+        self.model = model
+
+        if self.model == "closedloop_pose_net":
+            self.module = PoseNet(closedloop=True, n_action=len(env.actions))
+        elif self.model == "openloop_pose_net":
+            self.module = PoseNet(
+                closedloop=False, n_action=len(env.actions), n_past_action=4
+            )
+        else:
+            raise ValueError
 
     def forward(self, observation):
-        ee_pose = observation["ee_pose"]
-
-        # grasp_pose = observation["grasp_pose"]
-        # grasp_position = observation["grasp_pose"][:, :3]
-        # past_actions = observation["past_actions"]
-        # past_actions = past_actions.reshape(past_actions.shape[0], -1)
-
-        object_labels = observation["object_labels"]
-        object_poses = observation["object_poses"]
-        grasp_flags = observation["grasp_flags"]
+        if self.model == "closedloop_pose_net":
+            grasp_flags = observation["grasp_flags"]
+            object_labels = observation["object_labels"]
+            object_poses = observation["object_poses"]
+            kwargs = dict(ee_pose=observation["ee_pose"])
+        elif self.model == "openloop_pose_net":
+            grasp_flags = observation["grasp_flags_openloop"]
+            object_labels = observation["object_labels_openloop"]
+            object_poses = observation["object_poses_openloop"]
+            kwargs = dict(
+                grasp_pose=observation["grasp_pose"],
+                past_actions=observation["past_actions"].reshape(
+                    observation["past_actions"].shape[0], -1
+                ),
+            )
+        else:
+            raise ValueError
 
         return self.module(
-            ee_pose=ee_pose,
             grasp_flags=grasp_flags,
             object_labels=object_labels,
             object_poses=object_poses,
+            **kwargs,
         )
 
 
 class DqnAgent(Agent):
-    def __init__(self, env):
-        self._env = env
+    def __init__(self, **kwargs):
+        self._kwargs = kwargs
         self._epsilon = np.nan
         self._losses = queue.deque(maxlen=18)
 
     def build(self, training, device=None):
-        self.q = DqnModel(env=self._env).to(device).train(training)
+        self.q = DqnModel(**self._kwargs).to(device).train(training)
         if training:
-            self.q_target = DqnModel(env=self._env).to(device).train(False)
+            self.q_target = DqnModel(**self._kwargs).to(device).train(False)
             for p in self.q_target.parameters():
                 p.requires_grad = False
             self.optimizer = torch.optim.Adam(self.q.parameters(), lr=1e-3)

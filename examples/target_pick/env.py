@@ -66,6 +66,21 @@ class PickFromPileEnv(Env):
             shape=(4, len(self.actions)),
             dtype=np.uint8,
         )
+        grasp_flags_openloop = gym.spaces.Box(
+            low=0, high=1, shape=(8,), dtype=np.uint8
+        )
+        object_labels_openloop = gym.spaces.Box(
+            low=0,
+            high=1,
+            shape=(8, len(self.class_ids)),
+            dtype=np.uint8,
+        )
+        object_poses_openloop = gym.spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=(8, 7),
+            dtype=np.float32,
+        )
         grasp_flags = gym.spaces.Box(low=0, high=1, shape=(8,), dtype=np.uint8)
         object_labels = gym.spaces.Box(
             low=0,
@@ -84,6 +99,9 @@ class PickFromPileEnv(Env):
                 grasp_pose=grasp_pose,
                 ee_pose=ee_pose,
                 past_actions=past_actions,
+                grasp_flags_openloop=grasp_flags_openloop,
+                object_labels_openloop=object_labels_openloop,
+                object_poses_openloop=object_poses_openloop,
                 grasp_flags=grasp_flags,
                 object_labels=object_labels,
                 object_poses=object_poses,
@@ -208,6 +226,10 @@ class PickFromPileEnv(Env):
             self.ri.setj(j)
 
             rgb, depth, segm = self.ri.get_camera_image()
+            object_state = self.get_object_state(
+                object_ids=object_ids,
+                target_object_id=object_ids[target_index],
+            )
 
             for _ in self.ri.random_grasp(
                 depth,
@@ -240,6 +262,7 @@ class PickFromPileEnv(Env):
         self.grasp_pose = np.hstack(self.ri.get_pose("tipLink")).astype(
             np.float32
         )
+        self.object_state = object_state
         self.object_ids = object_ids
         self.target_object_id = object_ids[target_index]
         self.past_actions = np.zeros((4, len(self.actions)), dtype=np.uint8)
@@ -248,34 +271,42 @@ class PickFromPileEnv(Env):
 
         return self.get_obs()
 
-    def get_obs(self):
-        ri = self.ri
-        object_ids = self.object_ids
-        target_object_id = self.target_object_id
-
+    def get_object_state(self, object_ids, target_object_id):
         grasp_flags = np.zeros((len(object_ids),), dtype=np.uint8)
         object_labels = np.zeros(
             (len(object_ids), len(self.class_ids)), dtype=np.uint8
         )
         object_poses = np.zeros((len(object_ids), 7), dtype=np.float32)
         for i, object_id in enumerate(object_ids):
-            if object_id == target_object_id:
+            if object_id == target_object_id and self.ri.attachments:
                 grasp_flags[i] = 1
-                object_to_ee = ri.attachments[0].grasp_pose
-                ee_to_world = ri.get_pose("tipLink")
+                object_to_ee = self.ri.attachments[0].grasp_pose
+                ee_to_world = self.ri.get_pose("tipLink")
                 object_to_world = pp.multiply(ee_to_world, object_to_ee)
             else:
-                grasp_flags[i] = 0
+                grasp_flags[i] = object_id == target_object_id
                 object_to_world = pp.get_pose(object_id)
             class_id = utils.get_class_id(object_id)
             object_label = self.class_ids.index(class_id)
             object_labels[i] = np.eye(len(self.class_ids))[object_label]
             object_poses[i] = np.hstack(object_to_world)
+        return grasp_flags, object_labels, object_poses
 
-        ee_pose = np.hstack(ri.get_pose("tipLink")).astype(np.float32)
-
+    def get_obs(self):
+        ee_pose = np.hstack(self.ri.get_pose("tipLink")).astype(np.float32)
+        (
+            grasp_flags_openloop,
+            object_labels_openloop,
+            object_poses_openloop,
+        ) = self.object_state
+        grasp_flags, object_labels, object_poses = self.get_object_state(
+            self.object_ids, self.target_object_id
+        )
         obs = dict(
             grasp_pose=self.grasp_pose,
+            grasp_flags_openloop=grasp_flags_openloop,
+            object_labels_openloop=object_labels_openloop,
+            object_poses_openloop=object_poses_openloop,
             ee_pose=ee_pose,
             past_actions=self.past_actions,
             grasp_flags=grasp_flags,

@@ -2,6 +2,8 @@
 
 import argparse
 import datetime
+import json
+import logging
 import socket
 
 from loguru import logger
@@ -34,6 +36,12 @@ def main():
     )
     parser.add_argument("--name", required=True, help="name")
     parser.add_argument(
+        "--model",
+        required=True,
+        choices=["closedloop_pose_net", "openloop_pose_net"],
+        help="model",
+    )
+    parser.add_argument(
         "--train-envs", type=int, default=5, help="number of train envs"
     )
     parser.add_argument(
@@ -57,15 +65,24 @@ def main():
     log_dir = here / "logs" / log_dir
     log_dir.makedirs_p()
 
+    with open(log_dir / "hparams.json", "w") as f:
+        json.dump(hparams, f, indent=2)
+
     if hparams["device"] != "cpu":
         assert torch.cuda.is_available()
         assert torch.backends.cudnn.enabled
 
+    logger.remove()
+    logger.add(log_dir / "env.log", level="INFO")
+    logging.basicConfig(
+        filename=log_dir / "runner.log",
+        format="%(asctime)s | %(levelname)-8s | %(module)s:%(funcName)s:%(lineno)s - %(message)s",  # NOQA
+        datefmt="%Y-%M-%d %H:%M:%S",
+        level=logging.INFO,
+    )
+
     # Setup env
     ###################
-
-    logger.remove()
-    logger.add(log_dir / "log.txt")
 
     env = PickFromPileEnv(gui=False)
 
@@ -91,7 +108,7 @@ def main():
     # Setup rl algorithm
     ####################
 
-    agent = DqnAgent(env)
+    agent = DqnAgent(env=env, model=args.model)
 
     stat_accumulator = SimpleAccumulator()
 

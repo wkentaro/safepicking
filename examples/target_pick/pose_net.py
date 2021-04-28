@@ -2,12 +2,19 @@ import torch
 
 
 class PoseNet(torch.nn.Module):
-    def __init__(self, n_action):
+    def __init__(self, closedloop, n_action, **kwargs):
         super().__init__()
 
-        # ee_pose: 7
+        self.closedloop = closedloop
+
+        if self.closedloop:
+            # ee_pose: 7
+            in_channels = 7
+        else:
+            # grasp_pose: 7, n_action * n_past_action
+            in_channels = 7 + n_action * kwargs["n_past_action"]
         self.fc_context = torch.nn.Sequential(
-            torch.nn.Linear(7, 10),
+            torch.nn.Linear(in_channels, 10),
             torch.nn.ReLU(),
         )
 
@@ -32,10 +39,10 @@ class PoseNet(torch.nn.Module):
 
     def forward(
         self,
-        ee_pose,
         object_labels,
         object_poses,
         grasp_flags,
+        **kwargs,
     ):
         B, O = grasp_flags.shape
 
@@ -46,15 +53,20 @@ class PoseNet(torch.nn.Module):
         )
 
         batch_indices = torch.where(is_valid.sum(dim=1))[0]
-        ee_pose = ee_pose[batch_indices]
-        h = h[batch_indices]
 
+        h = h[batch_indices]
         h = h.reshape(batch_indices.shape[0] * O, h.shape[2])
         h = self.fc_encoder(h)
         h = h.reshape(batch_indices.shape[0], O, h.shape[1])  # BOE
 
-        # h_context = torch.cat([grasp_position, past_actions], dim=1)
-        h_context = ee_pose
+        if self.closedloop:
+            h_context = [kwargs["ee_pose"][batch_indices]]
+        else:
+            h_context = [
+                kwargs["grasp_pose"][batch_indices],
+                kwargs["past_actions"][batch_indices],
+            ]
+        h_context = torch.cat(h_context, dim=1)
         h_context = self.fc_context(h_context)  # BE
         h_context = h_context[:, None, :].repeat_interleave(O, dim=1)
 

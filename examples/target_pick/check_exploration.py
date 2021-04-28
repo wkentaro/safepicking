@@ -14,6 +14,12 @@ def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+    parser.add_argument(
+        "--model",
+        required=True,
+        choices=["closedloop_pose_net", "openloop_pose_net"],
+        help="model",
+    )
     parser.add_argument("--nogui", action="store_true", help="no gui")
     parser.add_argument("--print-obs", action="store_true", help="print obs")
     args = parser.parse_args()
@@ -25,7 +31,7 @@ def main():
     if args.print_obs:
         pprint.pprint(obs)
 
-    agent = DqnAgent(env=env)
+    agent = DqnAgent(env=env, model=args.model)
     agent.build(training=False)
 
     while True:
