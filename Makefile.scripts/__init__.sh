@@ -34,8 +34,3 @@ conda_install () {
 git_clone () {
   git clone -q $@
 }
-
-export COPPELIASIM_ROOT=$ROOT/src/CoppeliaSim
-export PATH=$COPPELIASIM_ROOT:$PATH
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$COPPELIASIM_ROOT
-export QT_QPA_PLATFORM_PLUGIN_PATH=$COPPELIASIM_ROOT
