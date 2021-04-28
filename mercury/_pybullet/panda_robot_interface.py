@@ -516,7 +516,7 @@ class PandaRobotInterface:
         else:
             self.attachments = []
 
-    def move_to_homej(self, bg_object_ids, object_ids, speed=0.01):
+    def move_to_homej(self, bg_object_ids, object_ids, **kwargs):
         obstacles = bg_object_ids + object_ids
         if self.attachments and self.attachments[0].child in obstacles:
             obstacles.remove(self.attachments[0].child)
@@ -541,5 +541,5 @@ class PandaRobotInterface:
             else:
                 break
         for j in js:
-            for _ in self.movej(j, speed=speed):
+            for _ in self.movej(j, **kwargs):
                 yield

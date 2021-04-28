@@ -41,7 +41,7 @@ def main():
         return
 
     env = PickFromPileEnv(gui=not args.nogui, planner=args.planner)
-    env.reset(
+    obs = env.reset(
         random_state=np.random.RandomState(args.seed),
         pile_file=args.export_file,
     )
@@ -51,10 +51,22 @@ def main():
     object_ids = env.object_ids
     target_object_id = env.target_object_id
 
+    with pp.LockRenderer(), pp.WorldSaver():
+        for i in range(len(object_ids)):
+            pose = (
+                obs["object_poses_openloop"][i, :3],
+                obs["object_poses_openloop"][i, 3:],
+            )
+            pp.set_pose(object_ids[i], pose)
+        steps = ri.move_to_homej(
+            bg_object_ids=[plane],
+            object_ids=object_ids,
+            speed=0.001,
+            timeout=30,
+        )
+
     velocities = {}
-    for _ in ri.move_to_homej(
-        bg_object_ids=[plane], object_ids=object_ids, speed=0.001
-    ):
+    for _ in steps:
         p.stepSimulation()
         ri.step_simulation()
         if not args.nogui:
