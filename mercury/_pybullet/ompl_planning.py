@@ -122,6 +122,9 @@ class PbPlanner:
         self.planner = planner
 
     def plan(self, start_q, goal_q):
+        log_level = ou.getLogLevel()
+        ou.setLogLevel(ou.LOG_WARN)
+
         # start and goal configs
         start = ob.State(self.space)
         for i in range(len(start_q)):
@@ -147,7 +150,10 @@ class PbPlanner:
             path = pdef.getSolutionPath()
             simplifier = og.PathSimplifier(self.si)
             simplifier.simplifyMax(path)
-            return path
         else:
             logger.warning("No solution found")
-            return None
+            path = None
+
+        ou.setLogLevel(log_level)
+
+        return path
