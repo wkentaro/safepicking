@@ -2,7 +2,7 @@
 
 from loguru import logger
 import numpy as np
-import pybullet_planning
+import pybullet_planning as pp
 
 import mercury
 
@@ -32,23 +32,23 @@ def main():
         mass=0.1,
     )
     for obj in object_ids:
-        pybullet_planning.draw_pose(
+        pp.draw_pose(
             ([0, 0, 0], [0, 0, 0, 1]), length=0.15, width=3, parent=obj
         )
 
-    table = pybullet_planning.create_box(
+    table = pp.create_box(
         0.4, 0.4, 0.1, color=[150 / 255, 111 / 255, 51 / 255, 1]
     )
-    pybullet_planning.set_pose(table, ([0.5, 0, 0.1], [0, 0, 0, 1]))
-    aabb = pybullet_planning.get_aabb(table)
+    pp.set_pose(table, ([0.5, 0, 0.1], [0, 0, 0, 1]))
+    aabb = pp.get_aabb(table)
     regrasp_aabb = (
         [aabb[0][0] + 0.1, aabb[0][1] + 0.1, aabb[1][2]],
         [aabb[1][0] - 0.1, aabb[1][1] - 0.1, aabb[1][2] + 0.001],
     )
-    pybullet_planning.draw_aabb(regrasp_aabb)
+    pp.draw_aabb(regrasp_aabb)
 
     place_aabb = ((-0.3, 0.3, 0), (0.3, 0.6, 0.2))
-    pybullet_planning.draw_aabb(place_aabb, width=2)
+    pp.draw_aabb(place_aabb, width=2)
 
     step_simulation = utils.StepSimulation(
         ri=ri, imshow=args.imshow, retime=args.retime
@@ -93,7 +93,7 @@ def main():
 
         object_id = ri.attachments[0].child
 
-        pybullet_planning.remove_body(object_id)
+        pp.remove_body(object_id)
         ri.ungrasp()
 
     while True:
