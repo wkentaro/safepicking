@@ -126,7 +126,7 @@ class StepSimulation:
             )
             imgviz.io.cv_imshow(tiled, "wrist_camera")
             imgviz.io.cv_waitkey(1)
-        time.sleep(1 / 240 / self.retime)
+        time.sleep(pp.get_time_step() / self.retime)
         self.i += 1
 
 
