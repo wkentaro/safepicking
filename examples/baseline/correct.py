@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 
 import itertools
+import json
 
 from loguru import logger
 import numpy as np
+import path
 import pybullet_planning as pp
 
 import mercury
@@ -11,11 +13,14 @@ import mercury
 import utils
 
 
+here = path.Path(__file__).abspath().parent
+
+
 def main():
     parser = utils.get_parser()
     args = parser.parse_args()
 
-    np.random.seed(args.seed)
+    random_state = np.random.RandomState(args.seed)
 
     plane = utils.init_world(camera_distance=1.2)
 
@@ -59,11 +64,18 @@ def main():
 
     utils.pause(args.pause)
 
+    time_table = []
+
     while True:
+        i_start = step_simulation.i
         ri.homej[0] = -np.pi / 2
         for _ in ri.movej(ri.homej):
             step_simulation()
+        time_table.append(
+            ("turn_right", (step_simulation.i - i_start) * pp.get_time_step())
+        )
 
+        i_start = step_simulation.i
         c = mercury.geometry.Coordinate(*ri.get_pose("camera_link"))
         c.position = pile_pose[0]
         c.position[2] = 0.7
@@ -76,11 +88,16 @@ def main():
 
         i = 0
         _, depth, segm = ri.get_camera_image()
-        for _ in ri.random_grasp(depth, segm, [plane], object_ids):
+        for _ in ri.random_grasp(
+            depth, segm, [plane], object_ids, random_state=random_state
+        ):
             step_simulation()
             i += 1
         for _ in ri.move_to_homej([plane, table], object_ids):
             step_simulation()
+        time_table.append(
+            ("grasp", (step_simulation.i - i_start) * pp.get_time_step())
+        )
         if i == 0:
             logger.success("Completed the task")
             break
@@ -89,10 +106,15 @@ def main():
             ri.ungrasp()
             continue
 
+        i_start = step_simulation.i
         ri.homej[0] = 0
         for _ in ri.move_to_homej([plane, table], object_ids):
             step_simulation()
+        time_table.append(
+            ("turn_middle", (step_simulation.i - i_start) * pp.get_time_step())
+        )
 
+        i_start = step_simulation.i
         regrasp_pose = np.mean(regrasp_aabb, axis=0)
         for i in itertools.count():
             if i > 0:
@@ -114,6 +136,7 @@ def main():
                         [plane, table],
                         object_ids,
                         max_angle=np.deg2rad(10),
+                        random_state=random_state,
                     ):
                         step_simulation()
                     for _ in ri.move_to_homej([plane, table], object_ids):
@@ -140,9 +163,13 @@ def main():
                 object_ids=object_ids,
                 step_simulation=step_simulation,
             )
+        time_table.append(
+            ("regrasp", (step_simulation.i - i_start) * pp.get_time_step())
+        )
 
         object_id = ri.attachments[0].child
 
+        i_start = step_simulation.i
         utils.place(
             ri,
             object_id,
@@ -152,7 +179,11 @@ def main():
             object_ids=object_ids,
             step_simulation=step_simulation,
         )
+        time_table.append(
+            ("place", (step_simulation.i - i_start) * pp.get_time_step())
+        )
 
+        i_start = step_simulation.i
         utils.correct(
             ri,
             object_id,
@@ -161,6 +192,14 @@ def main():
             object_ids=object_ids,
             step_simulation=step_simulation,
         )
+        time_table.append(
+            ("correct", (step_simulation.i - i_start) * pp.get_time_step())
+        )
+
+    json_file = here / "logs/correct/time_table.json"
+    json_file.parent.makedirs_p()
+    with open(json_file, "w") as f:
+        json.dump(time_table, f)
 
     while True:
         step_simulation()
