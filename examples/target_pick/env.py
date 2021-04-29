@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import copy
 import itertools
 import time
 
@@ -232,7 +233,7 @@ class PickFromPileEnv(Env):
             object_state = self.get_object_state(
                 object_ids=object_ids,
                 target_object_id=object_ids[target_index],
-                random_state=random_state,
+                random_state=copy.deepcopy(random_state),
             )
 
             for _ in self.ri.random_grasp(
