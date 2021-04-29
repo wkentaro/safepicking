@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import warnings
 
 import numpy as np
 import path
@@ -27,11 +28,32 @@ def main():
     success = np.array(success, dtype=bool)
     sum_of_velocities = np.array(sum_of_velocities, dtype=float)
 
+    success = success.reshape(11, 6)
+    sum_of_velocities = sum_of_velocities.reshape(11, 6)
+
+    sum_of_velocities_success = sum_of_velocities.copy()
+    sum_of_velocities_success[~success] = np.nan
+    sum_of_velocities_failure = sum_of_velocities.copy()
+    sum_of_velocities_failure[success] = np.nan
+
+    success = success.mean(axis=1)
+
     print(f"Log dir: {args.log_dir}")
-    print(f"Success: {success.mean():.1%} ({success.sum()} / {success.size})")
-    print(f"Unsafety (all): {sum_of_velocities.mean():.2f}")
-    print(f"Unsafety (success): {sum_of_velocities[success].mean():.2f}")
-    print(f"Unsafety (failure): {sum_of_velocities[~success].mean():.2f}")
+    print(
+        f"Success: {success.mean():.1%} +- {success.std():.1%} "
+        f"({success.sum():.1f} / {success.size})"
+    )
+    print(f"Unsafety (all): {sum_of_velocities.mean(axis=1).mean():.2f}")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        print(
+            "Unsafety (success): "
+            f"{np.nanmean(np.nanmean(sum_of_velocities_success, axis=1)):.2f}"
+        )
+        print(
+            "Unsafety (failure): "
+            f"{np.nanmean(np.nanmean(sum_of_velocities_failure, axis=1)):.2f}"
+        )
 
 
 if __name__ == "__main__":
