@@ -25,25 +25,35 @@ def main():
     parser.add_argument(
         "--weight-dir", type=path.Path, help="weight dir", required=True
     )
+    parser.add_argument("--pose-noise", action="store_true", help="pose noise")
     parser.add_argument("--seed", type=int, default=0, help="random seed")
     parser.add_argument("--nogui", action="store_true", help="no gui")
     args = parser.parse_args()
 
     log_dir = args.weight_dir.parent.parent
-    scene_id = args.export_file.stem
-    json_file = log_dir / f"eval/{scene_id}/{args.seed}.json"
 
+    scene_id = args.export_file.stem
+    json_file = (
+        log_dir
+        / f"eval-pose_noise_{args.pose_noise}/{scene_id}/{args.seed}.json"
+    )
     if json_file.exists():
         logger.info(f"result file already exists: {json_file}")
         return
 
-    env = PickFromPileEnv(gui=not args.nogui, planner="RRTConnect")
+    hparams_file = log_dir / "hparams.json"
+    with open(hparams_file) as f:
+        hparams = json.load(f)
+
+    env = PickFromPileEnv(
+        gui=not args.nogui, planner="RRTConnect", pose_noise=args.pose_noise
+    )
     obs = env.reset(
         random_state=np.random.RandomState(args.seed),
         pile_file=args.export_file,
     )
 
-    agent = DqnAgent(env=env)
+    agent = DqnAgent(env=env, model=hparams["model"])
     agent.build(training=False)
     agent.load_weights(args.weight_dir)
 

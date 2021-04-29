@@ -33,9 +33,12 @@ def main():
     parser.add_argument("--nogui", action="store_true", help="no gui")
     args = parser.parse_args()
 
-    log_dir = here / f"logs/{args.planner}-pose_noise_{args.pose_noise}"
+    log_dir = here / f"logs/{args.planner}"
     scene_id = args.export_file.stem
-    json_file = log_dir / f"eval/{scene_id}/{args.seed}.json"
+    json_file = (
+        log_dir
+        / f"eval-pose_noise_{args.pose_noise}/{scene_id}/{args.seed}.json"
+    )
 
     if json_file.exists():
         logger.info(f"result file already exists: {json_file}")
