@@ -45,7 +45,6 @@ def main():
     parser.add_argument(
         "--train-envs", type=int, default=5, help="number of train envs"
     )
-    parser.add_argument("--save-freq", type=int, default=10, help="save freq")
     parser.add_argument(
         "--lr",
         type=float,
@@ -139,7 +138,7 @@ def main():
         log_freq=10,
         transitions_before_train=1000,
         weightsdir=log_dir / "weights",
-        save_freq=hparams["save_freq"],
+        save_freq=10,
         max_replay_ratio=16,
     )
 
