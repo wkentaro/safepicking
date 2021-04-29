@@ -11,8 +11,8 @@ class PoseNet(torch.nn.Module):
             # ee_pose: 7
             in_channels = 7
         else:
-            # grasp_pose: 7, n_action * n_past_action
-            in_channels = 7 + n_action * kwargs["n_past_action"]
+            # grasp_pose: 7, n_past_action * 7
+            in_channels = 7 + kwargs["n_past_action"] * 7
         self.fc_context = torch.nn.Sequential(
             torch.nn.Linear(in_channels, 10),
             torch.nn.ReLU(),
@@ -64,7 +64,7 @@ class PoseNet(torch.nn.Module):
         else:
             h_context = [
                 kwargs["grasp_pose"][batch_indices],
-                kwargs["past_actions"][batch_indices],
+                kwargs["past_grasped_object_poses"][batch_indices],
             ]
         h_context = torch.cat(h_context, dim=1)
         h_context = self.fc_context(h_context)  # BE

@@ -38,8 +38,10 @@ class DqnModel(torch.nn.Module):
             object_poses = observation["object_poses_openloop"]
             kwargs = dict(
                 grasp_pose=observation["grasp_pose"],
-                past_actions=observation["past_actions"].reshape(
-                    observation["past_actions"].shape[0], -1
+                past_grasped_object_poses=observation[
+                    "past_grasped_object_poses"
+                ].reshape(
+                    observation["past_grasped_object_poses"].shape[0], -1
                 ),
             )
         else:

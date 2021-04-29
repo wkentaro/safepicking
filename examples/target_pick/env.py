@@ -70,6 +70,12 @@ class PickFromPileEnv(Env):
             shape=(4, len(self.actions)),
             dtype=np.uint8,
         )
+        past_grasped_object_poses = gym.spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=(4, 7),
+            dtype=np.float32,
+        )
         grasp_flags_openloop = gym.spaces.Box(
             low=0, high=1, shape=(8,), dtype=np.uint8
         )
@@ -103,6 +109,7 @@ class PickFromPileEnv(Env):
                 grasp_pose=grasp_pose,
                 ee_pose=ee_pose,
                 past_actions=past_actions,
+                past_grasped_object_poses=past_grasped_object_poses,
                 grasp_flags_openloop=grasp_flags_openloop,
                 object_labels_openloop=object_labels_openloop,
                 object_poses_openloop=object_poses_openloop,
@@ -271,6 +278,7 @@ class PickFromPileEnv(Env):
         self.object_ids = object_ids
         self.target_object_id = object_ids[target_index]
         self.past_actions = np.zeros((4, len(self.actions)), dtype=np.uint8)
+        self.past_grasped_object_poses = np.zeros((4, 7), dtype=np.float32)
 
         self.i = 0
 
@@ -326,6 +334,7 @@ class PickFromPileEnv(Env):
             object_poses_openloop=object_poses_openloop,
             ee_pose=ee_pose,
             past_actions=self.past_actions,
+            past_grasped_object_poses=self.past_grasped_object_poses,
             grasp_flags=grasp_flags,
             object_labels=object_labels,
             object_poses=object_poses,
@@ -394,6 +403,14 @@ class PickFromPileEnv(Env):
         self.past_actions = np.r_[
             self.past_actions[1:],
             np.eye(len(self.actions), dtype=np.uint8)[act_result.action][None],
+        ]
+
+        object_to_ee = self.ri.attachments[0].grasp_pose
+        ee_to_world = self.ri.get_pose("tipLink")
+        object_to_world = pp.multiply(ee_to_world, object_to_ee)
+        self.past_grasped_object_poses = np.r_[
+            self.past_grasped_object_poses[1:],
+            np.hstack(object_to_world).astype(np.float32)[None],
         ]
 
         return Transition(
