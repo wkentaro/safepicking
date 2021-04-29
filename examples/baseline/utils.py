@@ -22,7 +22,7 @@ def get_parser():
     parser.add_argument(
         "--camera-config", type=int, default=0, help="camera config"
     )
-    parser.add_argument("--imshow", action="store_true", help="imshow")
+    parser.add_argument("--video", action="store_true", help="video")
     parser.add_argument("--seed", type=int, default=0, help="seed")
     parser.add_argument("--retime", type=float, default=1, help="retime")
     return parser
@@ -104,17 +104,20 @@ def pause(enabled):
 
 
 class StepSimulation:
-    def __init__(self, ri, imshow=False, retime=1):
+    def __init__(self, ri, imshow=False, retime=1, video_dir=None):
         self.ri = ri
-        self.imshow = imshow
-        self.retime = retime
+        self._imshow = imshow
+        self._retime = retime
+        self._video_dir = video_dir
 
         self.i = 0
 
     def __call__(self):
         p.stepSimulation()
         self.ri.step_simulation()
-        if self.imshow and self.i % (8 * self.retime) == 0:
+        if self._video_dir and self.i % (8 * self._retime) == 0:
+            debug_rgb, _, _ = mercury.pybullet.get_debug_visualizer_image()
+
             rgb, depth, _ = self.ri.get_camera_image()
             depth[(depth < 0.3) | (depth > 2)] = np.nan
             tiled = imgviz.tile(
@@ -124,9 +127,21 @@ class StepSimulation:
                 ],
                 border=(255, 255, 255),
             )
-            imgviz.io.cv_imshow(tiled, "wrist_camera")
-            imgviz.io.cv_waitkey(1)
-        time.sleep(pp.get_time_step() / self.retime)
+            if self._imshow:
+                imgviz.io.cv_imshow(tiled, "wrist_camera")
+                imgviz.io.cv_waitkey(10)
+
+            tiled = imgviz.resize(tiled, height=debug_rgb.shape[0])
+            tiled = np.hstack(
+                [
+                    debug_rgb,
+                    np.full((debug_rgb.shape[0], 10, 3), 255, dtype=np.uint8),
+                    tiled,
+                ]
+            )
+            imgviz.io.imsave(self._video_dir / f"{self.i:08d}.jpg", tiled)
+        else:
+            time.sleep(pp.get_time_step() / self._retime)
         self.i += 1
 
 
@@ -439,3 +454,55 @@ def correct(
 
     for _ in ri.move_to_homej(bg_object_ids, object_ids):
         step_simulation()
+
+
+def plot_time_table(time_table):
+    titles = []
+    for section in time_table:
+        for title, _ in section:
+            titles.append(title)
+
+    rows = []
+    for section in time_table:
+        header = np.zeros((200, 100, 3), dtype=np.uint8)
+        header[...] = 255
+        header = header.transpose(1, 0, 2)
+        header = imgviz.draw.text_in_rectangle(
+            header,
+            loc="lt",
+            text=f"object_{len(rows)}",
+            color=(0, 0, 0),
+            size=40,
+            background=(255, 255, 255),
+        )
+        header = header.transpose(1, 0, 2)[:, ::-1, :]
+        row = [header]
+        for title, seconds in section:
+            width = int(round(seconds * 100))
+            if width == 0:
+                continue
+            viz_i = np.zeros((200, width, 3), dtype=np.uint8)
+            color = imgviz.label_colormap()[titles.index(title) + 1]
+            viz_i[...] = color
+            viz_i = viz_i.transpose(1, 0, 2)
+            viz_i = imgviz.draw.text_in_rectangle(
+                viz_i,
+                loc="lt",
+                text=f"{title}\n({seconds:.1f} [s])",
+                color=(255, 255, 255),
+                size=25,
+                background=color,
+            )
+            viz_i = viz_i.transpose(1, 0, 2)
+            viz_i = viz_i[:, ::-1, :]
+            row.append(viz_i)
+        rows.append(np.hstack(row))
+
+    max_width = max(row.shape[1] for row in rows)
+    rows = [
+        imgviz.centerize(row, shape=(row.shape[0], max_width), loc="lt")
+        for row in rows
+    ]
+    rows = imgviz.tile(rows, shape=(-1, 1), border=(0, 0, 0))
+
+    return rows

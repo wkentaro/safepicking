@@ -4,11 +4,15 @@ import itertools
 
 from loguru import logger
 import numpy as np
+import path
 import pybullet_planning as pp
 
 import mercury
 
 import utils
+
+
+here = path.Path(__file__).abspath().parent
 
 
 def main():
@@ -53,7 +57,9 @@ def main():
     pp.draw_aabb(place_aabb, width=2)
 
     step_simulation = utils.StepSimulation(
-        ri=ri, imshow=args.imshow, retime=args.retime
+        ri=ri,
+        retime=args.retime,
+        video_dir=here / "logs/place/video" if args.video else None,
     )
     step_simulation()
 

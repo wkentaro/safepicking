@@ -3,6 +3,7 @@
 import itertools
 import json
 
+import imgviz
 from loguru import logger
 import numpy as np
 import path
@@ -58,20 +59,23 @@ def main():
     pp.draw_aabb(place_aabb, width=2)
 
     step_simulation = utils.StepSimulation(
-        ri=ri, imshow=args.imshow, retime=args.retime
+        ri=ri,
+        retime=args.retime,
+        video_dir=here / "logs/correct/video" if args.video else None,
     )
     step_simulation()
 
     utils.pause(args.pause)
 
     time_table = []
+    time_table_row = []
 
-    while True:
+    for i_obj in itertools.count():
         i_start = step_simulation.i
         ri.homej[0] = -np.pi / 2
         for _ in ri.movej(ri.homej):
             step_simulation()
-        time_table.append(
+        time_table_row.append(
             ("turn_right", (step_simulation.i - i_start) * pp.get_time_step())
         )
 
@@ -95,7 +99,7 @@ def main():
             i += 1
         for _ in ri.move_to_homej([plane, table], object_ids):
             step_simulation()
-        time_table.append(
+        time_table_row.append(
             ("grasp", (step_simulation.i - i_start) * pp.get_time_step())
         )
         if i == 0:
@@ -110,7 +114,7 @@ def main():
         ri.homej[0] = 0
         for _ in ri.move_to_homej([plane, table], object_ids):
             step_simulation()
-        time_table.append(
+        time_table_row.append(
             ("turn_middle", (step_simulation.i - i_start) * pp.get_time_step())
         )
 
@@ -163,8 +167,15 @@ def main():
                 object_ids=object_ids,
                 step_simulation=step_simulation,
             )
-        time_table.append(
+        time_table_row.append(
             ("regrasp", (step_simulation.i - i_start) * pp.get_time_step())
+        )
+
+        i_start = step_simulation.i
+        for _ in ri.move_to_homej([plane, table], object_ids):
+            step_simulation()
+        time_table_row.append(
+            ("turn_left", (step_simulation.i - i_start) ** pp.get_time_step())
         )
 
         object_id = ri.attachments[0].child
@@ -179,7 +190,7 @@ def main():
             object_ids=object_ids,
             step_simulation=step_simulation,
         )
-        time_table.append(
+        time_table_row.append(
             ("place", (step_simulation.i - i_start) * pp.get_time_step())
         )
 
@@ -192,14 +203,20 @@ def main():
             object_ids=object_ids,
             step_simulation=step_simulation,
         )
-        time_table.append(
+        time_table_row.append(
             ("correct", (step_simulation.i - i_start) * pp.get_time_step())
         )
 
-    json_file = here / "logs/correct/time_table.json"
-    json_file.parent.makedirs_p()
-    with open(json_file, "w") as f:
-        json.dump(time_table, f)
+        json_file = here / f"logs/correct/time_table/{i_obj}.json"
+        json_file.parent.makedirs_p()
+        with open(json_file, "w") as f:
+            json.dump(time_table_row, f, indent=2)
+
+        time_table.append(time_table_row)
+        time_table_row = []
+
+        plot = utils.plot_time_table(time_table)
+        imgviz.io.imsave(here / "logs/correct/time_table.jpg", plot)
 
     while True:
         step_simulation()

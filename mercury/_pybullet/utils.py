@@ -87,7 +87,9 @@ def get_collision_file(visual_file):
 def get_debug_visualizer_image():
     width, height, *_ = pybullet.getDebugVisualizerCamera()
     _, _, rgba, depth, segm = pybullet.getCameraImage(
-        width=width, height=height
+        width=width,
+        height=height,
+        renderer=pybullet.ER_BULLET_HARDWARE_OPENGL,
     )
     rgb = rgba[:, :, :3]
     depth[segm == -1] = np.nan
