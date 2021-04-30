@@ -57,7 +57,7 @@ def main():
     args = parser.parse_args()
 
     hparams = args.__dict__.copy()
-    hparams["git_hash"] = utils.git_hash(__file__)
+    hparams["git_hash"] = utils.git_hash(cwd=here)
     hparams["hostname"] = socket.gethostname()
 
     now = datetime.datetime.now(pytz.timezone("Japan"))
