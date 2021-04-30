@@ -15,11 +15,9 @@ def main():
     parser.add_argument("log_dir", type=path.Path, help="log dir")
     args = parser.parse_args()
 
-    scene_dirs = sorted(args.log_dir.listdir())
-
     success = []
     sum_of_velocities = []
-    for scene_dir in scene_dirs:
+    for scene_dir in sorted(args.log_dir.listdir()):
         assert scene_dir.isdir()
         for result_file in scene_dir.listdir():
             assert result_file.ext == ".json"
@@ -30,8 +28,8 @@ def main():
     success = np.array(success, dtype=bool)
     sum_of_velocities = np.array(sum_of_velocities, dtype=float)
 
-    success = success.reshape(len(scene_dirs), -1)
-    sum_of_velocities = sum_of_velocities.reshape(len(scene_dirs), -1)
+    success = success.reshape(11, 6)
+    sum_of_velocities = sum_of_velocities.reshape(11, 6)
 
     sum_of_velocities_success = sum_of_velocities.copy()
     sum_of_velocities_success[~success] = np.nan
