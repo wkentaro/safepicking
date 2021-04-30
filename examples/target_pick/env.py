@@ -326,7 +326,6 @@ class PickFromPileEnv(Env):
         )
         assert (grasp_flags == grasp_flags_openloop).all()
         assert (object_labels == object_labels_openloop).all()
-        object_poses_openloop[grasp_flags] = object_poses[grasp_flags]
         obs = dict(
             grasp_pose=self.grasp_pose,
             grasp_flags_openloop=grasp_flags_openloop,
