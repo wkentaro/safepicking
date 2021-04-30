@@ -1,3 +1,6 @@
+import shlex
+import subprocess
+
 import numpy as np
 import pybullet as p
 import pybullet_planning as pp
@@ -94,3 +97,12 @@ def get_class_id(object_id):
     class_name = visual_shape_data[0][4].decode().split("/")[-2]
     class_id = mercury.datasets.ycb.class_names.tolist().index(class_name)
     return class_id
+
+
+def git_hash(cwd=None):
+    cmd = "git diff-index --quiet HEAD --"
+    exit_code = subprocess.call(shlex.split(cmd), cwd=cwd)
+    if exit_code != 0:
+        raise RuntimeError("There're changes in git, please commit them first")
+    cmd = "git log --pretty=format:'%h' -n 1"
+    return subprocess.check_output(shlex.split(cmd), cwd=cwd).decode().strip()
