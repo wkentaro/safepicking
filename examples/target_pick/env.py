@@ -141,6 +141,8 @@ class PickFromPileEnv(Env):
         pass
 
     def reset(self, random_state=None, pile_file=None):
+        raise_on_failure = pile_file is not None
+
         if random_state is None:
             random_state = np.random.RandomState()
         if pile_file is None:
@@ -149,9 +151,6 @@ class PickFromPileEnv(Env):
             else:
                 i = random_state.randint(0, 1000)
             pile_file = self.piles_dir / f"{i:08d}.npz"
-            pile_file_is_given = False
-        else:
-            pile_file_is_given = True
 
         if not pp.is_connected():
             pp.connect(use_gui=self._gui)
@@ -182,9 +181,10 @@ class PickFromPileEnv(Env):
 
         is_occluded = data["visibility"] < 0.9
         if is_occluded.sum() == 0:
-            if pile_file_is_given:
+            if raise_on_failure:
                 raise RuntimeError("no occluded object is found")
-            return self.reset()
+            else:
+                return self.reset()
         else:
             target_index = random_state.choice(np.where(is_occluded)[0])
 
@@ -234,7 +234,10 @@ class PickFromPileEnv(Env):
         c.position[2] += 0.5
         for i in itertools.count():
             if i == 10:
-                return self.reset()
+                if raise_on_failure:
+                    raise RuntimeError("random grasping failed")
+                else:
+                    return self.reset()
 
             j = self.ri.solve_ik(
                 c.pose, move_target=self.ri.robot_model.camera_link
@@ -251,18 +254,24 @@ class PickFromPileEnv(Env):
                 random_state=copy.deepcopy(random_state),
             )
 
-            for _ in self.ri.random_grasp(
-                depth,
-                segm,
-                bg_object_ids=[self.plane],
-                object_ids=object_ids,
-                target_object_ids=[object_ids[target_index]],
-                random_state=random_state,
-                noise=False,
-            ):
-                p.stepSimulation()
-                if self._gui:
-                    time.sleep(pp.get_time_step() / self._retime)
+            try:
+                for _ in self.ri.random_grasp(
+                    depth,
+                    segm,
+                    bg_object_ids=[self.plane],
+                    object_ids=object_ids,
+                    target_object_ids=[object_ids[target_index]],
+                    random_state=random_state,
+                    noise=False,
+                ):
+                    p.stepSimulation()
+                    if self._gui:
+                        time.sleep(pp.get_time_step() / self._retime)
+            except RuntimeError:
+                if raise_on_failure:
+                    raise RuntimeError("random grasping failed")
+                else:
+                    return self.reset()
 
             for _ in range(int(round(1 / pp.get_time_step()))):
                 p.stepSimulation()
