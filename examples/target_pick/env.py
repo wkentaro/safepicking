@@ -38,7 +38,6 @@ class PickFromPileEnv(Env):
 
         self.plane = None
         self.ri = None
-        self._pile_files = list(sorted(self.piles_dir.listdir()))
 
         dpos = 0.05
         drot = np.deg2rad(15)
@@ -145,7 +144,14 @@ class PickFromPileEnv(Env):
         if random_state is None:
             random_state = np.random.RandomState()
         if pile_file is None:
-            pile_file = random_state.choice(self._pile_files)
+            if self.eval:
+                i = random_state.randint(1000, 1200)
+            else:
+                i = random_state.randint(0, 1000)
+            pile_file = self.piles_dir / f"{i:08d}.npz"
+            pile_file_is_given = False
+        else:
+            pile_file_is_given = True
 
         if not pp.is_connected():
             pp.connect(use_gui=self._gui)
@@ -176,7 +182,9 @@ class PickFromPileEnv(Env):
 
         is_occluded = data["visibility"] < 0.9
         if is_occluded.sum() == 0:
-            raise RuntimeError("no occluded object is found")
+            if pile_file_is_given:
+                raise RuntimeError("no occluded object is found")
+            return self.reset()
         else:
             target_index = random_state.choice(np.where(is_occluded)[0])
 

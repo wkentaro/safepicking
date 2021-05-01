@@ -119,7 +119,7 @@ def main():
         agent=agent,
         replay_buffer=replay_buffer,
         train_envs=hparams["train_envs"],
-        eval_envs=0,
+        eval_envs=hparams["train_envs"] // 10,
         episodes=999999,
         episode_length=5,
         stat_accumulator=stat_accumulator,
