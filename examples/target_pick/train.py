@@ -52,6 +52,9 @@ def main():
         default=1e-3,
         help="learning rate",
     )
+    parser.add_argument(
+        "--epsilon-max-step", type=int, default=5000, help="epsilon max step"
+    )
     parser.add_argument("--debug", action="store_true", help="debug")
     parser.add_argument("--device", default="cuda:0", help="device")
     args = parser.parse_args()
@@ -110,7 +113,11 @@ def main():
     # Setup rl algorithm
     ####################
 
-    agent = DqnAgent(env=env, model=hparams["model"])
+    agent = DqnAgent(
+        epsilon_max_step=hparams["epsilon_max_step"],
+        env=env,
+        model=hparams["model"],
+    )
 
     stat_accumulator = SimpleAccumulator()
 

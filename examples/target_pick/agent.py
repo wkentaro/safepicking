@@ -15,11 +15,11 @@ class DqnModel(torch.nn.Module):
     def __init__(self, env, model):
         super().__init__()
 
-        self.model = model
+        self._model = model
 
-        if self.model == "closedloop_pose_net":
+        if self._model == "closedloop_pose_net":
             self.module = PoseNet(closedloop=True, n_action=len(env.actions))
-        elif self.model == "openloop_pose_net":
+        elif self._model == "openloop_pose_net":
             self.module = PoseNet(
                 closedloop=False, n_action=len(env.actions), n_past_action=4
             )
@@ -27,12 +27,12 @@ class DqnModel(torch.nn.Module):
             raise ValueError
 
     def forward(self, observation):
-        if self.model == "closedloop_pose_net":
+        if self._model == "closedloop_pose_net":
             grasp_flags = observation["grasp_flags"]
             object_labels = observation["object_labels"]
             object_poses = observation["object_poses"]
             kwargs = dict(ee_pose=observation["ee_pose"])
-        elif self.model == "openloop_pose_net":
+        elif self._model == "openloop_pose_net":
             grasp_flags = observation["grasp_flags_openloop"]
             object_labels = observation["object_labels_openloop"]
             object_poses = observation["object_poses_openloop"]
@@ -56,7 +56,8 @@ class DqnModel(torch.nn.Module):
 
 
 class DqnAgent(Agent):
-    def __init__(self, **kwargs):
+    def __init__(self, epsilon_max_step=5000, **kwargs):
+        self._epsilon_max_step = epsilon_max_step
         self._kwargs = kwargs
         self._epsilon = np.nan
         self._losses = queue.deque(maxlen=18)
@@ -117,7 +118,7 @@ class DqnAgent(Agent):
         epsilon_init = 1
         epsilon_final = 0.01
         min_step = 0
-        max_step = 5000
+        max_step = self._epsilon_max_step
         if max_step == min_step:
             alpha = 1
         else:
