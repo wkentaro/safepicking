@@ -31,6 +31,8 @@ class PickFromPileEnv(Env):
     def __init__(
         self, gui=True, retime=1, planner="RRTConnect", pose_noise=False
     ):
+        super().__init__()
+
         self._gui = gui
         self._retime = retime
         self.planner = planner
