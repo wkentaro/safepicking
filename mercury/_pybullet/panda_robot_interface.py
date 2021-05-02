@@ -248,10 +248,9 @@ class PandaRobotInterface:
                 path_i[i_dof] = state[i_dof]
             path[i_state] = path_i
 
-        # FIXME: planner can ignore goal with len(path) == 2
+        # FIXME: planner can ignore goal
         if not np.allclose(path[-1], j):
-            assert len(path) == 2
-            path = path[:-1]
+            path = np.r_[path, [j]]
 
         return path
 
