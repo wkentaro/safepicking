@@ -1,6 +1,7 @@
 import shlex
 import subprocess
 
+import imgviz
 import numpy as np
 import pybullet as p
 import pybullet_planning as pp
@@ -90,6 +91,37 @@ def create_pile(class_ids, num_instances, random_state=None):
     p.removeBody(bin_unique_id)
 
     return unique_ids
+
+
+def load_pile(base_pose, npz_file, mass=None):
+    data = np.load(npz_file)
+    object_ids = []
+    for class_id, position, quaternion in zip(
+        data["class_id"], data["position"], data["quaternion"]
+    ):
+        coord = mercury.geometry.Coordinate(
+            position=position,
+            quaternion=quaternion,
+        )
+        coord.transform(
+            mercury.geometry.transformation_matrix(*base_pose), wrt="world"
+        )
+
+        visual_file = mercury.datasets.ycb.get_visual_file(class_id)
+        collision_file = mercury.pybullet.get_collision_file(visual_file)
+        mass_actual = mercury.datasets.ycb.masses[class_id]
+        with pp.LockRenderer():
+            object_id = mercury.pybullet.create_mesh_body(
+                visual_file=visual_file,
+                collision_file=collision_file,
+                mass=mass_actual if mass is None else mass,
+                position=coord.position,
+                quaternion=coord.quaternion,
+                rgba_color=imgviz.label_colormap()[class_id] / 255,
+                texture=False,
+            )
+        object_ids.append(object_id)
+    return object_ids
 
 
 def get_class_id(object_id):

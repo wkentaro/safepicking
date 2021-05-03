@@ -28,40 +28,6 @@ def get_parser():
     return parser
 
 
-def load_pile(base_pose, npz_file, mass=None, enable_visual=False):
-    data = np.load(npz_file)
-    object_ids = []
-    for class_id, position, quaternion in zip(
-        data["class_id"], data["position"], data["quaternion"]
-    ):
-        coord = mercury.geometry.Coordinate(
-            position=position,
-            quaternion=quaternion,
-        )
-        coord.transform(
-            mercury.geometry.transformation_matrix(*base_pose), wrt="world"
-        )
-
-        visual_file = mercury.datasets.ycb.get_visual_file(class_id)
-        collision_file = mercury.pybullet.get_collision_file(visual_file)
-        if enable_visual:
-            rgba_color = None
-        else:
-            visual_file = collision_file
-            rgba_color = imgviz.label_colormap()[class_id] / 255
-        mass_actual = mercury.datasets.ycb.masses[class_id]
-        object_id = mercury.pybullet.create_mesh_body(
-            visual_file=visual_file,
-            rgba_color=rgba_color,
-            collision_file=collision_file,
-            mass=mass_actual if mass is None else mass,
-            position=coord.position,
-            quaternion=coord.quaternion,
-        )
-        object_ids.append(object_id)
-    return object_ids
-
-
 def get_camera_pose(camera_config):
     c_cam_to_ee = mercury.geometry.Coordinate()
 
