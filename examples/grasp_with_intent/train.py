@@ -53,8 +53,6 @@ def main():
     args = parser.parse_args()
 
     hparams = args.__dict__.copy()
-    hparams["git_hash"] = common_utils.git_hash(cwd=here)
-    hparams["hostname"] = socket.gethostname()
 
     now = datetime.datetime.now(pytz.timezone("Japan"))
     hparams["timestamp"] = now.isoformat()
@@ -62,6 +60,9 @@ def main():
     log_dir = now.strftime("%Y%m%d_%H%M%S") + "_" + hparams["name"]
     log_dir = here / "logs" / log_dir
     log_dir.makedirs_p()
+
+    hparams["git_hash"] = common_utils.git_hash(cwd=here, log_dir=log_dir)
+    hparams["hostname"] = socket.gethostname()
 
     with open(log_dir / "hparams.json", "w") as f:
         json.dump(hparams, f, indent=2)
