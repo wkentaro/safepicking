@@ -11,7 +11,7 @@ import pybullet_planning as pp
 
 import mercury
 
-import utils
+import common_utils
 
 
 here = path.Path(__file__).abspath().parent
@@ -25,7 +25,7 @@ def main():
     args = parser.parse_args()
 
     pp.connect()
-    utils.init_simulation(camera_distance=1)
+    common_utils.init_simulation(camera_distance=1)
 
     data = np.load(args.export_file)
     num_instances = len(data["class_id"])

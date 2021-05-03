@@ -9,7 +9,7 @@ import pybullet_planning as pp
 
 import mercury
 
-import utils
+import common_utils
 
 
 def main():
@@ -20,9 +20,9 @@ def main():
     args = parser.parse_args()
 
     pp.connect()
-    utils.init_simulation(camera_distance=1)
+    common_utils.init_simulation(camera_distance=1)
 
-    unique_ids = utils.create_pile(
+    unique_ids = common_utils.create_pile(
         class_ids=[2, 3, 5, 11, 12, 15, 16],
         num_instances=8,
         random_state=np.random.RandomState(args.seed),

@@ -11,7 +11,7 @@ import pybullet_planning as pp
 from agent import DqnAgent
 from env import PickFromPileEnv
 
-import utils
+import common_utils
 
 
 here = path.Path(__file__).abspath().parent
@@ -99,7 +99,7 @@ def main():
             continue
         logger.info(
             f"object_id={object_id}, "
-            f"class_id={utils.get_class_id(object_id):02d}, "
+            f"class_id={common_utils.get_class_id(object_id):02d}, "
             f"velocity={velocities[object_id]:.3f}"
         )
     logger.info(f"sum_of_velocities: {sum(velocities.values()):.3f}")

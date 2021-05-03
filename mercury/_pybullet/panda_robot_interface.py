@@ -250,7 +250,7 @@ class PandaRobotInterface:
 
         # FIXME: planner can ignore goal
         if not np.allclose(path[-1], j):
-            path = np.r_[path, [j]]
+            path = np.r_[path[:-1], [j]]
 
         return path
 

@@ -17,7 +17,7 @@ from yarr.utils.transition import Transition
 
 import mercury
 
-import utils
+import common_utils
 
 
 home = path.Path("~").expanduser()
@@ -327,7 +327,7 @@ class PickFromPileEnv(Env):
                         object_to_world[0] + random_state.normal(0, 0.003, 3),
                         object_to_world[1] + random_state.normal(0, 0.01, 4),
                     )
-            class_id = utils.get_class_id(object_id)
+            class_id = common_utils.get_class_id(object_id)
             object_label = self.class_ids.index(class_id)
             object_labels[i] = np.eye(len(self.class_ids))[object_label]
             object_poses[i] = np.hstack(object_to_world)

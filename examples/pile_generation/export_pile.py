@@ -11,7 +11,7 @@ import pybullet_planning as pp
 
 import mercury
 
-import utils
+import common_utils
 
 
 home = path.Path("~").expanduser()
@@ -33,9 +33,9 @@ def main():
         sys.exit(0)
 
     pp.connect(use_gui=not args.nogui)
-    utils.init_simulation(camera_distance=1)
+    common_utils.init_simulation(camera_distance=1)
 
-    object_ids = utils.create_pile(
+    object_ids = common_utils.create_pile(
         class_ids=[2, 3, 5, 11, 12, 15, 16],
         num_instances=8,
         random_state=np.random.RandomState(args.seed),

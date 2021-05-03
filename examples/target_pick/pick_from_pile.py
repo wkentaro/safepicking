@@ -10,8 +10,8 @@ import path
 import pybullet as p
 import pybullet_planning as pp
 
+import common_utils
 from env import PickFromPileEnv
-import utils
 
 
 here = path.Path(__file__).abspath().parent
@@ -31,6 +31,7 @@ def main():
     parser.add_argument("--pose-noise", action="store_true", help="pose noise")
     parser.add_argument("--seed", type=int, default=0, help="random seed")
     parser.add_argument("--nogui", action="store_true", help="no gui")
+    parser.add_argument("--force", action="store_true", help="force")
     args = parser.parse_args()
 
     log_dir = here / f"logs/{args.planner}"
@@ -40,8 +41,8 @@ def main():
         / f"eval-pose_noise_{args.pose_noise}/{scene_id}/{args.seed}.json"
     )
 
-    if json_file.exists():
-        logger.info(f"result file already exists: {json_file}")
+    if not args.force and json_file.exists():
+        logger.info(f"Result file already exists: {json_file}")
         return
 
     env = PickFromPileEnv(
@@ -97,7 +98,7 @@ def main():
             continue
         logger.info(
             f"object_id={object_id}, "
-            f"class_id={utils.get_class_id(object_id):02d}, "
+            f"class_id={common_utils.get_class_id(object_id):02d}, "
             f"velocity={velocities[object_id]:.3f}"
         )
     logger.info(f"sum_of_velocities: {sum(velocities.values()):.3f}")
