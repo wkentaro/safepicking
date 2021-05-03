@@ -23,9 +23,9 @@ from yarr.runners.pytorch_train_runner import PyTorchTrainRunner
 from yarr.utils.stat_accumulator import SimpleAccumulator
 
 from agent import DqnAgent
+import common_utils
 from env import PickFromPileEnv
 from rollout_generator import RolloutGenerator
-import common_utils
 
 
 here = path.Path(__file__).abspath().parent
