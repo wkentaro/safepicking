@@ -14,6 +14,7 @@ import common_utils
 
 
 here = path.Path(__file__).abspath().parent
+home = path.Path("~").expanduser()
 
 
 def main():
@@ -35,7 +36,7 @@ def main():
     pile_pose = ([0, -0.5, 0], [0, 0, 0, 1])
     object_ids = baseline_utils.load_pile(
         base_pose=pile_pose,
-        npz_file="assets/pile_001.npz",
+        npz_file=home / "data/mercury/pile_generation/00000001.npz",
         enable_visual=args.enable_visual,
         mass=0.1,
     )

@@ -32,7 +32,7 @@ def load_pile(base_pose, npz_file, mass=None, enable_visual=False):
     data = np.load(npz_file)
     object_ids = []
     for class_id, position, quaternion in zip(
-        data["class_ids"], data["positions"], data["quaternions"]
+        data["class_id"], data["position"], data["quaternion"]
     ):
         coord = mercury.geometry.Coordinate(
             position=position,
