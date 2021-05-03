@@ -25,7 +25,7 @@ from yarr.utils.stat_accumulator import SimpleAccumulator
 from agent import DqnAgent
 from env import PickFromPileEnv
 from rollout_generator import RolloutGenerator
-import utils
+import common_utils
 
 
 here = path.Path(__file__).abspath().parent
@@ -60,7 +60,7 @@ def main():
     args = parser.parse_args()
 
     hparams = args.__dict__.copy()
-    hparams["git_hash"] = utils.git_hash(cwd=here)
+    hparams["git_hash"] = common_utils.git_hash(cwd=here)
     hparams["hostname"] = socket.gethostname()
 
     now = datetime.datetime.now(pytz.timezone("Japan"))
