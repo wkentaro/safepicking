@@ -20,12 +20,12 @@ import mercury
 import utils
 
 
-here = path.Path(__file__).abspath().parent
+home = path.Path("~").expanduser()
 
 
 class PickFromPileEnv(Env):
 
-    piles_dir = here / "logs/export_pile"
+    piles_dir = home / "data/mercury/pile_generation"
     class_ids = [2, 3, 5, 11, 12, 15, 16]
 
     def __init__(

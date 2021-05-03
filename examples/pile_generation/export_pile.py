@@ -14,7 +14,7 @@ import mercury
 import utils
 
 
-here = path.Path(__file__).abspath().parent
+home = path.Path("~").expanduser()
 
 
 def main():
@@ -25,7 +25,7 @@ def main():
     parser.add_argument("--nogui", action="store_true", help="no gui")
     args = parser.parse_args()
 
-    export_dir = here / "logs/export_pile"
+    export_dir = home / "data/mercury/pile_generation"
     export_file = export_dir / f"{args.seed:08d}.npz"
 
     if export_file.exists():
