@@ -28,22 +28,6 @@ def get_parser():
     return parser
 
 
-def init_world(camera_distance=1.5):
-    pp.connect()
-    pp.add_data_path()
-    p.setGravity(0, 0, -9.8)
-
-    p.resetDebugVisualizerCamera(
-        cameraDistance=camera_distance,
-        cameraYaw=90,
-        cameraPitch=-60,
-        cameraTargetPosition=(0, 0, 0),
-    )
-
-    plane = p.loadURDF("plane.urdf")
-    return plane
-
-
 def load_pile(base_pose, npz_file, mass=None, enable_visual=False):
     data = np.load(npz_file)
     object_ids = []
