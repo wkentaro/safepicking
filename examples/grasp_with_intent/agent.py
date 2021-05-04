@@ -184,7 +184,7 @@ class DqnAgent(Agent):
         self.optimizer.step()
 
         self._losses.append(loss.item())
-        self._priority = torch.sqrt(q_delta + 1e-10).detach()
+        self._priority = torch.sqrt(q_delta + bg_delta + 1e-10).detach()
 
     def update_summaries(self):
         return [
