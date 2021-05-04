@@ -74,7 +74,9 @@ class DqnAgent(Agent):
 
         _, _, height, width = q.shape
         argsort = np.argsort(q[0, 0].flatten())[::-1]
-        actions_select = np.argwhere(q[0, 0])[argsort]
+        y = argsort // width
+        x = argsort % width
+        actions_select = np.stack((y, x), axis=1)
 
         if deterministic:
             for a in actions_select:
