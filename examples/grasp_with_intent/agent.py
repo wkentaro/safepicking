@@ -118,9 +118,9 @@ class DqnAgent(Agent):
         return loss_weights
 
     def update(self, step, replay_sample):
-        self._update_q(replay_sample)
+        update_dict = self._update_q(replay_sample)
         soft_updates(self.q, self.q_target, tau=0.005)
-        return dict(priority=self._priority)
+        return update_dict
 
     def _update_q(self, replay_sample):
         action = replay_sample["action"].long()
@@ -184,7 +184,11 @@ class DqnAgent(Agent):
         self.optimizer.step()
 
         self._losses.append(loss.item())
-        self._priority = torch.sqrt(q_delta + bg_delta + 1e-10).detach()
+        priority = torch.sqrt(q_delta + bg_delta + 1e-10).detach()
+        priority /= priority.max()
+        prev_priority = replay_sample.get("priority", 0)
+
+        return dict(priority=priority + prev_priority)
 
     def update_summaries(self):
         return [
