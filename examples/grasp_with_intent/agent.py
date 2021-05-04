@@ -58,6 +58,20 @@ class DqnAgent(Agent):
         assert q.shape[0] == 1
         assert q.shape[1] == 1
 
+        if 0:
+            import imgviz
+
+            imgviz.io.imsave(
+                "a.jpg",
+                imgviz.tile(
+                    [
+                        imgviz.depth2rgb(obs["depth"][0].numpy()),
+                        imgviz.depth2rgb(q[0, 0], min_value=0, max_value=1),
+                    ],
+                    border=(255, 255, 255),
+                ),
+            )
+
         _, _, height, width = q.shape
         actions_select = np.argsort(q[0, 0].flatten())[::-1]
 
