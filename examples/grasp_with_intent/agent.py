@@ -85,9 +85,8 @@ class DqnAgent(Agent):
         else:
             self._epsilon = epsilon = self._get_epsilon(step)
             if np.random.random() < epsilon:
-                assert obs["fg_mask"].shape[0] == 1
                 for a in np.random.permutation(
-                    np.where(obs["fg_mask"][0].flatten())[0]
+                    np.argwhere(obs["fg_mask"][0].numpy())
                 ):
                     act_result = ActResult(action=a)
                     break
