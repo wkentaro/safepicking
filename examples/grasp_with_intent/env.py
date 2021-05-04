@@ -41,6 +41,12 @@ class GraspWithIntentEnv(Env):
             shape=(3, 240, 320),
             dtype=np.float32,
         )
+        normals = gym.spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=(3, 240, 320),
+            dtype=np.float32,
+        )
         fg_mask = gym.spaces.Box(
             low=0,
             high=1,
@@ -51,6 +57,7 @@ class GraspWithIntentEnv(Env):
             dict(
                 depth=depth,
                 pcd=pcd,
+                normals=normals,
                 fg_mask=fg_mask,
             ),
         )
@@ -176,10 +183,12 @@ class GraspWithIntentEnv(Env):
         pcd = mercury.geometry.pointcloud_from_depth(
             depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
         )
+        normals = mercury.geometry.normals_from_pointcloud(pcd)
         fg_mask = ~np.isin(segm, [-1, self.plane, self.ri.robot])
         obs = dict(
             depth=depth,
             pcd=pcd.transpose(2, 0, 1).astype(np.float32),
+            normals=normals.transpose(2, 0, 1).astype(np.float32),
             fg_mask=fg_mask.astype(np.uint8),
         )
 
