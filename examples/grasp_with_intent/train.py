@@ -76,7 +76,7 @@ def main():
     logging.basicConfig(
         filename=log_dir / "runner.log",
         format="%(asctime)s | %(levelname)-8s | %(module)s:%(funcName)s:%(lineno)s - %(message)s",  # NOQA
-        datefmt="%Y-%M-%d %H:%M:%S",
+        datefmt="%Y-%m-%d %H:%M:%S",
         level=logging.INFO,
     )
 
