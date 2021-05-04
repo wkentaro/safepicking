@@ -132,7 +132,7 @@ def get_class_id(object_id):
 
 
 def git_hash(cwd=None, log_dir=None):
-    cmd = "git diff"
+    cmd = "git diff HEAD --"
     diff = subprocess.check_output(shlex.split(cmd), cwd=cwd).decode()
     if diff:
         if log_dir is None:
