@@ -108,6 +108,15 @@ class DqnAgent(Agent):
         epsilon = alpha * epsilon_final + (1 - alpha) * epsilon_init
         return epsilon
 
+    def _get_sampling_weights(self, replay_sample):
+        loss_weights = 1.0
+        if "sampling_probabilities" in replay_sample:
+            self.indicies = replay_sample["indices"]
+            probs = replay_sample["sampling_probabilities"]
+            loss_weights = 1.0 / torch.sqrt(probs + 1e-10)
+            loss_weights /= torch.max(loss_weights)
+        return loss_weights
+
     def update(self, step, replay_sample):
         self._update_q(replay_sample)
         soft_updates(self.q, self.q_target, tau=0.005)
@@ -131,6 +140,7 @@ class DqnAgent(Agent):
                 "terminal",
                 "timeout",
                 "indices",
+                "sampling_probabilities",
             ]:
                 continue
             if key.endswith("_tp1"):
@@ -154,17 +164,18 @@ class DqnAgent(Agent):
 
         self.optimizer.zero_grad()
 
+        sampling_weigths = self._get_sampling_weights(replay_sample)
         q_delta = torch.nn.functional.smooth_l1_loss(
             q_pred, q_target, reduction="none"
         )
-        q_loss = q_delta.mean()
+        q_loss = (q_delta * sampling_weigths).mean()
 
         bg_delta = torch.nn.functional.smooth_l1_loss(
             qs_pred[:, 0] * (1 - obs["fg_mask"].float()),
             torch.zeros_like(qs_pred)[:, 0],
             reduction="none",
         ).mean(dim=(1, 2))
-        bg_loss = bg_delta.mean()
+        bg_loss = (bg_delta * sampling_weigths).mean()
 
         loss = q_loss + bg_loss
 
