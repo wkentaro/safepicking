@@ -73,15 +73,15 @@ class DqnAgent(Agent):
             )
 
         _, _, height, width = q.shape
-        actions_select = np.argsort(q[0, 0].flatten())[::-1]
+        argsort = np.argsort(q[0, 0].flatten())[::-1]
+        actions_select = np.argwhere(q[0, 0])[argsort]
 
         if deterministic:
             for a in actions_select:
-                act_result = ActResult(action=(a // width, a % width))
+                act_result = ActResult(action=a)
                 break
             else:
-                a = actions_select[0]
-                act_result = ActResult(action=(a // width, a % width))
+                act_result = ActResult(action=actions_select[0])
         else:
             self._epsilon = epsilon = self._get_epsilon(step)
             if np.random.random() < epsilon:
@@ -89,15 +89,14 @@ class DqnAgent(Agent):
                 for a in np.random.permutation(
                     np.where(obs["fg_mask"][0].flatten())[0]
                 ):
-                    act_result = ActResult(action=(a // width, a % width))
+                    act_result = ActResult(action=a)
                     break
             else:
                 for a in actions_select:
-                    act_result = ActResult(action=(a // width, a % width))
+                    act_result = ActResult(action=a)
                     break
                 else:
-                    a = actions_select[0]
-                    act_result = ActResult(action=(a // width, a % width))
+                    act_result = ActResult(action=actions_select[0])
         return act_result
 
     def _get_epsilon(self, step):
