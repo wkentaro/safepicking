@@ -137,7 +137,7 @@ def main():
         iterations=100000,
         logdir=log_dir,
         log_freq=10,
-        transitions_before_train=32,
+        transitions_before_train=1000,
         weightsdir=log_dir / "weights",
         save_freq=10,
         max_replay_ratio=16,
