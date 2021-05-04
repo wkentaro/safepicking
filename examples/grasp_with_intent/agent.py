@@ -22,10 +22,12 @@ class DqnModel(torch.nn.Module):
 
     def forward(self, observation):
         depth = observation["depth"][:, None, :, :]
+        pcd = observation["pcd"]
         fg_mask = observation["fg_mask"][:, None, :, :].float()
 
         return self.module(
             depth=depth,
+            pcd=pcd,
             fg_mask=fg_mask,
         )
 
