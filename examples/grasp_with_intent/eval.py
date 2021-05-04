@@ -24,6 +24,7 @@ def main():
     args = parser.parse_args()
 
     env = GraspWithIntentEnv(gui=not args.nogui)
+    env.eval = True
     obs = env.reset(
         # random_state=np.random.RandomState(args.seed),
         # pile_file=args.export_file,
