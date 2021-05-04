@@ -1,11 +1,13 @@
 import os
 import queue
 
+import imgviz
 import numpy as np
 import torch
 
 from yarr.agents.agent import ActResult
 from yarr.agents.agent import Agent
+from yarr.agents.agent import ImageSummary
 from yarr.agents.agent import ScalarSummary
 
 from grasp_net import GraspNet
@@ -34,6 +36,7 @@ class DqnAgent(Agent):
         self._kwargs = kwargs
         self._epsilon = np.nan
         self._losses = queue.deque(maxlen=18)
+        self._act_summary = None
 
     def build(self, training, device=None):
         self.q = DqnModel(**self._kwargs).to(device).train(training)
@@ -58,19 +61,12 @@ class DqnAgent(Agent):
         assert q.shape[0] == 1
         assert q.shape[1] == 1
 
-        if 0:
-            import imgviz
-
-            imgviz.io.imsave(
-                "a.jpg",
-                imgviz.tile(
-                    [
-                        imgviz.depth2rgb(obs["depth"][0].numpy()),
-                        imgviz.depth2rgb(q[0, 0], min_value=0, max_value=1),
-                    ],
-                    border=(255, 255, 255),
-                ),
-            )
+        self._act_summary = dict(
+            step=step,
+            observation=observation,
+            deterministic=deterministic,
+            q=q,
+        )
 
         _, _, height, width = q.shape
         argsort = np.argsort(q[0, 0].flatten())[::-1]
@@ -196,7 +192,25 @@ class DqnAgent(Agent):
         ]
 
     def act_summaries(self):
-        return [ScalarSummary("agent/epsilon", self._epsilon)]
+        summaries = [ScalarSummary("agent/epsilon", self._epsilon)]
+        if self._act_summary:
+            depth = self._act_summary["observation"]["depth"]
+            q = self._act_summary["q"]
+            summaries.append(
+                ImageSummary(
+                    "agent/depth",
+                    imgviz.depth2rgb(depth[0, 0]).transpose(2, 0, 1),
+                ),
+            )
+            summaries.append(
+                ImageSummary(
+                    "agent/q",
+                    imgviz.depth2rgb(
+                        q[0, 0], min_value=0, max_value=1
+                    ).transpose(2, 0, 1),
+                ),
+            )
+        return summaries
 
     def load_weights(self, save_dir):
         device = torch.device("cpu")
