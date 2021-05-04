@@ -12,8 +12,8 @@ import path
 import pytz
 import torch
 
-from yarr.replay_buffer.prioritized_replay_buffer import (
-    PrioritizedReplayBuffer,  # NOQA
+from yarr.replay_buffer.uniform_replay_buffer import (
+    UniformReplayBuffer,  # NOQA
 )
 from yarr.replay_buffer.wrappers.pytorch_replay_buffer import (
     PyTorchReplayBuffer,  # NOQA
@@ -88,7 +88,7 @@ def main():
     # Setup replay buffer
     #####################
 
-    replay_buffer = PrioritizedReplayBuffer(
+    replay_buffer = UniformReplayBuffer(
         batch_size=32,
         timesteps=1,
         replay_capacity=50000,
