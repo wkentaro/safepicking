@@ -37,6 +37,12 @@ def main():
     )
     parser.add_argument("--name", required=True, help="name")
     parser.add_argument(
+        "--model",
+        required=True,
+        choices=["depth", "pcd"],
+        help="model",
+    )
+    parser.add_argument(
         "--train-envs", type=int, default=5, help="number of train envs"
     )
     parser.add_argument(
@@ -110,6 +116,7 @@ def main():
     agent = DqnAgent(
         epsilon_max_step=hparams["epsilon_max_step"],
         env=env,
+        model=hparams["model"],
     )
 
     stat_accumulator = SimpleAccumulator()
@@ -137,7 +144,7 @@ def main():
         iterations=100000,
         logdir=log_dir,
         log_freq=10,
-        transitions_before_train=32,
+        transitions_before_train=1000,
         weightsdir=log_dir / "weights",
         save_freq=10,
         max_replay_ratio=16,

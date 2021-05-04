@@ -14,11 +14,11 @@ from grasp_net import GraspNet
 
 
 class DqnModel(torch.nn.Module):
-    def __init__(self, env):
+    def __init__(self, env, model):
         super().__init__()
         del env
 
-        self.module = GraspNet()
+        self.module = GraspNet(model=model)
 
     def forward(self, observation):
         depth = observation["depth"][:, None, :, :]
