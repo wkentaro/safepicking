@@ -9,13 +9,13 @@ class GraspNet(torch.nn.Module):
             torch.nn.Conv2d(1, 8, kernel_size=3, stride=1, padding=1),
             torch.nn.ReLU(),
         )
-        self.conv0_fg_mask = torch.nn.Sequential(
-            torch.nn.Conv2d(1, 8, kernel_size=3, stride=1, padding=1),
-            torch.nn.ReLU(),
-        )
+        # self.conv0_fg_mask = torch.nn.Sequential(
+        #     torch.nn.Conv2d(1, 8, kernel_size=3, stride=1, padding=1),
+        #     torch.nn.ReLU(),
+        # )
 
         self.conv1 = torch.nn.Sequential(
-            torch.nn.Conv2d(16, 8, kernel_size=3, stride=1, padding=1),
+            torch.nn.Conv2d(8, 8, kernel_size=3, stride=1, padding=1),
             torch.nn.ReLU(),
             # torch.nn.Conv2d(4, 4, kernel_size=3, stride=1, padding=1),
             # torch.nn.ReLU(),
@@ -82,8 +82,9 @@ class GraspNet(torch.nn.Module):
 
     def forward(self, depth, fg_mask):
         conv0_depth = self.conv0_depth(depth)
-        conv0_fg_mask = self.conv0_fg_mask(fg_mask)
-        conv0 = torch.cat([conv0_depth, conv0_fg_mask], dim=1)
+        conv0 = conv0_depth
+        # conv0_fg_mask = self.conv0_fg_mask(fg_mask)
+        # conv0 = torch.cat([conv0_depth, conv0_fg_mask], dim=1)
 
         conv1 = self.conv1(conv0)
         pool1 = self.pool1(conv1)
