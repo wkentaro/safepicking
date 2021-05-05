@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import argparse
 import itertools
 import json
 
@@ -20,7 +21,16 @@ home = path.Path("~").expanduser()
 
 
 def main():
-    parser = baseline_utils.get_parser()
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument("--pause", action="store_true", help="pause")
+    parser.add_argument(
+        "--camera-config", type=int, default=0, help="camera config"
+    )
+    parser.add_argument("--video", action="store_true", help="video")
+    parser.add_argument("--seed", type=int, default=0, help="seed")
+    parser.add_argument("--retime", type=float, default=1, help="retime")
     args = parser.parse_args()
 
     random_state = np.random.RandomState(args.seed)
