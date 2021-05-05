@@ -23,8 +23,9 @@ class DqnModel(torch.nn.Module):
     def forward(self, observation):
         rgb = observation["rgb"].float() / 255
         depth = observation["depth"][:, None, :, :]
+        ins = observation["ins"]
 
-        return self.module(rgb=rgb, depth=depth)
+        return self.module(rgb=rgb, depth=depth, ins=ins)
 
 
 class DqnAgent(Agent):
@@ -195,18 +196,19 @@ class DqnAgent(Agent):
     def act_summaries(self):
         summaries = [ScalarSummary("agent/epsilon", self._epsilon)]
         if self._act_summary:
-            rgb = self._act_summary["observation"]["rgb"][0, 0].transpose(
-                1, 2, 0
-            )
-            depth = self._act_summary["observation"]["depth"][0, 0]
+            obs = self._act_summary["observation"]
+            rgb = obs["rgb"][0, 0].transpose(1, 2, 0)
+            ins = np.uint8(obs["ins"][0, 0].transpose(1, 2, 0) * 255)
+            depth = obs["depth"][0, 0]
             q = self._act_summary["q"][0, 0]
             q_summary = imgviz.tile(
                 [
                     rgb,
+                    ins,
                     imgviz.depth2rgb(depth),
                     imgviz.depth2rgb(q, min_value=0, max_value=1),
                 ],
-                shape=(1, 3),
+                shape=(2, 2),
                 border=(0, 0, 0),
             )
             summaries.append(

@@ -9,9 +9,8 @@ class GraspNet(torch.nn.Module):
         self._model = model
 
         if self._model == "rgb":
-            C = 4
             self.conv0_rgb = torch.nn.Sequential(
-                torch.nn.Conv2d(3, C, kernel_size=3, stride=1, padding=1),
+                torch.nn.Conv2d(3, 8, kernel_size=3, stride=1, padding=1),
                 torch.nn.ReLU(),
             )
         elif self._model == "rgbd":
@@ -23,12 +22,25 @@ class GraspNet(torch.nn.Module):
                 torch.nn.Conv2d(1, 4, kernel_size=3, stride=1, padding=1),
                 torch.nn.ReLU(),
             )
-            C = 8
+        elif self._model == "ins":
+            self.conv0_ins = torch.nn.Sequential(
+                torch.nn.Conv2d(3, 8, kernel_size=3, stride=1, padding=1),
+                torch.nn.ReLU(),
+            )
+        elif self._model == "insd":
+            self.conv0_ins = torch.nn.Sequential(
+                torch.nn.Conv2d(3, 4, kernel_size=3, stride=1, padding=1),
+                torch.nn.ReLU(),
+            )
+            self.conv0_depth = torch.nn.Sequential(
+                torch.nn.Conv2d(1, 4, kernel_size=3, stride=1, padding=1),
+                torch.nn.ReLU(),
+            )
         else:
             raise ValueError
 
         self.conv1 = torch.nn.Sequential(
-            torch.nn.Conv2d(C, 8, kernel_size=3, stride=1, padding=1),
+            torch.nn.Conv2d(8, 8, kernel_size=3, stride=1, padding=1),
             torch.nn.ReLU(),
             # torch.nn.Conv2d(4, 4, kernel_size=3, stride=1, padding=1),
             # torch.nn.ReLU(),
@@ -93,13 +105,19 @@ class GraspNet(torch.nn.Module):
             if isinstance(m, torch.nn.Conv2d):
                 torch.nn.init.kaiming_normal_(m.weight.data)
 
-    def forward(self, rgb, depth):
+    def forward(self, rgb, depth, ins):
         if self._model == "rgb":
             conv0 = self.conv0_rgb(rgb)
         elif self._model == "rgbd":
             conv0_rgb = self.conv0_rgb(rgb)
             conv0_depth = self.conv0_depth(depth)
             conv0 = torch.cat([conv0_rgb, conv0_depth], dim=1)
+        elif self._model == "ins":
+            conv0 = self.conv0_ins(ins)
+        elif self._model == "insd":
+            conv0_ins = self.conv0_ins(ins)
+            conv0_depth = self.conv0_depth(depth)
+            conv0 = torch.cat([conv0_ins, conv0_depth], dim=1)
         else:
             raise ValueError
 

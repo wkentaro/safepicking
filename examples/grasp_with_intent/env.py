@@ -2,6 +2,7 @@ import copy
 import time
 
 import gym
+import imgviz
 from loguru import logger
 import numpy as np
 import path
@@ -42,6 +43,12 @@ class GraspWithIntentEnv(Env):
             shape=(240, 240),
             dtype=np.float32,
         )
+        ins = gym.spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=(3, 240, 240),
+            dtype=np.float32,
+        )
         fg_mask = gym.spaces.Box(
             low=0,
             high=1,
@@ -52,6 +59,7 @@ class GraspWithIntentEnv(Env):
             dict(
                 rgb=rgb,
                 depth=depth,
+                ins=ins,
                 fg_mask=fg_mask,
             ),
         )
@@ -174,9 +182,24 @@ class GraspWithIntentEnv(Env):
     def update_obs(self):
         rgb, depth, segm = self.ri.get_camera_image()
         fg_mask = ~np.isin(segm, [-1, self.plane, self.ri.robot])
+        K = self.ri.get_opengl_intrinsic_matrix()
+        pcd = mercury.geometry.pointcloud_from_depth(
+            depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
+        )
+        c_camera_to_world = mercury.geometry.Coordinate(
+            *self.ri.get_pose("camera_link")
+        )
+        pcd = mercury.geometry.transform_points(pcd, c_camera_to_world.matrix)
+        ins = np.zeros_like(pcd)
+        for obj in self.object_ids:
+            ins[segm == obj] = pcd[segm == obj] - pp.get_pose(obj)[0]
+        ins = imgviz.normalize(
+            ins, min_value=(-0.15,) * 3, max_value=(0.15,) * 3
+        )
         self.obs = dict(
             rgb=rgb.transpose(2, 0, 1),
             depth=depth,
+            ins=ins.transpose(2, 0, 1).astype(np.float32),
             fg_mask=fg_mask.astype(np.uint8),
             segm=segm,
         )
