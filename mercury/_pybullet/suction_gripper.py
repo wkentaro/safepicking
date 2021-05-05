@@ -17,7 +17,7 @@ class SuctionGripper:
 
     def activate(self):
         if self.activated:
-            return
+            raise RuntimeError("suction gripper is already activated")
 
         self.activated = True
 
