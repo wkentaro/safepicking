@@ -14,7 +14,7 @@ def main():
     env = GraspWithIntentEnv()
     obs = env.reset()
 
-    agent = DqnAgent(env=env)
+    agent = DqnAgent(env=env, model="depth")
     agent.build(training=False)
 
     while True:
