@@ -195,21 +195,22 @@ class DqnAgent(Agent):
     def act_summaries(self):
         summaries = [ScalarSummary("agent/epsilon", self._epsilon)]
         if self._act_summary:
-            depth = self._act_summary["observation"]["depth"]
-            q = self._act_summary["q"]
-            summaries.append(
-                ImageSummary(
-                    "agent/depth",
-                    imgviz.depth2rgb(depth[0, 0]).transpose(2, 0, 1),
-                ),
+            rgb = self._act_summary["observation"]["rgb"][0, 0].transpose(
+                1, 2, 0
+            )
+            depth = self._act_summary["observation"]["depth"][0, 0]
+            q = self._act_summary["q"][0, 0]
+            q_summary = imgviz.tile(
+                [
+                    rgb,
+                    imgviz.depth2rgb(depth),
+                    imgviz.depth2rgb(q, min_value=0, max_value=1),
+                ],
+                shape=(1, 3),
+                border=(0, 0, 0),
             )
             summaries.append(
-                ImageSummary(
-                    "agent/q",
-                    imgviz.depth2rgb(
-                        q[0, 0], min_value=0, max_value=1
-                    ).transpose(2, 0, 1),
-                ),
+                ImageSummary("agent/q", q_summary.transpose(2, 0, 1))
             )
         return summaries
 

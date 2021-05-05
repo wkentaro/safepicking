@@ -8,7 +8,13 @@ class GraspNet(torch.nn.Module):
 
         self._model = model
 
-        if self._model == "base":
+        if self._model == "rgb":
+            C = 4
+            self.conv0_rgb = torch.nn.Sequential(
+                torch.nn.Conv2d(3, C, kernel_size=3, stride=1, padding=1),
+                torch.nn.ReLU(),
+            )
+        elif self._model == "rgbd":
             self.conv0_rgb = torch.nn.Sequential(
                 torch.nn.Conv2d(3, 4, kernel_size=3, stride=1, padding=1),
                 torch.nn.ReLU(),
@@ -17,11 +23,12 @@ class GraspNet(torch.nn.Module):
                 torch.nn.Conv2d(1, 4, kernel_size=3, stride=1, padding=1),
                 torch.nn.ReLU(),
             )
+            C = 8
         else:
             raise ValueError
 
         self.conv1 = torch.nn.Sequential(
-            torch.nn.Conv2d(8, 8, kernel_size=3, stride=1, padding=1),
+            torch.nn.Conv2d(C, 8, kernel_size=3, stride=1, padding=1),
             torch.nn.ReLU(),
             # torch.nn.Conv2d(4, 4, kernel_size=3, stride=1, padding=1),
             # torch.nn.ReLU(),
@@ -87,7 +94,9 @@ class GraspNet(torch.nn.Module):
                 torch.nn.init.kaiming_normal_(m.weight.data)
 
     def forward(self, rgb, depth):
-        if self._model == "base":
+        if self._model == "rgb":
+            conv0 = self.conv0_rgb(rgb)
+        elif self._model == "rgbd":
             conv0_rgb = self.conv0_rgb(rgb)
             conv0_depth = self.conv0_depth(depth)
             conv0 = torch.cat([conv0_rgb, conv0_depth], dim=1)

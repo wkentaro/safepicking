@@ -39,7 +39,7 @@ def main():
     parser.add_argument(
         "--model",
         required=True,
-        choices=["base"],
+        choices=["rgb", "rgbd"],
         help="model",
     )
     parser.add_argument(

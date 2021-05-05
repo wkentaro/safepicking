@@ -247,6 +247,13 @@ class GraspWithIntentEnv(Env):
         normals = mercury.geometry.normals_from_pointcloud(pcd_in_ee)
 
         object_id = segm[y, x]
+        if object_id not in self.object_ids:
+            logger.error(
+                f"object {object_id} is not in the graspable objects: "
+                f"{self.object_ids}"
+            )
+            return 0
+
         position = pcd_in_ee[y, x]
         quaternion = mercury.geometry.quaternion_from_vec2vec(
             [0, 0, 1], normals[y, x]
@@ -277,7 +284,7 @@ class GraspWithIntentEnv(Env):
         v1 /= np.linalg.norm(v1)
         angle = mercury.geometry.angle_between_vectors(v0, v1)
         if angle > max_angle:
-            logger.warning(
+            logger.error(
                 f"angle ({np.rad2deg(angle):.1f} [deg]) > "
                 f"{np.rad2deg(max_angle):.1f} [deg]"
             )
