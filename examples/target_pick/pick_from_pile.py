@@ -48,6 +48,7 @@ def main():
     env = PickFromPileEnv(
         gui=not args.nogui, planner=args.planner, pose_noise=args.pose_noise
     )
+    env.eval = True
     obs = env.reset(
         random_state=np.random.RandomState(args.seed),
         pile_file=args.export_file,
