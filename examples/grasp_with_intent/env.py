@@ -106,7 +106,7 @@ class GraspWithIntentEnv(Env):
         self.plane = p.loadURDF("plane.urdf")
 
         self.ri = mercury.pybullet.PandaRobotInterface(
-            suction_max_force=None, planner="RRTConnect"
+            suction_max_force=10, planner="RRTConnect"
         )
         c_cam_to_ee = mercury.geometry.Coordinate()
         c_cam_to_ee.translate([0, -0.06, -0.1])
@@ -265,22 +265,31 @@ class GraspWithIntentEnv(Env):
                 except RuntimeError:
                     pass
 
-                for _ in self.ri.movej(self.ri.homej):
+                for _ in range(120):
                     p.stepSimulation()
+                    self.ri.step_simulation()
                     if self._gui:
                         time.sleep(pp.get_time_step())
 
-                for _ in range(240):
+                for _ in self.ri.movej(self.ri.homej, speed=0.005):
+                    p.stepSimulation()
+                    self.ri.step_simulation()
+                    if self._gui:
+                        time.sleep(pp.get_time_step())
+
+                for _ in range(120):
                     p.stepSimulation()
                     if self._gui:
                         time.sleep(pp.get_time_step())
 
         reward = int(self.ri.gripper.check_grasp())
 
+        grasped_object = self.ri.gripper.grasped_object
+
         self.ri.ungrasp()
-        if self.ri.gripper.grasped_object:
-            self.object_ids.remove(self.ri.gripper.grasped_object)
-            pp.remove_body(self.ri.gripper.grasped_object)
+        if grasped_object:
+            self.object_ids.remove(grasped_object)
+            pp.remove_body(grasped_object)
 
         self.setj_to_camera_pose()
         self.update_obs()
