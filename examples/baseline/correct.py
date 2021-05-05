@@ -3,6 +3,7 @@
 import argparse
 import itertools
 import json
+import time
 
 import imgviz
 from loguru import logger
@@ -31,6 +32,7 @@ def main():
     parser.add_argument("--video", action="store_true", help="video")
     parser.add_argument("--seed", type=int, default=0, help="seed")
     parser.add_argument("--retime", type=float, default=1, help="retime")
+    parser.add_argument("--auc", type=float, default=0.5, help="auc")
     args = parser.parse_args()
 
     random_state = np.random.RandomState(args.seed)
@@ -131,6 +133,7 @@ def main():
         )
 
         i_start = step_simulation.i
+        planning_time_sum = 0
         regrasp_pose = np.mean(regrasp_aabb, axis=0)
         for i in itertools.count():
             if i > 0:
@@ -162,23 +165,27 @@ def main():
                         continue
                     break
 
+            t_start = time.time()
             ri.homej[0] = np.pi / 2
             with pp.LockRenderer(), pp.WorldSaver():
                 ri.setj(ri.homej)
                 place_pose, path = baseline_utils.plan_placement(
                     ri, place_aabb, [plane, table], object_ids
                 )
+            planning_time_sum += time.time() - t_start
             if path is not None:
                 break
 
             ri.homej[0] = 0
-            regrasp_pose, _ = baseline_utils.place_to_regrasp(
+            regrasp_pose, _, planning_time = baseline_utils.place_to_regrasp(
                 ri,
                 regrasp_aabb,
                 bg_object_ids=[plane, table],
                 object_ids=object_ids,
                 step_simulation=step_simulation,
             )
+            planning_time_sum += planning_time
+        time_table_row.append(("planning", planning_time_sum))
         time_table_row.append(
             ("regrasp", (step_simulation.i - i_start) * pp.get_time_step())
         )
@@ -214,6 +221,7 @@ def main():
             bg_object_ids=[plane, table],
             object_ids=object_ids,
             step_simulation=step_simulation,
+            auc_threshold=args.auc,
         )
         time_table_row.append(
             ("correct", (step_simulation.i - i_start) * pp.get_time_step())

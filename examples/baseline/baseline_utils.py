@@ -95,6 +95,7 @@ def place_to_regrasp(
     object_id = ri.attachments[0].child
     class_id = get_class_id(object_id)
 
+    t_start = time.time()
     for i in itertools.count():
         with pp.LockRenderer():
             with pp.WorldSaver():
@@ -165,6 +166,7 @@ def place_to_regrasp(
             continue
 
         break
+    planning_time = time.time() - t_start
     for _ in (_ for j in path for _ in ri.movej(j, speed=0.005)):
         step_simulation()
 
@@ -182,7 +184,7 @@ def place_to_regrasp(
     for _ in ri.move_to_homej(bg_object_ids, object_ids):
         step_simulation()
 
-    return regrasp_pose, i < n_trial
+    return regrasp_pose, i < n_trial, planning_time
 
 
 def get_place_pose(object_id, bin_aabb_min, bin_aabb_max):
@@ -302,7 +304,13 @@ def get_class_id(object_id):
 
 
 def correct(
-    ri, object_id, place_pose, bg_object_ids, object_ids, step_simulation
+    ri,
+    object_id,
+    place_pose,
+    bg_object_ids,
+    object_ids,
+    step_simulation,
+    auc_threshold=0.5,
 ):
     c = mercury.geometry.Coordinate(*ri.get_pose("tipLink"))
     c.position = place_pose[0]
@@ -332,8 +340,8 @@ def correct(
             pcd, mercury.geometry.transformation_matrix(*obj_to_world)
         )
         auc = mercury.geometry.average_distance_auc(pcd_target, pcd_source)
-        if auc >= 0.5:
-            logger.success(f"auc: {auc:.3f} >= 0.5")
+        if auc >= auc_threshold:
+            logger.success(f"auc: {auc:.3f} >= {auc_threshold:.3f}")
             break
 
         while True:
@@ -383,6 +391,9 @@ def correct(
             step_simulation()
 
         for _ in ri.movej(j_camera):
+            step_simulation()
+
+        for _ in range(240):
             step_simulation()
 
     for _ in ri.move_to_homej(bg_object_ids, object_ids):
