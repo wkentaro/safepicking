@@ -35,18 +35,6 @@ class GraspWithIntentEnv(Env):
             shape=(240, 240),
             dtype=np.float32,
         )
-        pcd = gym.spaces.Box(
-            low=-np.inf,
-            high=np.inf,
-            shape=(3, 240, 240),
-            dtype=np.float32,
-        )
-        normals = gym.spaces.Box(
-            low=-np.inf,
-            high=np.inf,
-            shape=(3, 240, 240),
-            dtype=np.float32,
-        )
         fg_mask = gym.spaces.Box(
             low=0,
             high=1,
@@ -56,8 +44,6 @@ class GraspWithIntentEnv(Env):
         self.observation_space = gym.spaces.Dict(
             dict(
                 depth=depth,
-                pcd=pcd,
-                normals=normals,
                 fg_mask=fg_mask,
             ),
         )
@@ -180,16 +166,9 @@ class GraspWithIntentEnv(Env):
 
     def update_obs(self):
         _, depth, segm = self.ri.get_camera_image()
-        K = self.ri.get_opengl_intrinsic_matrix()
-        pcd = mercury.geometry.pointcloud_from_depth(
-            depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
-        )
-        normals = mercury.geometry.normals_from_pointcloud(pcd)
         fg_mask = ~np.isin(segm, [-1, self.plane, self.ri.robot])
         obs = dict(
             depth=depth,
-            pcd=pcd.transpose(2, 0, 1).astype(np.float32),
-            normals=normals.transpose(2, 0, 1).astype(np.float32),
             fg_mask=fg_mask.astype(np.uint8),
         )
 
@@ -212,7 +191,11 @@ class GraspWithIntentEnv(Env):
 
         y, x = action
 
-        pcd_in_camera = self.obs["pcd"].transpose(1, 2, 0)
+        depth = self.obs["depth"]
+        K = self.ri.get_opengl_intrinsic_matrix()
+        pcd_in_camera = mercury.geometry.pointcloud_from_depth(
+            depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
+        )
 
         camera_to_world = self.ri.get_pose("camera_link")
         ee_to_world = self.ri.get_pose("tipLink")

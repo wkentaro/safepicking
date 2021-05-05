@@ -13,16 +13,6 @@ class GraspNet(torch.nn.Module):
                 torch.nn.Conv2d(1, 8, kernel_size=3, stride=1, padding=1),
                 torch.nn.ReLU(),
             )
-        elif self._model == "pcd":
-            self.conv0_pcd = torch.nn.Sequential(
-                torch.nn.Conv2d(3, 8, kernel_size=3, stride=1, padding=1),
-                torch.nn.ReLU(),
-            )
-        elif self._model == "normals":
-            self.conv0_normals = torch.nn.Sequential(
-                torch.nn.Conv2d(3, 8, kernel_size=3, stride=1, padding=1),
-                torch.nn.ReLU(),
-            )
         else:
             raise ValueError
 
@@ -92,15 +82,9 @@ class GraspNet(torch.nn.Module):
             if isinstance(m, torch.nn.Conv2d):
                 torch.nn.init.kaiming_normal_(m.weight.data)
 
-    def forward(self, depth, pcd, normals):
-        assert torch.allclose(pcd[:, 2:3, :, :], depth)
-
+    def forward(self, depth):
         if self._model == "depth":
             conv0 = self.conv0_depth(depth)
-        elif self._model == "pcd":
-            conv0 = self.conv0_pcd(pcd)
-        elif self._model == "normals":
-            conv0 = self.conv0_normals(normals)
         else:
             raise ValueError
 

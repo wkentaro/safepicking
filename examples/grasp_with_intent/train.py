@@ -39,7 +39,7 @@ def main():
     parser.add_argument(
         "--model",
         required=True,
-        choices=["depth", "pcd", "normals"],
+        choices=["depth"],
         help="model",
     )
     parser.add_argument(

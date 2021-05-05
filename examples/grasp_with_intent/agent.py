@@ -22,15 +22,8 @@ class DqnModel(torch.nn.Module):
 
     def forward(self, observation):
         depth = observation["depth"][:, None, :, :]
-        pcd = observation["pcd"]
-        normals = observation["normals"]
-        # fg_mask = observation["fg_mask"][:, None, :, :].float()
 
-        return self.module(
-            depth=depth,
-            pcd=pcd,
-            normals=normals,
-        )
+        return self.module(depth=depth)
 
 
 class DqnAgent(Agent):
