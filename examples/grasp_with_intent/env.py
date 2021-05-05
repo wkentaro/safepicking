@@ -206,12 +206,6 @@ class GraspWithIntentEnv(Env):
         action = act_result.action
         reward = self._step(y=action[0], x=action[1])
 
-        grasped_object = self.ri.gripper.grasped_object
-        self.ri.ungrasp()
-        if grasped_object:
-            self.object_ids.remove(grasped_object)
-            pp.remove_body(grasped_object)
-
         self.setj_to_camera_pose()
         self.update_obs()
 
@@ -292,12 +286,14 @@ class GraspWithIntentEnv(Env):
 
         j = self.ri.solve_ik(c.pose)
         if j is None:
+            logger.error("grasping ik solution is not found")
             return 0
 
         obj_to_world = pp.get_pose(object_id)
 
         path = self.ri.planj(j, obstacles=[self.plane] + self.object_ids)
         if path is None:
+            logger.error("grasping path is not found")
             return 0
 
         for _ in (_ for j in path for _ in self.ri.movej(j)):
@@ -310,11 +306,22 @@ class GraspWithIntentEnv(Env):
                 p.stepSimulation()
                 if self._gui:
                     time.sleep(pp.get_time_step())
-        except RuntimeError:
+        except RuntimeError as e:
+            logger.error(e)
+            self.ri.ungrasp()
             return 0
 
         if not self.ri.gripper.check_grasp():
+            logger.error("grasping is failed")
+            self.ri.ungrasp()
             return 0
+
+        grasped_object = self.ri.gripper.grasped_object
+
+        def before_return():
+            self.ri.ungrasp()
+            pp.remove_body(grasped_object)
+            self.object_ids.remove(grasped_object)
 
         ee_to_world = self.ri.get_pose("tipLink")
         obj_to_ee = pp.multiply(pp.invert(ee_to_world), obj_to_world)
@@ -323,7 +330,7 @@ class GraspWithIntentEnv(Env):
                 parent=self.ri.robot,
                 parent_link=self.ri.ee,
                 grasp_pose=obj_to_ee,
-                child=object_id,
+                child=grasped_object,
             )
         ]
 
@@ -335,13 +342,13 @@ class GraspWithIntentEnv(Env):
         c_place = mercury.geometry.Coordinate(
             [0, 0.5, 0],
             common_utils.get_canonical_quaternion(
-                common_utils.get_class_id(object_id)
+                common_utils.get_class_id(grasped_object)
             ),
         )
 
         with pp.LockRenderer(), pp.WorldSaver():
-            pp.set_pose(object_id, c_place.pose)
-            c_place.position[2] -= pp.get_aabb(object_id).lower[2]
+            pp.set_pose(grasped_object, c_place.pose)
+            c_place.position[2] -= pp.get_aabb(grasped_object).lower[2]
 
         with self.ri.enabling_attachments():
             obj_to_world = self.ri.get_pose("attachment_link0")
@@ -368,12 +375,16 @@ class GraspWithIntentEnv(Env):
             )
 
         if j is None:
+            logger.error("placing ik solution is not found")
+            before_return()
             return 0
 
         obstacles = [self.plane] + self.object_ids
         obstacles.remove(self.ri.attachments[0].child)
         path = self.ri.planj(j, obstacles=obstacles)
         if path is None:
+            logger.error("placing path is not found")
+            before_return()
             return 0
 
         for _ in (_ for j in path for _ in self.ri.movej(j)):
@@ -388,21 +399,5 @@ class GraspWithIntentEnv(Env):
 
         self.ri.ungrasp()
 
-        for _ in range(240):
-            p.stepSimulation()
-            if self._gui:
-                time.sleep(pp.get_time_step())
-
-        for _ in self.ri.move_to_homej([self.plane], self.object_ids):
-            p.stepSimulation()
-            if self._gui:
-                time.sleep(pp.get_time_step())
-
-        pp.remove_body(object_id)
-
-        for _ in range(240):
-            p.stepSimulation()
-            if self._gui:
-                time.sleep(pp.get_time_step())
-
+        before_return()
         return 1
