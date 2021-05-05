@@ -145,7 +145,7 @@ class GraspWithIntentEnv(Env):
         self.setj_to_camera_pose()
         self.update_obs()
 
-        return copy.deepcopy(self.obs)
+        return self.get_obs()
 
     def setj_to_camera_pose(self):
         aabb = [0.3, -0.2, 0], [0.7, 0.2, 0.6]
@@ -185,6 +185,9 @@ class GraspWithIntentEnv(Env):
             )
 
         self.obs = obs
+
+    def get_obs(self):
+        return copy.deepcopy(self.obs)
 
     def step(self, act_result):
         action = act_result.action
@@ -310,7 +313,7 @@ class GraspWithIntentEnv(Env):
         )
 
         return Transition(
-            observation=copy.deepcopy(self.obs),
+            observation=self.get_obs(),
             reward=reward,
             terminal=True,
             info=dict(needs_reset=needs_reset),
