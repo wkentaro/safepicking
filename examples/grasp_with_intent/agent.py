@@ -21,10 +21,10 @@ class DqnModel(torch.nn.Module):
         self.module = GraspNet(model=model)
 
     def forward(self, observation):
+        rgb = observation["rgb"].float() / 255
         depth = observation["depth"][:, None, :, :]
-        depth = depth / 2 - 0.5  # normalize
 
-        return self.module(depth=depth)
+        return self.module(rgb=rgb, depth=depth)
 
 
 class DqnAgent(Agent):

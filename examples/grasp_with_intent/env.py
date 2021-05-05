@@ -2,7 +2,6 @@ import copy
 import time
 
 import gym
-import imgviz
 from loguru import logger
 import numpy as np
 import path
@@ -14,6 +13,8 @@ from yarr.utils.observation_type import ObservationElement
 from yarr.utils.transition import Transition
 
 import mercury
+
+import common_utils
 
 
 home = path.Path("~").expanduser()
@@ -29,6 +30,12 @@ class GraspWithIntentEnv(Env):
         self._gui = gui
         self._retime = retime
 
+        rgb = gym.spaces.Box(
+            low=0,
+            high=255,
+            shape=(3, 240, 240),
+            dtype=np.uint8,
+        )
         depth = gym.spaces.Box(
             low=-np.inf,
             high=np.inf,
@@ -43,6 +50,7 @@ class GraspWithIntentEnv(Env):
         )
         self.observation_space = gym.spaces.Dict(
             dict(
+                rgb=rgb,
                 depth=depth,
                 fg_mask=fg_mask,
             ),
@@ -92,7 +100,7 @@ class GraspWithIntentEnv(Env):
         self.plane = p.loadURDF("plane.urdf")
 
         self.ri = mercury.pybullet.PandaRobotInterface(
-            suction_max_force=10, planner="RRTConnect"
+            suction_max_force=None, planner="RRTConnect"
         )
         c_cam_to_ee = mercury.geometry.Coordinate()
         c_cam_to_ee.translate([0, -0.1, -0.1])
@@ -136,9 +144,8 @@ class GraspWithIntentEnv(Env):
                     mass=mercury.datasets.ycb.masses[class_id],
                     position=position,
                     quaternion=quaternion,
-                    rgba_color=imgviz.label_colormap()[class_id] / 255,
-                    texture=False,
                 )
+                pp.draw_pose(([0, 0, 0], [0, 0, 0, 1]), parent=object_id)
             object_ids.append(object_id)
         self.object_ids = object_ids
 
@@ -165,12 +172,21 @@ class GraspWithIntentEnv(Env):
         self.ri.setj(j)
 
     def update_obs(self):
-        _, depth, segm = self.ri.get_camera_image()
+        rgb, depth, segm = self.ri.get_camera_image()
         fg_mask = ~np.isin(segm, [-1, self.plane, self.ri.robot])
-        obs = dict(
+        self.obs = dict(
+            rgb=rgb.transpose(2, 0, 1),
             depth=depth,
             fg_mask=fg_mask.astype(np.uint8),
+            segm=segm,
         )
+
+    def get_obs(self):
+        obs = copy.deepcopy(self.obs)
+
+        for key in list(obs.keys()):
+            if key not in self.observation_space.spaces:
+                obs.pop(key)
 
         for key, space in self.observation_space.spaces.items():
             assert obs[key].shape == space.shape, (
@@ -184,16 +200,36 @@ class GraspWithIntentEnv(Env):
                 space.dtype,
             )
 
-        self.obs = obs
-
-    def get_obs(self):
-        return copy.deepcopy(self.obs)
+        return obs
 
     def step(self, act_result):
         action = act_result.action
+        reward = self._step(y=action[0], x=action[1])
 
-        y, x = action
+        grasped_object = self.ri.gripper.grasped_object
+        self.ri.ungrasp()
+        if grasped_object:
+            self.object_ids.remove(grasped_object)
+            pp.remove_body(grasped_object)
 
+        self.setj_to_camera_pose()
+        self.update_obs()
+
+        needs_reset = (
+            len(self.object_ids) == 0
+            or self.obs["fg_mask"].sum() == 0
+            or np.random.random() < 0.1
+        )
+
+        return Transition(
+            observation=self.get_obs(),
+            reward=reward,
+            terminal=True,
+            info=dict(needs_reset=needs_reset),
+        )
+
+    def _step(self, y, x):
+        segm = self.obs["segm"]
         depth = self.obs["depth"]
         K = self.ri.get_opengl_intrinsic_matrix()
         pcd_in_camera = mercury.geometry.pointcloud_from_depth(
@@ -210,6 +246,7 @@ class GraspWithIntentEnv(Env):
 
         normals = mercury.geometry.normals_from_pointcloud(pcd_in_ee)
 
+        object_id = segm[y, x]
         position = pcd_in_ee[y, x]
         quaternion = mercury.geometry.quaternion_from_vec2vec(
             [0, 0, 1], normals[y, x]
@@ -241,80 +278,124 @@ class GraspWithIntentEnv(Env):
         angle = mercury.geometry.angle_between_vectors(v0, v1)
         if angle > max_angle:
             logger.warning(
-                f"angle ({np.rad2deg(angle):.2f} [deg]) > "
-                f"{np.rad2deg(max_angle):.2f} [deg]"
+                f"angle ({np.rad2deg(angle):.1f} [deg]) > "
+                f"{np.rad2deg(max_angle):.1f} [deg]"
             )
-            j = None
-        else:
-            j = self.ri.solve_ik(c.pose, rotation_axis="z")
+            return 0
 
-        if j is not None:
-            path = self.ri.planj(j, obstacles=[self.plane] + self.object_ids)
+        j = self.ri.solve_ik(c.pose)
+        if j is None:
+            return 0
 
-            if path is not None:
-                for _ in (_ for j in path for _ in self.ri.movej(j)):
-                    p.stepSimulation()
-                    if self._gui:
-                        time.sleep(pp.get_time_step())
+        obj_to_world = pp.get_pose(object_id)
 
-                try:
-                    for _ in self.ri.grasp(
-                        min_dz=0.08, max_dz=0.12, speed=0.005
-                    ):
-                        p.stepSimulation()
-                        if self._gui:
-                            time.sleep(pp.get_time_step())
-                except RuntimeError:
-                    pass
+        path = self.ri.planj(j, obstacles=[self.plane] + self.object_ids)
+        if path is None:
+            return 0
 
-                for _ in range(120):
-                    p.stepSimulation()
-                    self.ri.step_simulation()
-                    if self._gui:
-                        time.sleep(pp.get_time_step())
+        for _ in (_ for j in path for _ in self.ri.movej(j)):
+            p.stepSimulation()
+            if self._gui:
+                time.sleep(pp.get_time_step())
 
-                c = mercury.geometry.Coordinate(*self.ri.get_pose("tipLink"))
-                c.translate([0, 0, 0.3], wrt="world")
-                j = self.ri.solve_ik(c.pose, rotation_axis="z")
-                if j is not None:
-                    for _ in self.ri.movej(j, speed=0.002):
-                        p.stepSimulation()
-                        self.ri.step_simulation()
-                        if self._gui:
-                            time.sleep(pp.get_time_step())
+        try:
+            for _ in self.ri.grasp(min_dz=0.08, max_dz=0.12, speed=0.005):
+                p.stepSimulation()
+                if self._gui:
+                    time.sleep(pp.get_time_step())
+        except RuntimeError:
+            return 0
 
-                for _ in self.ri.movej(self.ri.homej, speed=0.005):
-                    p.stepSimulation()
-                    self.ri.step_simulation()
-                    if self._gui:
-                        time.sleep(pp.get_time_step())
+        if not self.ri.gripper.check_grasp():
+            return 0
 
-                for _ in range(120):
-                    p.stepSimulation()
-                    if self._gui:
-                        time.sleep(pp.get_time_step())
+        ee_to_world = self.ri.get_pose("tipLink")
+        obj_to_ee = pp.multiply(pp.invert(ee_to_world), obj_to_world)
+        self.ri.attachments = [
+            pp.Attachment(
+                parent=self.ri.robot,
+                parent_link=self.ri.ee,
+                grasp_pose=obj_to_ee,
+                child=object_id,
+            )
+        ]
 
-        reward = int(self.ri.gripper.check_grasp())
+        for _ in self.ri.movej(self.ri.homej):
+            p.stepSimulation()
+            if self._gui:
+                time.sleep(pp.get_time_step())
 
-        grasped_object = self.ri.gripper.grasped_object
+        c_place = mercury.geometry.Coordinate(
+            [0, 0.5, 0],
+            common_utils.get_canonical_quaternion(
+                common_utils.get_class_id(object_id)
+            ),
+        )
+
+        with pp.LockRenderer(), pp.WorldSaver():
+            pp.set_pose(object_id, c_place.pose)
+            c_place.position[2] -= pp.get_aabb(object_id).lower[2]
+
+        with self.ri.enabling_attachments():
+            obj_to_world = self.ri.get_pose("attachment_link0")
+
+            move_target_to_world = mercury.geometry.Coordinate(*obj_to_world)
+            move_target_to_world.transform(
+                np.linalg.inv(
+                    mercury.geometry.quaternion_matrix(c_place.quaternion)
+                ),
+                wrt="local",
+            )
+            move_target_to_world = move_target_to_world.pose
+
+            ee_to_world = self.ri.get_pose("tipLink")
+            move_target_to_ee = pp.multiply(
+                pp.invert(ee_to_world), move_target_to_world
+            )
+            self.ri.add_link("move_target", pose=move_target_to_ee)
+
+            j = self.ri.solve_ik(
+                (c_place.position, [0, 0, 0, 1]),
+                move_target=self.ri.robot_model.move_target,
+                rotation_axis="z",
+            )
+
+        if j is None:
+            return 0
+
+        obstacles = [self.plane] + self.object_ids
+        obstacles.remove(self.ri.attachments[0].child)
+        path = self.ri.planj(j, obstacles=obstacles)
+        if path is None:
+            return 0
+
+        for _ in (_ for j in path for _ in self.ri.movej(j)):
+            p.stepSimulation()
+            if self._gui:
+                time.sleep(pp.get_time_step())
+
+        for _ in range(240):
+            p.stepSimulation()
+            if self._gui:
+                time.sleep(pp.get_time_step())
 
         self.ri.ungrasp()
-        if grasped_object:
-            self.object_ids.remove(grasped_object)
-            pp.remove_body(grasped_object)
 
-        self.setj_to_camera_pose()
-        self.update_obs()
+        for _ in range(240):
+            p.stepSimulation()
+            if self._gui:
+                time.sleep(pp.get_time_step())
 
-        needs_reset = (
-            len(self.object_ids) <= 1
-            or self.obs["fg_mask"].sum() == 0
-            or np.random.random() < 0.2
-        )
+        for _ in self.ri.move_to_homej([self.plane], self.object_ids):
+            p.stepSimulation()
+            if self._gui:
+                time.sleep(pp.get_time_step())
 
-        return Transition(
-            observation=self.get_obs(),
-            reward=reward,
-            terminal=True,
-            info=dict(needs_reset=needs_reset),
-        )
+        pp.remove_body(object_id)
+
+        for _ in range(240):
+            p.stepSimulation()
+            if self._gui:
+                time.sleep(pp.get_time_step())
+
+        return 1

@@ -254,7 +254,7 @@ class PandaRobotInterface:
 
         return path
 
-    def grasp(self, min_dz=None, max_dz=None, **kwargs):
+    def grasp(self, min_dz=None, max_dz=None, rotation_axis="z", speed=0.01):
         c = geometry.Coordinate(
             *pybullet_planning.get_link_pose(self.robot, self.ee)
         )
@@ -262,10 +262,10 @@ class PandaRobotInterface:
         while True:
             c.translate([0, 0, 0.001])
             dz_done += 0.001
-            j = self.solve_ik(c.pose, rotation_axis="z")
+            j = self.solve_ik(c.pose, rotation_axis=rotation_axis)
             if j is None:
                 raise RuntimeError("IK failed")
-            for i in self.movej(j, **kwargs):
+            for i in self.movej(j, speed=speed):
                 yield i
                 if min_dz is not None and dz_done < min_dz:
                     continue

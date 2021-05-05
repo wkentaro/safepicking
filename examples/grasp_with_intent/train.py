@@ -39,7 +39,7 @@ def main():
     parser.add_argument(
         "--model",
         required=True,
-        choices=["depth"],
+        choices=["base"],
         help="model",
     )
     parser.add_argument(
@@ -48,7 +48,7 @@ def main():
     parser.add_argument(
         "--lr",
         type=float,
-        default=1e-3,
+        default=1e-4,
         help="learning rate",
     )
     parser.add_argument(
@@ -144,7 +144,7 @@ def main():
         iterations=100000,
         logdir=log_dir,
         log_freq=10,
-        transitions_before_train=1000,
+        transitions_before_train=320,
         weightsdir=log_dir / "weights",
         save_freq=10,
         max_replay_ratio=16,
