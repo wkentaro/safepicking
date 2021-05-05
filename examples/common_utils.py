@@ -144,3 +144,13 @@ def git_hash(cwd=None, log_dir=None):
                 f.write(diff)
     cmd = "git log --pretty=format:'%h' -n 1"
     return subprocess.check_output(shlex.split(cmd), cwd=cwd).decode().strip()
+
+
+def get_canonical_quaternion(class_id):
+    if class_id == 15:
+        quaternion = mercury.geometry.quaternion_from_euler(
+            [np.deg2rad(90), 0, 0]
+        )
+    else:
+        quaternion = [0, 0, 0, 1]
+    return quaternion

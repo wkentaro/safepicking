@@ -9,6 +9,8 @@ import pybullet_planning as pp
 
 import mercury
 
+import common_utils
+
 
 def get_camera_pose(camera_config):
     c_cam_to_ee = mercury.geometry.Coordinate()
@@ -77,16 +79,6 @@ class StepSimulation:
         self.i += 1
 
 
-def get_canonical_quaternion(class_id):
-    if class_id == 15:
-        quaternion = mercury.geometry.quaternion_from_euler(
-            [np.deg2rad(90), 0, 0]
-        )
-    else:
-        quaternion = [0, 0, 0, 1]
-    return quaternion
-
-
 def place_to_regrasp(
     ri, regrasp_aabb, bg_object_ids, object_ids, step_simulation
 ):
@@ -97,25 +89,26 @@ def place_to_regrasp(
 
     t_start = time.time()
     for i in itertools.count():
-        with pp.LockRenderer():
-            with pp.WorldSaver():
-                quaternion = get_canonical_quaternion(class_id=class_id)
-                if i >= n_trial:
-                    c = mercury.geometry.Coordinate(quaternion=quaternion)
-                    euler = [
-                        [np.deg2rad(90), 0, 0],
-                        [np.deg2rad(-90), 0, 0],
-                        [0, np.deg2rad(90), 0],
-                        [0, np.deg2rad(-90), 0],
-                    ][np.random.randint(0, 4)]
-                    c.rotate(euler, wrt="world")
-                    quaternion = c.quaternion
+        with pp.LockRenderer(), pp.WorldSaver():
+            quaternion = common_utils.get_canonical_quaternion(
+                class_id=class_id
+            )
+            if i >= n_trial:
+                c = mercury.geometry.Coordinate(quaternion=quaternion)
+                euler = [
+                    [np.deg2rad(90), 0, 0],
+                    [np.deg2rad(-90), 0, 0],
+                    [0, np.deg2rad(90), 0],
+                    [0, np.deg2rad(-90), 0],
+                ][np.random.randint(0, 4)]
+                c.rotate(euler, wrt="world")
+                quaternion = c.quaternion
 
-                pp.set_pose(object_id, ([0, 0, 0], quaternion))
-                aabb = pp.get_aabb(object_id)
-                position = np.random.uniform(*regrasp_aabb)
-                position[2] -= aabb[0][2]
-                c = mercury.geometry.Coordinate(position, quaternion)
+            pp.set_pose(object_id, ([0, 0, 0], quaternion))
+            aabb = pp.get_aabb(object_id)
+            position = np.random.uniform(*regrasp_aabb)
+            position[2] -= aabb[0][2]
+            c = mercury.geometry.Coordinate(position, quaternion)
 
         regrasp_pose = c.pose  # obj_af_to_world
 
@@ -191,7 +184,7 @@ def get_place_pose(object_id, bin_aabb_min, bin_aabb_max):
     position_org, quaternion_org = p.getBasePositionAndOrientation(object_id)
 
     class_id = get_class_id(object_id)
-    quaternion = get_canonical_quaternion(class_id)
+    quaternion = common_utils.get_canonical_quaternion(class_id)
 
     with pp.LockRenderer():
         with pp.WorldSaver():
