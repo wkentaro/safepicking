@@ -17,9 +17,6 @@ def get_parser():
     )
     parser.add_argument("--pause", action="store_true", help="pause")
     parser.add_argument(
-        "--enable-visual", action="store_true", help="enable visual"
-    )
-    parser.add_argument(
         "--camera-config", type=int, default=0, help="camera config"
     )
     parser.add_argument("--video", action="store_true", help="video")
@@ -274,6 +271,7 @@ def place(
         rgba_color=[0, 1, 0, 0.5],
         position=place_pose[0],
         quaternion=place_pose[1],
+        texture=False,
     )
     virtual_objects.append(obj_v)
 

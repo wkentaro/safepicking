@@ -35,7 +35,6 @@ def main():
     object_ids = common_utils.load_pile(
         base_pose=pile_pose,
         npz_file=home / "data/mercury/pile_generation/00000001.npz",
-        enable_visual=args.enable_visual,
         mass=0.1,
     )
     for obj in object_ids:
