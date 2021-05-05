@@ -97,7 +97,7 @@ def main():
     replay_buffer = PrioritizedReplayBuffer(
         batch_size=32,
         timesteps=1,
-        replay_capacity=50000,
+        replay_capacity=int(1e4),
         gamma=0.99,
         action_shape=env.action_shape,
         action_dtype=np.int32,
