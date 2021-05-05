@@ -32,25 +32,25 @@ class GraspWithIntentEnv(Env):
         depth = gym.spaces.Box(
             low=-np.inf,
             high=np.inf,
-            shape=(240, 320),
+            shape=(240, 240),
             dtype=np.float32,
         )
         pcd = gym.spaces.Box(
             low=-np.inf,
             high=np.inf,
-            shape=(3, 240, 320),
+            shape=(3, 240, 240),
             dtype=np.float32,
         )
         normals = gym.spaces.Box(
             low=-np.inf,
             high=np.inf,
-            shape=(3, 240, 320),
+            shape=(3, 240, 240),
             dtype=np.float32,
         )
         fg_mask = gym.spaces.Box(
             low=0,
             high=1,
-            shape=(240, 320),
+            shape=(240, 240),
             dtype=np.uint8,
         )
         self.observation_space = gym.spaces.Dict(
@@ -109,11 +109,12 @@ class GraspWithIntentEnv(Env):
             suction_max_force=10, planner="RRTConnect"
         )
         c_cam_to_ee = mercury.geometry.Coordinate()
-        c_cam_to_ee.translate([0, -0.06, -0.1])
+        c_cam_to_ee.translate([0, -0.1, -0.1])
         self.ri.add_camera(
             pose=c_cam_to_ee.pose,
+            fovy=np.deg2rad(60),
             height=240,
-            width=320,
+            width=240,
         )
 
         data = dict(np.load(pile_file))
@@ -168,7 +169,7 @@ class GraspWithIntentEnv(Env):
         j = None
         while j is None:
             c = mercury.geometry.Coordinate(*self.ri.get_pose("camera_link"))
-            c.position = np.random.uniform(*aabb)
+            c.position = np.mean(aabb, axis=0)
             c.position[2] = 0.7
             j = self.ri.solve_ik(
                 c.pose,
@@ -244,7 +245,22 @@ class GraspWithIntentEnv(Env):
         )
         c.translate([0, 0, -0.1])
 
-        j = self.ri.solve_ik(c.pose, rotation_axis="z")
+        max_angle = np.deg2rad(45)
+        vec = mercury.geometry.transform_points(
+            [[0, 0, 0], [0, 0, 1]], c.matrix
+        )
+        v0 = [0, 0, -1]
+        v1 = vec[1] - vec[0]
+        v1 /= np.linalg.norm(v1)
+        angle = mercury.geometry.angle_between_vectors(v0, v1)
+        if angle > max_angle:
+            logger.warning(
+                f"angle ({np.rad2deg(angle):.2f} [deg]) > "
+                f"{np.rad2deg(max_angle):.2f} [deg]"
+            )
+            j = None
+        else:
+            j = self.ri.solve_ik(c.pose, rotation_axis="z")
 
         if j is not None:
             path = self.ri.planj(j, obstacles=[self.plane] + self.object_ids)
@@ -270,6 +286,16 @@ class GraspWithIntentEnv(Env):
                     self.ri.step_simulation()
                     if self._gui:
                         time.sleep(pp.get_time_step())
+
+                c = mercury.geometry.Coordinate(*self.ri.get_pose("tipLink"))
+                c.translate([0, 0, 0.3], wrt="world")
+                j = self.ri.solve_ik(c.pose, rotation_axis="z")
+                if j is not None:
+                    for _ in self.ri.movej(j, speed=0.002):
+                        p.stepSimulation()
+                        self.ri.step_simulation()
+                        if self._gui:
+                            time.sleep(pp.get_time_step())
 
                 for _ in self.ri.movej(self.ri.homej, speed=0.005):
                     p.stepSimulation()
