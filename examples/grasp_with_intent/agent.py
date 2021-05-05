@@ -22,6 +22,7 @@ class DqnModel(torch.nn.Module):
 
     def forward(self, observation):
         depth = observation["depth"][:, None, :, :]
+        depth = depth / 2 - 0.5  # normalize
 
         return self.module(depth=depth)
 
