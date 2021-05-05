@@ -105,7 +105,7 @@ def main():
         reward_dtype=np.float32,
         update_horizon=1,
         observation_elements=env.observation_elements,
-        save_dir=None,
+        save_dir=log_dir / "replay",
     )
 
     wrapped_replay = PyTorchReplayBuffer(replay_buffer)
