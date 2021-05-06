@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 
 import argparse
+import json
 
+import imgviz
 import path
 
 from agent import DqnAgent
@@ -30,7 +32,11 @@ def main():
         # pile_file=args.export_file,
     )
 
-    agent = DqnAgent(env=env)
+    log_dir = args.weight_dir.parent.parent
+    with open(log_dir / "hparams.json") as f:
+        hparams = json.load(f)
+
+    agent = DqnAgent(env=env, model=hparams["model"])
     agent.build(training=False)
     agent.load_weights(args.weight_dir)
 
@@ -40,6 +46,9 @@ def main():
         act_result = agent.act(
             step=-1, observation=obs, deterministic=True, env=env
         )
+        imgviz.io.cv_imshow(agent.draw_act_summary(), "act_summary")
+        imgviz.io.cv_waitkey(100)
+
         transition = env.step(act_result)
         print(
             f"action={act_result.action}, reward={transition.reward}, "

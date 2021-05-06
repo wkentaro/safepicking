@@ -193,26 +193,32 @@ class DqnAgent(Agent):
             ScalarSummary("agent/loss", np.mean(self._losses)),
         ]
 
+    def draw_act_summary(self):
+        obs = self._act_summary["observation"]
+        rgb = obs["rgb"][0, 0].transpose(1, 2, 0)
+        ins = np.uint8(obs["ins"][0, 0].transpose(1, 2, 0) * 255)
+        depth = obs["depth"][0, 0]
+        q = self._act_summary["q"][0, 0]
+        act_summary = imgviz.tile(
+            [
+                rgb,
+                ins,
+                imgviz.depth2rgb(depth),
+                imgviz.depth2rgb(q, min_value=0, max_value=1),
+            ],
+            shape=(2, 2),
+            border=(0, 0, 0),
+        )
+        return act_summary
+
     def act_summaries(self):
         summaries = [ScalarSummary("agent/epsilon", self._epsilon)]
         if self._act_summary:
-            obs = self._act_summary["observation"]
-            rgb = obs["rgb"][0, 0].transpose(1, 2, 0)
-            ins = np.uint8(obs["ins"][0, 0].transpose(1, 2, 0) * 255)
-            depth = obs["depth"][0, 0]
-            q = self._act_summary["q"][0, 0]
-            q_summary = imgviz.tile(
-                [
-                    rgb,
-                    ins,
-                    imgviz.depth2rgb(depth),
-                    imgviz.depth2rgb(q, min_value=0, max_value=1),
-                ],
-                shape=(2, 2),
-                border=(0, 0, 0),
-            )
+            act_summary = self.draw_act_summary()
             summaries.append(
-                ImageSummary("agent/q", q_summary.transpose(2, 0, 1))
+                ImageSummary(
+                    "agent/act_summary", act_summary.transpose(2, 0, 1)
+                )
             )
         return summaries
 
