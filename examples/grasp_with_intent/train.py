@@ -72,7 +72,7 @@ def main():
     now = datetime.datetime.now(pytz.timezone("Japan"))
     hparams["timestamp"] = now.isoformat()
 
-    log_dir = now.strftime("%Y%m%d_%H%M%S") + "_" + hparams["name"]
+    log_dir = now.strftime("%Y%m%d_%H%M%S") + "-" + hparams["name"]
     log_dir = here / "logs" / log_dir
     log_dir.makedirs_p()
 
