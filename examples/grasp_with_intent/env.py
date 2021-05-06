@@ -307,17 +307,18 @@ class GraspWithIntentEnv(Env):
             )
             return 0
 
-        j = self.ri.solve_ik(c.pose)
-        if j is None:
-            logger.error("grasping ik solution is not found")
-            return 0
-
         obj_to_world = pp.get_pose(object_id)
 
-        path = self.ri.planj(j, obstacles=[self.plane] + self.object_ids)
-        if path is None:
-            logger.error("grasping path is not found")
-            return 0
+        for i in range(3):
+            j = self.ri.solve_ik(c.pose)
+            if j is None and i == 2:
+                logger.error("grasping ik solution is not found")
+                return 0
+
+            path = self.ri.planj(j, obstacles=[self.plane] + self.object_ids)
+            if path is None and i == 2:
+                logger.error("grasping path is not found")
+                return 0
 
         for _ in (_ for j in path for _ in self.ri.movej(j)):
             p.stepSimulation()
@@ -373,42 +374,45 @@ class GraspWithIntentEnv(Env):
             pp.set_pose(grasped_object, c_place.pose)
             c_place.position[2] -= pp.get_aabb(grasped_object).lower[2]
 
-        with self.ri.enabling_attachments():
-            obj_to_world = self.ri.get_pose("attachment_link0")
+        for i in range(3):
+            with self.ri.enabling_attachments():
+                obj_to_world = self.ri.get_pose("attachment_link0")
 
-            move_target_to_world = mercury.geometry.Coordinate(*obj_to_world)
-            move_target_to_world.transform(
-                np.linalg.inv(
-                    mercury.geometry.quaternion_matrix(c_place.quaternion)
-                ),
-                wrt="local",
-            )
-            move_target_to_world = move_target_to_world.pose
+                move_target_to_world = mercury.geometry.Coordinate(
+                    *obj_to_world
+                )
+                move_target_to_world.transform(
+                    np.linalg.inv(
+                        mercury.geometry.quaternion_matrix(c_place.quaternion)
+                    ),
+                    wrt="local",
+                )
+                move_target_to_world = move_target_to_world.pose
 
-            ee_to_world = self.ri.get_pose("tipLink")
-            move_target_to_ee = pp.multiply(
-                pp.invert(ee_to_world), move_target_to_world
-            )
-            self.ri.add_link("move_target", pose=move_target_to_ee)
+                ee_to_world = self.ri.get_pose("tipLink")
+                move_target_to_ee = pp.multiply(
+                    pp.invert(ee_to_world), move_target_to_world
+                )
+                self.ri.add_link("move_target", pose=move_target_to_ee)
 
-            j = self.ri.solve_ik(
-                (c_place.position, [0, 0, 0, 1]),
-                move_target=self.ri.robot_model.move_target,
-                rotation_axis="z",
-            )
+                j = self.ri.solve_ik(
+                    (c_place.position, [0, 0, 0, 1]),
+                    move_target=self.ri.robot_model.move_target,
+                    rotation_axis="z",
+                )
 
-        if j is None:
-            logger.error("placing ik solution is not found")
-            before_return()
-            return 0
+            if j is None and i == 2:
+                logger.error("placing ik solution is not found")
+                before_return()
+                return 0
 
-        obstacles = [self.plane] + self.object_ids
-        obstacles.remove(self.ri.attachments[0].child)
-        path = self.ri.planj(j, obstacles=obstacles)
-        if path is None:
-            logger.error("placing path is not found")
-            before_return()
-            return 0
+            obstacles = [self.plane] + self.object_ids
+            obstacles.remove(self.ri.attachments[0].child)
+            path = self.ri.planj(j, obstacles=obstacles)
+            if path is None and i == 2:
+                logger.error("placing path is not found")
+                before_return()
+                return 0
 
         for _ in (_ for j in path for _ in self.ri.movej(j)):
             p.stepSimulation()
