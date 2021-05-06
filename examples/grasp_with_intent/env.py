@@ -311,14 +311,20 @@ class GraspWithIntentEnv(Env):
 
         for i in range(3):
             j = self.ri.solve_ik(c.pose)
-            if j is None and i == 2:
-                logger.error("grasping ik solution is not found")
-                return 0
+            if j is None:
+                if i == 2:
+                    logger.error("grasping ik solution is not found")
+                    return 0
+                else:
+                    continue
 
             path = self.ri.planj(j, obstacles=[self.plane] + self.object_ids)
-            if path is None and i == 2:
-                logger.error("grasping path is not found")
-                return 0
+            if path is None:
+                if i == 2:
+                    logger.error("grasping path is not found")
+                    return 0
+                else:
+                    continue
 
         for _ in (_ for j in path for _ in self.ri.movej(j)):
             p.stepSimulation()
@@ -401,18 +407,24 @@ class GraspWithIntentEnv(Env):
                     rotation_axis="z",
                 )
 
-            if j is None and i == 2:
-                logger.error("placing ik solution is not found")
-                before_return()
-                return 0
+            if j is None:
+                if i == 2:
+                    logger.error("placing ik solution is not found")
+                    before_return()
+                    return 0
+                else:
+                    continue
 
             obstacles = [self.plane] + self.object_ids
             obstacles.remove(self.ri.attachments[0].child)
             path = self.ri.planj(j, obstacles=obstacles)
-            if path is None and i == 2:
-                logger.error("placing path is not found")
-                before_return()
-                return 0
+            if path is None:
+                if i == 2:
+                    logger.error("placing path is not found")
+                    before_return()
+                    return 0
+                else:
+                    continue
 
         for _ in (_ for j in path for _ in self.ri.movej(j)):
             p.stepSimulation()
