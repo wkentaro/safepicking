@@ -189,7 +189,7 @@ class DqnAgent(Agent):
         self.optimizer.step()
 
         self._losses.append(loss.item())
-        priority = torch.sqrt(q_delta + q_bg_delta + 1e-10).detach()
+        priority = torch.sqrt(q_delta + 1e-10).detach()
         priority /= priority.max()
         prev_priority = replay_sample.get("priority", 0)
 
