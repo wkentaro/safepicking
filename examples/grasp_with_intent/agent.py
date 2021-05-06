@@ -212,7 +212,12 @@ class DqnAgent(Agent):
                 rgb,
                 ins,
                 imgviz.depth2rgb(depth),
-                imgviz.depth2rgb(q, min_value=0, max_value=1),
+                np.uint8(
+                    np.round(
+                        imgviz.gray2rgb(imgviz.rgb2gray(rgb)) * 0.5
+                        + imgviz.depth2rgb(q, min_value=0, max_value=1) * 0.5
+                    )
+                ),
             ],
             shape=(2, 2),
             border=(0, 0, 0),
