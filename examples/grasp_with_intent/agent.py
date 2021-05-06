@@ -76,9 +76,12 @@ class DqnAgent(Agent):
         actions_select = np.stack((y, x), axis=1)
 
         if deterministic:
-            for a in actions_select:
+            for a in actions_select[:10]:
                 act_result = ActResult(action=a)
-                break
+                is_valid, validation_result = env.validate_action(act_result)
+                if is_valid:
+                    act_result.validation_result = validation_result
+                    break
             else:
                 act_result = ActResult(action=actions_select[0])
         else:
@@ -88,9 +91,14 @@ class DqnAgent(Agent):
                     act_result = ActResult(action=a)
                     break
             else:
-                for a in actions_select:
+                for a in actions_select[:10]:
                     act_result = ActResult(action=a)
-                    break
+                    is_valid, validation_result = env.validate_action(
+                        act_result
+                    )
+                    if is_valid:
+                        act_result.validation_result = validation_result
+                        break
                 else:
                     act_result = ActResult(action=actions_select[0])
         return act_result

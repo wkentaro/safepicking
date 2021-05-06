@@ -178,9 +178,7 @@ class GraspWithIntentEnv(Env):
             c.position = np.mean(aabb, axis=0)
             c.position[2] = 0.7
             j = self.ri.solve_ik(
-                c.pose,
-                move_target=self.ri.robot_model.camera_link,
-                rotation_axis="z",
+                c.pose, move_target=self.ri.robot_model.camera_link
             )
         self.ri.setj(j)
 
@@ -231,8 +229,7 @@ class GraspWithIntentEnv(Env):
         return obs
 
     def step(self, act_result):
-        action = act_result.action
-        reward = self._step(y=action[0], x=action[1])
+        reward = self._step(act_result)
 
         self.setj_to_camera_pose()
         self.update_obs()
@@ -250,12 +247,34 @@ class GraspWithIntentEnv(Env):
             info=dict(needs_reset=needs_reset),
         )
 
-    def _step(self, y, x):
-        segm = self.obs["segm"]
-        depth = self.obs["depth"]
+    def validate_action(self, act_result):
+        logger.info(f"Validating action: {act_result.action}")
+
+        lock_renderer = pp.LockRenderer()
+        world_saver = pp.WorldSaver()
+
+        def before_return():
+            self.ri.attachments = []
+            world_saver.restore()
+            lock_renderer.restore()
+
+        data = {}
+
+        y, x = act_result.action
+
+        object_id = self.obs["segm"][y, x]
+        data["object_id"] = object_id
+        if object_id not in self.object_ids:
+            logger.error(
+                f"object {object_id} is not in the graspable objects: "
+                f"{self.object_ids}"
+            )
+            before_return()
+            return False, data
+
         K = self.ri.get_opengl_intrinsic_matrix()
         pcd_in_camera = mercury.geometry.pointcloud_from_depth(
-            depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
+            self.obs["depth"], fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
         )
 
         camera_to_world = self.ri.get_pose("camera_link")
@@ -267,14 +286,6 @@ class GraspWithIntentEnv(Env):
         )
 
         normals = mercury.geometry.normals_from_pointcloud(pcd_in_ee)
-
-        object_id = segm[y, x]
-        if object_id not in self.object_ids:
-            logger.error(
-                f"object {object_id} is not in the graspable objects: "
-                f"{self.object_ids}"
-            )
-            return 0
 
         position = pcd_in_ee[y, x]
         quaternion = mercury.geometry.quaternion_from_vec2vec(
@@ -310,38 +321,152 @@ class GraspWithIntentEnv(Env):
                 f"angle ({np.rad2deg(angle):.1f} [deg]) > "
                 f"{np.rad2deg(max_angle):.1f} [deg]"
             )
-            return 0
-
-        obj_to_world = pp.get_pose(object_id)
-
-        assert len(self.ri.attachments) == 0
-        assert self.ri.gripper.grasped_object is None
-        assert self.ri.gripper.activated is False
+            before_return()
+            return False, data
+        data["c_grasp"] = c
 
         for i in range(3):
             j = self.ri.solve_ik(c.pose)
             if j is None:
                 if i == 2:
-                    logger.error("grasping ik solution is not found")
-                    return 0
+                    logger.error(
+                        "pre-grasping ik solution is not found: "
+                        f"{act_result.action}"
+                    )
+                    before_return()
+                    return False, data
                 else:
                     continue
 
             path = self.ri.planj(j, obstacles=[self.plane] + self.object_ids)
             if path is None:
                 if i == 2:
-                    logger.error("grasping path is not found")
-                    return 0
+                    logger.error(
+                        f"pre-grasping path is not found: {act_result.action}"
+                    )
+                    before_return()
+                    return False, data
+                else:
+                    continue
+        data["path_grasp"] = path
+
+        self.ri.setj(path[-1])
+
+        c = mercury.geometry.Coordinate(*self.ri.get_pose("tipLink"))
+        c.translate([0, 0, 0.1])
+
+        j = self.ri.solve_ik(c.pose)
+        if j is None:
+            logger.error(
+                f"grasping ik solution is not found: {act_result.action}"
+            )
+            before_return()
+            return False, data
+        self.ri.setj(j)
+
+        obj_to_world = pp.get_pose(object_id)
+        ee_to_world = self.ri.get_pose("tipLink")
+        obj_to_ee = pp.multiply(pp.invert(ee_to_world), obj_to_world)
+        self.ri.attachments = [
+            pp.Attachment(
+                parent=self.ri.robot,
+                parent_link=self.ri.ee,
+                grasp_pose=obj_to_ee,
+                child=object_id,
+            )
+        ]
+
+        self.ri.setj(self.ri.homej)
+        self.ri.attachments[0].assign()
+
+        c_place = mercury.geometry.Coordinate(
+            [0, 0.5, 0],
+            common_utils.get_canonical_quaternion(
+                common_utils.get_class_id(object_id)
+            ),
+        )
+        with pp.LockRenderer(), pp.WorldSaver():
+            pp.set_pose(object_id, c_place.pose)
+            c_place.position[2] -= pp.get_aabb(object_id).lower[2]
+            c_place.position[2] += 0.01
+
+        for i in range(3):
+            with self.ri.enabling_attachments():
+                obj_to_world = self.ri.get_pose("attachment_link0")
+
+                move_target_to_world = mercury.geometry.Coordinate(
+                    *obj_to_world
+                )
+                move_target_to_world.transform(
+                    np.linalg.inv(
+                        mercury.geometry.quaternion_matrix(c_place.quaternion)
+                    ),
+                    wrt="local",
+                )
+                move_target_to_world = move_target_to_world.pose
+
+                ee_to_world = self.ri.get_pose("tipLink")
+                move_target_to_ee = pp.multiply(
+                    pp.invert(ee_to_world), move_target_to_world
+                )
+                self.ri.add_link("move_target", pose=move_target_to_ee)
+
+                j = self.ri.solve_ik(
+                    (c_place.position, [0, 0, 0, 1]),
+                    move_target=self.ri.robot_model.move_target,
+                )
+
+            if j is None:
+                if i == 2:
+                    logger.error("placing ik solution is not found")
+                    before_return()
+                    return False, data
                 else:
                     continue
 
+            obstacles = [self.plane] + self.object_ids
+            obstacles.remove(self.ri.attachments[0].child)
+            path = self.ri.planj(j, obstacles=obstacles)
+            if path is None:
+                if i == 2:
+                    logger.error("placing path is not found")
+                    before_return()
+                    return False, data
+                else:
+                    continue
+        data["path_place"] = path
+
+        before_return()
+        return True, data
+
+    def _step(self, act_result):
+        if hasattr(act_result, "validation_result"):
+            is_valid = True
+            validation_result = act_result.validation_result
+        else:
+            is_valid, validation_result = self.validate_action(act_result)
+
+        if not is_valid:
+            logger.error(f"Invalid action: {act_result.action}")
+            return 0
+
+        assert len(self.ri.attachments) == 0
+        assert self.ri.gripper.grasped_object is None
+        assert self.ri.gripper.activated is False
+
+        object_id = validation_result["object_id"]
+        obj_to_world = pp.get_pose(object_id)
+
+        path = validation_result["path_grasp"]
         for _ in (_ for j in path for _ in self.ri.movej(j)):
             p.stepSimulation()
             if self._gui:
                 time.sleep(pp.get_time_step())
 
         try:
-            for _ in self.ri.grasp(min_dz=0.08, max_dz=0.12, speed=0.005):
+            for _ in self.ri.grasp(
+                min_dz=0.08, max_dz=0.12, speed=0.005, rotation_axis=True
+            ):
                 p.stepSimulation()
                 if self._gui:
                     time.sleep(pp.get_time_step())
@@ -355,7 +480,7 @@ class GraspWithIntentEnv(Env):
             self.ri.ungrasp()
             return 0
 
-        grasped_object = self.ri.gripper.grasped_object
+        grasped_object = validation_result["object_id"]
 
         def before_return():
             self.ri.ungrasp()
@@ -383,63 +508,7 @@ class GraspWithIntentEnv(Env):
             if self._gui:
                 time.sleep(pp.get_time_step())
 
-        c_place = mercury.geometry.Coordinate(
-            [0, 0.5, 0],
-            common_utils.get_canonical_quaternion(
-                common_utils.get_class_id(grasped_object)
-            ),
-        )
-
-        with pp.LockRenderer(), pp.WorldSaver():
-            pp.set_pose(grasped_object, c_place.pose)
-            c_place.position[2] -= pp.get_aabb(grasped_object).lower[2]
-
-        for i in range(3):
-            with self.ri.enabling_attachments():
-                obj_to_world = self.ri.get_pose("attachment_link0")
-
-                move_target_to_world = mercury.geometry.Coordinate(
-                    *obj_to_world
-                )
-                move_target_to_world.transform(
-                    np.linalg.inv(
-                        mercury.geometry.quaternion_matrix(c_place.quaternion)
-                    ),
-                    wrt="local",
-                )
-                move_target_to_world = move_target_to_world.pose
-
-                ee_to_world = self.ri.get_pose("tipLink")
-                move_target_to_ee = pp.multiply(
-                    pp.invert(ee_to_world), move_target_to_world
-                )
-                self.ri.add_link("move_target", pose=move_target_to_ee)
-
-                j = self.ri.solve_ik(
-                    (c_place.position, [0, 0, 0, 1]),
-                    move_target=self.ri.robot_model.move_target,
-                    rotation_axis="z",
-                )
-
-            if j is None:
-                if i == 2:
-                    logger.error("placing ik solution is not found")
-                    before_return()
-                    return 0
-                else:
-                    continue
-
-            obstacles = [self.plane] + self.object_ids
-            obstacles.remove(self.ri.attachments[0].child)
-            path = self.ri.planj(j, obstacles=obstacles)
-            if path is None:
-                if i == 2:
-                    logger.error("placing path is not found")
-                    before_return()
-                    return 0
-                else:
-                    continue
-
+        path = validation_result["path_place"]
         for _ in (_ for j in path for _ in self.ri.movej(j)):
             p.stepSimulation()
             if self._gui:
