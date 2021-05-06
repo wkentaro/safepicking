@@ -168,21 +168,28 @@ class DqnAgent(Agent):
         )
         q_loss = (q_delta * sampling_weigths).mean()
 
-        bg_delta = torch.nn.functional.smooth_l1_loss(
-            qs_pred[:, 0] * (1 - obs["fg_mask"].float()),
-            torch.zeros_like(qs_pred)[:, 0],
+        bg_mask = 1 - obs["fg_mask"]
+        q_bg_pred = []
+        for b in range(bg_mask.shape[0]):
+            y, x = torch.where(bg_mask[b])
+            i = torch.randint(low=0, high=len(y), size=()).item()
+            q_bg_pred.append(qs_pred[b, 0, y[i], x[i]])
+        q_bg_pred = torch.stack(q_bg_pred)
+        q_bg_delta = torch.nn.functional.smooth_l1_loss(
+            q_bg_pred,
+            torch.zeros_like(q_bg_pred),
             reduction="none",
-        ).mean(dim=(1, 2))
-        bg_loss = (bg_delta * sampling_weigths).mean()
+        )
+        q_bg_loss = (q_bg_delta * sampling_weigths).mean()
 
-        loss = q_loss + bg_loss
+        loss = q_loss + q_bg_loss
 
         loss.backward()
 
         self.optimizer.step()
 
         self._losses.append(loss.item())
-        priority = torch.sqrt(q_delta + bg_delta + 1e-10).detach()
+        priority = torch.sqrt(q_delta + q_bg_delta + 1e-10).detach()
         priority /= priority.max()
         prev_priority = replay_sample.get("priority", 0)
 

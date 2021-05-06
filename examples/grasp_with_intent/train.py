@@ -46,6 +46,15 @@ def main():
         "--train-envs", type=int, default=5, help="number of train envs"
     )
     parser.add_argument(
+        "--eval-envs", type=int, default=1, help="number of eval envs"
+    )
+    parser.add_argument(
+        "--transitions-before-train",
+        type=int,
+        default=320,
+        help="transitions before train",
+    )
+    parser.add_argument(
         "--lr",
         type=float,
         default=1e-4,
@@ -126,7 +135,7 @@ def main():
         agent=agent,
         replay_buffer=replay_buffer,
         train_envs=hparams["train_envs"],
-        eval_envs=1,
+        eval_envs=hparams["eval_envs"],
         episodes=999999,
         episode_length=1,
         stat_accumulator=stat_accumulator,
@@ -144,7 +153,7 @@ def main():
         iterations=100000,
         logdir=log_dir,
         log_freq=10,
-        transitions_before_train=320,
+        transitions_before_train=hparams["transitions_before_train"],
         weightsdir=log_dir / "weights",
         save_freq=10,
         max_replay_ratio=16,
