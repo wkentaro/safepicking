@@ -153,7 +153,12 @@ class GraspWithIntentEnv(Env):
                     position=position,
                     quaternion=quaternion,
                 )
-                pp.draw_pose(([0, 0, 0], [0, 0, 0, 1]), parent=object_id)
+                pp.draw_pose(
+                    ([0, 0, 0], [0, 0, 0, 1]),
+                    parent=object_id,
+                    width=2,
+                    length=0.2,
+                )
             object_ids.append(object_id)
         self.object_ids = object_ids
 
@@ -309,6 +314,10 @@ class GraspWithIntentEnv(Env):
 
         obj_to_world = pp.get_pose(object_id)
 
+        assert len(self.ri.attachments) == 0
+        assert self.ri.gripper.grasped_object is None
+        assert self.ri.gripper.activated is False
+
         for i in range(3):
             j = self.ri.solve_ik(c.pose)
             if j is None:
@@ -352,6 +361,11 @@ class GraspWithIntentEnv(Env):
             self.ri.ungrasp()
             pp.remove_body(grasped_object)
             self.object_ids.remove(grasped_object)
+
+            for _ in range(240):
+                p.stepSimulation()
+                if self._gui:
+                    time.sleep(pp.get_time_step())
 
         ee_to_world = self.ri.get_pose("tipLink")
         obj_to_ee = pp.multiply(pp.invert(ee_to_world), obj_to_world)
