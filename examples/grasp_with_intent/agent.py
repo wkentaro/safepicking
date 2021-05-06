@@ -66,8 +66,11 @@ class DqnAgent(Agent):
             q=q,
         )
 
-        _, _, height, width = q.shape
-        argsort = np.argsort(q[0, 0].flatten())[::-1]
+        fg_mask = obs["fg_mask"][0].numpy()
+        q = q[0, 0] * fg_mask
+
+        height, width = q.shape
+        argsort = np.argsort(q.flatten())[::-1]
         y = argsort // width
         x = argsort % width
         actions_select = np.stack((y, x), axis=1)
@@ -81,9 +84,7 @@ class DqnAgent(Agent):
         else:
             self._epsilon = epsilon = self._get_epsilon(step)
             if np.random.random() < epsilon:
-                for a in np.random.permutation(
-                    np.argwhere(obs["fg_mask"][0].numpy())
-                ):
+                for a in np.random.permutation(np.argwhere(fg_mask)):
                     act_result = ActResult(action=a)
                     break
             else:
