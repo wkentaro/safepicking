@@ -23,6 +23,7 @@ def main():
     parser.add_argument("pile_file", type=path.Path, help="pile file")
     parser.add_argument("--weight-dir", type=path.Path, help="weight dir")
     parser.add_argument("--nogui", action="store_true", help="no gui")
+    parser.add_argument("--imshow", action="store_true", help="imshow")
     args = parser.parse_args()
 
     if args.weight_dir is None:
@@ -60,7 +61,7 @@ def main():
     agent = DqnAgent(
         validate_exploration=True,
         num_validate=None,
-        imshow=True,
+        imshow=args.imshow,
         env=env,
         model=model,
     )

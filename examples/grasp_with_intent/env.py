@@ -178,12 +178,11 @@ class GraspWithIntentEnv(Env):
         self.object_ids = object_ids
         self.fg_object_ids = fg_object_ids
 
-        # self.bin = mercury.pybullet.create_bin(0.3, 0.2, 0.2)
-        # c = mercury.geometry.Coordinate()
-        # c.position = [0, 0.5, 0.5]
-        # c.rotate([0, np.deg2rad(90), 0])
-        # c.rotate([np.deg2rad(90), 0, 0])
-        # pp.set_pose(self.bin, c.pose)
+        self.bin = mercury.pybullet.create_bin(0.2, 0.4, 0.2)
+        c = mercury.geometry.Coordinate()
+        c.position = [0, 0.6, 0.6]
+        c.rotate([np.deg2rad(90), 0, 0])
+        pp.set_pose(self.bin, c.pose)
 
         for _ in range(240):
             p.stepSimulation()
@@ -371,7 +370,8 @@ class GraspWithIntentEnv(Env):
         self.ri.attachments[0].assign()
 
         with self.ri.enabling_attachments():
-            obj_to_world = [0, 0.7, 0.15], [0, 0, 0, 1]
+            c = mercury.geometry.Coordinate([0, 0.6, 0.6])
+            obj_to_world = c.pose
             pp.draw_pose(obj_to_world)
 
             j = self.ri.solve_ik(
@@ -387,7 +387,7 @@ class GraspWithIntentEnv(Env):
         self.ri.setj(j)
         self.ri.attachments[0].assign()
 
-        path = self.ri.planj(j, obstacles=[self.plane])
+        path = self.ri.planj(j, obstacles=[self.bin])
         if path is None:
             logger.error(f"Goal state is invalid: {act_result.action}")
             before_return()
