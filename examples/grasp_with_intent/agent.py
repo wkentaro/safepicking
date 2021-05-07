@@ -29,8 +29,16 @@ class DqnModel(torch.nn.Module):
 
 
 class DqnAgent(Agent):
-    def __init__(self, epsilon_max_step=5000, **kwargs):
+    def __init__(
+        self,
+        epsilon_max_step=5000,
+        validate_exploration=False,
+        num_validate=10,
+        **kwargs
+    ):
         self._epsilon_max_step = epsilon_max_step
+        self._validate_exploration = validate_exploration
+        self._num_validate = num_validate
         self._kwargs = kwargs
         self._epsilon = np.nan
         self._losses = queue.deque(maxlen=18)
@@ -76,7 +84,7 @@ class DqnAgent(Agent):
         actions_select = np.stack((y, x), axis=1)
 
         if deterministic:
-            for a in actions_select[:10]:
+            for a in actions_select[: self._num_validate]:
                 act_result = ActResult(action=a)
                 is_valid, validation_result = env.validate_action(act_result)
                 if is_valid:
@@ -89,16 +97,19 @@ class DqnAgent(Agent):
             if np.random.random() < epsilon:
                 for a in np.random.permutation(np.argwhere(fg_mask)):
                     act_result = ActResult(action=a)
-                    break
-            else:
-                for a in actions_select[:10]:
-                    act_result = ActResult(action=a)
-                    is_valid, validation_result = env.validate_action(
-                        act_result
-                    )
-                    if is_valid:
-                        act_result.validation_result = validation_result
+                    if self._validate_exploration:
+                        is_valid, validation_result = env.validate_action(
+                            act_result
+                        )
+                        if is_valid:
+                            act_result.validation_result = validation_result
+                            break
+                    else:
                         break
+            else:
+                for a in actions_select[: self._num_validate]:
+                    act_result = ActResult(action=a)
+                    break
                 else:
                     act_result = ActResult(action=actions_select[0])
         return act_result
