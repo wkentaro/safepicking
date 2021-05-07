@@ -86,6 +86,8 @@ class GraspWithIntentEnv(Env):
         pass
 
     def reset(self, pile_file=None):
+        raise_on_failure = pile_file is not None
+
         if pile_file is None:
             if self.eval:
                 i = np.random.randint(1000, 1200)
@@ -126,8 +128,16 @@ class GraspWithIntentEnv(Env):
 
         pile_center = [0.5, 0, 0]
 
+        fg_class_id = 11
+        if fg_class_id not in data["class_id"]:
+            if raise_on_failure:
+                raise RuntimeError("fg_object_ids == []")
+            else:
+                return self.reset()
+
         num_instances = len(data["class_id"])
         object_ids = []
+        fg_object_ids = []
         for i in range(num_instances):
             class_id = data["class_id"][i]
             position = data["position"][i]
@@ -163,7 +173,17 @@ class GraspWithIntentEnv(Env):
                     length=0.2,
                 )
             object_ids.append(object_id)
+            if class_id == fg_class_id:
+                fg_object_ids.append(object_id)
         self.object_ids = object_ids
+        self.fg_object_ids = fg_object_ids
+
+        # self.bin = mercury.pybullet.create_bin(0.3, 0.2, 0.2)
+        # c = mercury.geometry.Coordinate()
+        # c.position = [0, 0.5, 0.5]
+        # c.rotate([0, np.deg2rad(90), 0])
+        # c.rotate([np.deg2rad(90), 0, 0])
+        # pp.set_pose(self.bin, c.pose)
 
         for _ in range(240):
             p.stepSimulation()
@@ -174,8 +194,6 @@ class GraspWithIntentEnv(Env):
 
         self.setj_to_camera_pose()
         self.update_obs()
-
-        self._prev_step_num_objects = None
 
         return self.get_obs()
 
@@ -196,7 +214,7 @@ class GraspWithIntentEnv(Env):
 
     def update_obs(self):
         rgb, depth, segm = self.ri.get_camera_image()
-        fg_mask = ~np.isin(segm, [-1, self.plane, self.ri.robot])
+        fg_mask = np.isin(segm, self.fg_object_ids)
         K = self.ri.get_opengl_intrinsic_matrix()
         pcd = mercury.geometry.pointcloud_from_depth(
             depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
@@ -246,23 +264,11 @@ class GraspWithIntentEnv(Env):
         self.setj_to_camera_pose()
         self.update_obs()
 
-        needs_reset = (
-            len(self.object_ids) == 0
-            or self.obs["fg_mask"].sum() == 0
-            or (
-                not self.eval
-                and self._prev_step_num_objects == len(self.object_ids)
-                and np.random.random() < 0.1
-            )
-        )
-
-        self._prev_step_num_objects = len(self.object_ids)
-
         return Transition(
             observation=self.get_obs(),
             reward=reward,
             terminal=True,
-            info=dict(needs_reset=needs_reset),
+            info=dict(needs_reset=True),
         )
 
     def validate_action(self, act_result):
@@ -279,6 +285,12 @@ class GraspWithIntentEnv(Env):
         result = {}
 
         y, x = act_result.action
+
+        is_fg = self.obs["fg_mask"][y, x]
+        if not is_fg:
+            logger.error(f"non fg area is selected: {act_result.action}")
+            before_return()
+            return False, result
 
         object_id = self.obs["segm"][y, x]
         result["object_id"] = object_id
@@ -326,22 +338,6 @@ class GraspWithIntentEnv(Env):
         )
         c.translate([0, 0, -0.1])
 
-        max_angle = np.deg2rad(45)
-        vec = mercury.geometry.transform_points(
-            [[0, 0, 0], [0, 0, 1]], c.matrix
-        )
-        v0 = [0, 0, -1]
-        v1 = vec[1] - vec[0]
-        v1 /= np.linalg.norm(v1)
-        angle = mercury.geometry.angle_between_vectors(v0, v1)
-        if angle > max_angle:
-            logger.error(
-                f"angle ({np.rad2deg(angle):.1f} [deg]) > "
-                f"{np.rad2deg(max_angle):.1f} [deg]"
-            )
-            before_return()
-            return False, result
-
         obj_to_world = pp.get_pose(object_id)
 
         j = self.ri.solve_ik(c.pose)
@@ -375,7 +371,7 @@ class GraspWithIntentEnv(Env):
         self.ri.attachments[0].assign()
 
         with self.ri.enabling_attachments():
-            obj_to_world = [0.5, 0, 0.5], [0, 0, 0, 1]
+            obj_to_world = [0, 0.7, 0.15], [0, 0, 0, 1]
             pp.draw_pose(obj_to_world)
 
             j = self.ri.solve_ik(
@@ -390,6 +386,12 @@ class GraspWithIntentEnv(Env):
 
         self.ri.setj(j)
         self.ri.attachments[0].assign()
+
+        path = self.ri.planj(j, obstacles=[self.plane])
+        if path is None:
+            logger.error(f"Goal state is invalid: {act_result.action}")
+            before_return()
+            return False, result
 
         before_return()
         return True, result
