@@ -81,16 +81,20 @@ class DqnAgent(Agent):
         q = q[0, 0] * fg_mask
 
         height, width = q.shape
-        argsort = np.argsort(q.flatten())[::-1]
-        y = argsort // width
-        x = argsort % width
-        actions_select = np.stack((y, x), axis=1)
-
+        num_validate = (
+            q.size if self._num_validate is None else self._num_validate
+        )
         if deterministic:
             gray = imgviz.gray2rgb(
                 imgviz.rgb2gray(obs["rgb"][0].numpy().transpose(1, 2, 0))
             )
-            for a in actions_select[: self._num_validate]:
+            for a_flatten in np.random.choice(
+                np.arange(q.size),
+                size=min((q > 0).sum(), num_validate),
+                replace=False,
+                p=q.flatten() / q.sum(),
+            ):
+                a = a_flatten // width, a_flatten % width
                 if self._imshow:
                     a_draw = imgviz.draw.circle(
                         gray,
@@ -112,7 +116,7 @@ class DqnAgent(Agent):
                     act_result.validation_result = validation_result
                     break
             else:
-                act_result = ActResult(action=actions_select[0])
+                act_result = ActResult(action=(0, 0))
         else:
             self._epsilon = epsilon = self._get_epsilon(step)
             if np.random.random() < epsilon:
@@ -128,11 +132,17 @@ class DqnAgent(Agent):
                     else:
                         break
             else:
-                for a in actions_select[: self._num_validate]:
+                for a_flatten in np.random.choice(
+                    np.arange(q.size),
+                    size=min((q > 0).sum(), num_validate),
+                    replace=False,
+                    p=q.flatten() / q.sum(),
+                ):
+                    a = a_flatten // width, a_flatten % width
                     act_result = ActResult(action=a)
                     break
                 else:
-                    act_result = ActResult(action=actions_select[0])
+                    act_result = ActResult(action=(0, 0))
         return act_result
 
     def _get_epsilon(self, step):
