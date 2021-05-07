@@ -34,12 +34,15 @@ class DqnAgent(Agent):
         epsilon_max_step=5000,
         validate_exploration=False,
         num_validate=10,
+        imshow=False,
         **kwargs
     ):
         self._epsilon_max_step = epsilon_max_step
         self._validate_exploration = validate_exploration
         self._num_validate = num_validate
+        self._imshow = imshow
         self._kwargs = kwargs
+
         self._epsilon = np.nan
         self._losses = queue.deque(maxlen=18)
         self._act_summary = None
@@ -84,9 +87,27 @@ class DqnAgent(Agent):
         actions_select = np.stack((y, x), axis=1)
 
         if deterministic:
+            gray = imgviz.gray2rgb(
+                imgviz.rgb2gray(obs["rgb"][0].numpy().transpose(1, 2, 0))
+            )
             for a in actions_select[: self._num_validate]:
+                if self._imshow:
+                    a_draw = imgviz.draw.circle(
+                        gray,
+                        center=a,
+                        diameter=5,
+                        fill=(255, 0, 0),
+                    )
+                    imgviz.io.cv_imshow(
+                        imgviz.tile(
+                            [a_draw, self.draw_act_summary()], shape=(1, 2)
+                        )
+                    )
+                    imgviz.io.cv_waitkey(100)
+
                 act_result = ActResult(action=a)
                 is_valid, validation_result = env.validate_action(act_result)
+
                 if is_valid:
                     act_result.validation_result = validation_result
                     break

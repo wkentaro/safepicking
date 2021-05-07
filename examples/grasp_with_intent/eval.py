@@ -58,7 +58,11 @@ def main():
     obs = env.reset(pile_file=args.pile_file)
 
     agent = DqnAgent(
-        validate_exploration=True, num_validate=None, env=env, model=model
+        validate_exploration=True,
+        num_validate=None,
+        imshow=True,
+        env=env,
+        model=model,
     )
     agent.build(training=False)
 
@@ -78,10 +82,6 @@ def main():
             env=env,
         )
         planning_time = time.time() - t_start
-
-        if 1:
-            imgviz.io.cv_imshow(agent.draw_act_summary(), "act_summary")
-            imgviz.io.cv_waitkey(100)
 
         transition = env.step(act_result)
         print(
