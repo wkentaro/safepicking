@@ -12,6 +12,9 @@ def quaternion_from_angle_axis(angle, axis):
 
 
 def quaternion_from_vec2vec(v1, v2, flip=True):
+    v1 = np.asarray(v1)
+    v2 = np.asarray(v2)
+
     d = np.dot(v1, v2)
 
     if d < 0 and flip:
