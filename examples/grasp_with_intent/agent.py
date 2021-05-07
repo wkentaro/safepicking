@@ -85,9 +85,6 @@ class DqnAgent(Agent):
             q.size if self._num_validate is None else self._num_validate
         )
         if deterministic:
-            gray = imgviz.gray2rgb(
-                imgviz.rgb2gray(obs["rgb"][0].numpy().transpose(1, 2, 0))
-            )
             for a_flatten in np.random.choice(
                 np.arange(q.size),
                 size=min((q > 0).sum(), num_validate),
@@ -95,20 +92,6 @@ class DqnAgent(Agent):
                 p=q.flatten() / q.sum(),
             ):
                 a = a_flatten // width, a_flatten % width
-                if self._imshow:
-                    a_draw = imgviz.draw.circle(
-                        gray,
-                        center=a,
-                        diameter=5,
-                        fill=(255, 0, 0),
-                    )
-                    imgviz.io.cv_imshow(
-                        imgviz.tile(
-                            [a_draw, self.draw_act_summary()], shape=(1, 2)
-                        )
-                    )
-                    imgviz.io.cv_waitkey(100)
-
                 act_result = ActResult(action=a)
                 is_valid, validation_result = env.validate_action(act_result)
 
@@ -143,6 +126,22 @@ class DqnAgent(Agent):
                     break
                 else:
                     act_result = ActResult(action=(0, 0))
+
+        if self._imshow:
+            gray = imgviz.gray2rgb(
+                imgviz.rgb2gray(obs["rgb"][0].numpy().transpose(1, 2, 0))
+            )
+            a_draw = imgviz.draw.circle(
+                gray,
+                center=act_result.action,
+                diameter=5,
+                fill=(255, 0, 0),
+            )
+            imgviz.io.cv_imshow(
+                imgviz.tile([a_draw, self.draw_act_summary()], shape=(1, 2))
+            )
+            imgviz.io.cv_waitkey(100)
+
         return act_result
 
     def _get_epsilon(self, step):
@@ -254,13 +253,13 @@ class DqnAgent(Agent):
     def draw_act_summary(self):
         obs = self._act_summary["observation"]
         rgb = obs["rgb"][0, 0].transpose(1, 2, 0)
-        ins = np.uint8(obs["ins"][0, 0].transpose(1, 2, 0) * 255)
         depth = obs["depth"][0, 0]
         q = self._act_summary["q"][0, 0]
+        fg_mask = obs["fg_mask"][0, 0] * 255
         act_summary = imgviz.tile(
             [
                 rgb,
-                ins,
+                fg_mask,
                 imgviz.depth2rgb(depth),
                 np.uint8(
                     np.round(
