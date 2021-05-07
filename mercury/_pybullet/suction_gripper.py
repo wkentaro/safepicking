@@ -7,10 +7,20 @@ from .. import geometry
 
 
 class SuctionGripper:
-    def __init__(self, body, link, max_force=10):
+    def __init__(
+        self,
+        body,
+        link,
+        max_force=10,
+        surface_threshold=np.deg2rad(10),
+        surface_alignment=True,
+    ):
         self.body = body
         self.link = link
         self.max_force = max_force
+
+        self._surface_threshold = surface_threshold
+        self._surface_alignment = surface_alignment
 
         self.activated = False
         self.contact_constraint = None
@@ -64,11 +74,10 @@ class SuctionGripper:
 
             mass = p.getDynamicsInfo(obj_id, -1)[0]
             if mass > 0:
-                threshold = np.deg2rad(10)  # deg
-                if angle > threshold:
+                if angle > self._surface_threshold:
                     logger.warning(
                         "failed to grasp with surface angle "
-                        f">{np.rad2deg(threshold):.1f} deg: "
+                        f">{np.rad2deg(self._surface_threshold):.1f} deg: "
                         f"{np.rad2deg(angle):.1f} deg"
                     )
                     return
@@ -94,10 +103,10 @@ class SuctionGripper:
                 )
 
                 ee_to_world = p.getLinkState(self.body, self.link)[:2]
-                if 0:  # w/o compliance
-                    obj_to_world = p.getBasePositionAndOrientation(obj_id)
-                else:  # w/ compliance
+                if self._surface_alignment:  # w/ compliance
                     obj_to_world = geometry.pose_from_matrix(T_obj_af_to_world)
+                else:  # w/o compliance
+                    obj_to_world = p.getBasePositionAndOrientation(obj_id)
                 world_to_ee = pybullet_planning.invert(ee_to_world)
                 obj_to_ee = pybullet_planning.multiply(
                     world_to_ee, obj_to_world

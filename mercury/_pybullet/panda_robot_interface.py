@@ -19,7 +19,14 @@ here = path.Path(__file__).abspath().parent
 
 
 class PandaRobotInterface:
-    def __init__(self, pose=None, suction_max_force=10, planner="RRTConnect"):
+    def __init__(
+        self,
+        pose=None,
+        suction_max_force=10,
+        suction_surface_threshold=np.deg2rad(10),
+        suction_surface_alignment=True,
+        planner="RRTConnect",
+    ):
         self.pose = pose
 
         urdf_file = here / "assets/franka_panda/panda_suction.urdf"
@@ -32,7 +39,11 @@ class PandaRobotInterface:
         self.ee = pybullet_planning.link_from_name(self.robot, "tipLink")
 
         self.gripper = SuctionGripper(
-            self.robot, self.ee, max_force=suction_max_force
+            self.robot,
+            self.ee,
+            max_force=suction_max_force,
+            surface_threshold=suction_surface_threshold,
+            surface_alignment=suction_surface_alignment,
         )
 
         self.attachments = []
