@@ -218,18 +218,11 @@ class DqnAgent(Agent):
         )
         q_loss = (q_delta * sampling_weigths).mean()
 
-        bg_mask = 1 - obs["fg_mask"]
-        q_bg_pred = []
-        for b in range(bg_mask.shape[0]):
-            y, x = torch.where(bg_mask[b])
-            i = torch.randint(low=0, high=len(y), size=()).item()
-            q_bg_pred.append(qs_pred[b, 0, y[i], x[i]])
-        q_bg_pred = torch.stack(q_bg_pred)
         q_bg_delta = torch.nn.functional.smooth_l1_loss(
-            q_bg_pred,
-            torch.zeros_like(q_bg_pred),
+            qs_pred[:, 0] * (1 - obs["fg_mask"].float()),
+            torch.zeros_like(qs_pred)[:, 0],
             reduction="none",
-        )
+        ).mean(dim=(1, 2))
         q_bg_loss = (q_bg_delta * sampling_weigths).mean()
 
         loss = q_loss + q_bg_loss
