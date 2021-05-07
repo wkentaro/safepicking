@@ -25,11 +25,12 @@ class GraspWithIntentEnv(Env):
 
     piles_dir = home / "data/mercury/pile_generation"
 
-    def __init__(self, gui=True, retime=1):
+    def __init__(self, gui=True, retime=1, step_callback=None):
         super().__init__()
 
         self._gui = gui
         self._retime = retime
+        self._step_callback = step_callback
 
         rgb = gym.spaces.Box(
             low=0,
@@ -86,12 +87,13 @@ class GraspWithIntentEnv(Env):
     def launch(self):
         pass
 
-    def reset(self):
-        if self.eval:
-            i = np.random.randint(1000, 1200)
-        else:
-            i = np.random.randint(0, 1000)
-        pile_file = self.piles_dir / f"{i:08d}.npz"
+    def reset(self, pile_file=None):
+        if pile_file is None:
+            if self.eval:
+                i = np.random.randint(1000, 1200)
+            else:
+                i = np.random.randint(0, 1000)
+            pile_file = self.piles_dir / f"{i:08d}.npz"
 
         if not pp.is_connected():
             pp.connect(use_gui=self._gui)
@@ -162,8 +164,17 @@ class GraspWithIntentEnv(Env):
             object_ids.append(object_id)
         self.object_ids = object_ids
 
+        for _ in range(240):
+            p.stepSimulation()
+            if self._step_callback:
+                self._step_callback()
+            if self._gui:
+                time.sleep(pp.get_time_step())
+
         self.setj_to_camera_pose()
         self.update_obs()
+
+        self._prev_step_num_objects = None
 
         return self.get_obs()
 
@@ -237,8 +248,14 @@ class GraspWithIntentEnv(Env):
         needs_reset = (
             len(self.object_ids) == 0
             or self.obs["fg_mask"].sum() == 0
-            or np.random.random() < 0.1
+            or (
+                not self.eval
+                and self._prev_step_num_objects == len(self.object_ids)
+                and np.random.random() < 0.1
+            )
         )
+
+        self._prev_step_num_objects = len(self.object_ids)
 
         return Transition(
             observation=self.get_obs(),
@@ -460,6 +477,8 @@ class GraspWithIntentEnv(Env):
         path = validation_result["path_grasp"]
         for _ in (_ for j in path for _ in self.ri.movej(j)):
             p.stepSimulation()
+            if self._step_callback:
+                self._step_callback()
             if self._gui:
                 time.sleep(pp.get_time_step())
 
@@ -468,6 +487,8 @@ class GraspWithIntentEnv(Env):
                 min_dz=0.08, max_dz=0.12, speed=0.005, rotation_axis=True
             ):
                 p.stepSimulation()
+                if self._step_callback:
+                    self._step_callback()
                 if self._gui:
                     time.sleep(pp.get_time_step())
         except RuntimeError as e:
@@ -489,6 +510,8 @@ class GraspWithIntentEnv(Env):
 
             for _ in range(240):
                 p.stepSimulation()
+                if self._step_callback:
+                    self._step_callback()
                 if self._gui:
                     time.sleep(pp.get_time_step())
 
@@ -505,17 +528,23 @@ class GraspWithIntentEnv(Env):
 
         for _ in self.ri.movej(self.ri.homej):
             p.stepSimulation()
+            if self._step_callback:
+                self._step_callback()
             if self._gui:
                 time.sleep(pp.get_time_step())
 
         path = validation_result["path_place"]
         for _ in (_ for j in path for _ in self.ri.movej(j)):
             p.stepSimulation()
+            if self._step_callback:
+                self._step_callback()
             if self._gui:
                 time.sleep(pp.get_time_step())
 
         for _ in range(240):
             p.stepSimulation()
+            if self._step_callback:
+                self._step_callback()
             if self._gui:
                 time.sleep(pp.get_time_step())
 
