@@ -408,7 +408,7 @@ class GraspWithIntentEnv(Env):
         with pp.LockRenderer(), pp.WorldSaver():
             pp.set_pose(object_id, c_place.pose)
             c_place.position[2] -= pp.get_aabb(object_id).lower[2]
-            c_place.position[2] += 0.01
+            c_place.position[2] += 0.05
 
         for i in range(3):
             with self.ri.enabling_attachments():
@@ -552,6 +552,13 @@ class GraspWithIntentEnv(Env):
                 time.sleep(pp.get_time_step())
 
         self.ri.ungrasp()
+
+        for _ in range(240):
+            p.stepSimulation()
+            if self._step_callback:
+                self._step_callback()
+            if self._gui:
+                time.sleep(pp.get_time_step())
 
         before_return()
         return 1
