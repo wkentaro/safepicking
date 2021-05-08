@@ -59,8 +59,15 @@ class PickFromPileEnv(Env):
         dg_options = [0, drot, -drot]
         if action == "XYZABG":
             pass
+        elif action == "XYz'ABG":
+            dz_options = [0, dpos / 2]
         elif action == "XYzABG":
             dz_options = [dpos / 2]
+        elif action == "XYz'":
+            dz_options = [0, dpos / 2]
+            da_options = [0]
+            db_options = [0]
+            dg_options = [0]
         elif action == "XYz":
             dz_options = [dpos / 2]
             da_options = [0]

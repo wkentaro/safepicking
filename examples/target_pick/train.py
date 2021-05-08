@@ -60,7 +60,7 @@ def main():
     parser.add_argument("--easy", action="store_true", help="easy")
     parser.add_argument(
         "--action",
-        choices=["XYZABG", "XYzABG", "XYz", "XY"],
+        choices=["XYZABG", "XYzABG", "XYz'ABG", "XYz", "XYz'", "XY"],
         default="XYZABG",
         help="action",
     )
