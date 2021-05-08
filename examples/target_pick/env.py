@@ -29,7 +29,13 @@ class PickFromPileEnv(Env):
     class_ids = [2, 3, 5, 11, 12, 15, 16]
 
     def __init__(
-        self, gui=True, retime=1, planner="RRTConnect", pose_noise=False
+        self,
+        gui=True,
+        retime=1,
+        planner="RRTConnect",
+        pose_noise=False,
+        easy=False,
+        action="XYZABG",
     ):
         super().__init__()
 
@@ -37,20 +43,45 @@ class PickFromPileEnv(Env):
         self._retime = retime
         self.planner = planner
         self._pose_noise = pose_noise
+        self._easy = easy
 
         self.plane = None
         self.ri = None
 
         dpos = 0.05
         drot = np.deg2rad(15)
+
+        dx_options = [0, dpos, -dpos]
+        dy_options = [0, dpos, -dpos]
+        dz_options = [0, dpos, -dpos]
+        da_options = [0, drot, -drot]
+        db_options = [0, drot, -drot]
+        dg_options = [0, drot, -drot]
+        if action == "XYZABG":
+            pass
+        elif action == "XYzABG":
+            dz_options = [dpos / 2]
+        elif action == "XYz":
+            dz_options = [dpos / 2]
+            da_options = [0]
+            db_options = [0]
+            dg_options = [0]
+        elif action == "XY":
+            dz_options = [0]
+            da_options = [0]
+            db_options = [0]
+            dg_options = [0]
+        else:
+            raise ValueError
+
         actions = []
-        dz = dpos / 2
-        for dx in [0, dpos, -dpos]:
-            for dy in [0, dpos, -dpos]:
-                for da in [0, drot, -drot]:
-                    for db in [0, drot, -drot]:
-                        for dg in [0, drot, -drot]:
-                            actions.append([dx, dy, dz, da, db, dg])
+        for dx in dx_options:
+            for dy in dy_options:
+                for dz in dz_options:
+                    for da in da_options:
+                        for db in db_options:
+                            for dg in dg_options:
+                                actions.append([dx, dy, dz, da, db, dg])
         self.actions = actions
 
         grasp_pose = gym.spaces.Box(
@@ -151,7 +182,10 @@ class PickFromPileEnv(Env):
             if self.eval:
                 i = random_state.randint(1000, 1200)
             else:
-                i = random_state.randint(0, 1000)
+                if self._easy:
+                    i = random_state.randint(1000, 1200)
+                else:
+                    i = random_state.randint(0, 1000)
             pile_file = self.piles_dir / f"{i:08d}.npz"
 
         if not pp.is_connected():

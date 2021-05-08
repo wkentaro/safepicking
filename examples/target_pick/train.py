@@ -57,6 +57,13 @@ def main():
     )
     parser.add_argument("--debug", action="store_true", help="debug")
     parser.add_argument("--device", default="cuda:0", help="device")
+    parser.add_argument("--easy", action="store_true", help="easy")
+    parser.add_argument(
+        "--action",
+        choices=["XYZABG", "XYzABG", "XYz", "XY"],
+        default="XYZABG",
+        help="action",
+    )
     args = parser.parse_args()
 
     hparams = args.__dict__.copy()
@@ -89,7 +96,12 @@ def main():
     # Setup env
     ###################
 
-    env = PickFromPileEnv(gui=False, pose_noise=hparams["pose_noise"])
+    env = PickFromPileEnv(
+        gui=False,
+        pose_noise=hparams["pose_noise"],
+        easy=hparams["easy"],
+        action=hparams["action"],
+    )
 
     # Setup replay buffer
     #####################
