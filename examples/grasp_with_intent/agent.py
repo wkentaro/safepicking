@@ -23,9 +23,8 @@ class DqnModel(torch.nn.Module):
     def forward(self, observation):
         rgb = observation["rgb"].float() / 255
         depth = observation["depth"][:, None, :, :]
-        ins = observation["ins"]
 
-        return self.module(rgb=rgb, depth=depth, ins=ins)
+        return self.module(rgb=rgb, depth=depth)
 
 
 class DqnAgent(Agent):
