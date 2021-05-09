@@ -452,7 +452,7 @@ class PickFromPileEnv(Env):
             if self.eval:
                 reward = 0
             else:
-                reward = self.i * 0.2 * self.ri.gripper.check_grasp()
+                reward = 0.2 * self.ri.gripper.check_grasp()
             terminal = False
 
         self.past_actions = np.r_[
