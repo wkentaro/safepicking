@@ -144,7 +144,7 @@ class PandaRobotInterface:
                 break
             self.update_robot_model(sample_fn())
         else:
-            logger.warning("Failed to solve IK")
+            # logger.warning("Failed to solve IK")
             return
         j = []
         for joint in self.joints:
@@ -237,17 +237,17 @@ class PandaRobotInterface:
         )
 
         if not planner.validityChecker.isValid(self.getj()):
-            logger.warning("Start state is invalid")
+            # logger.warning("Start state is invalid")
             return
 
         if not planner.validityChecker.isValid(j):
-            logger.warning("Goal state is invalid")
+            # logger.warning("Goal state is invalid")
             return
 
         result = planner.plan(self.getj(), j)
 
         if result is None:
-            logger.warning("No solution found")
+            # logger.warning("No solution found")
             return
 
         state_count = result.getStateCount()
@@ -380,9 +380,9 @@ class PandaRobotInterface:
         self,
         depth,
         segm,
+        mask,
         bg_object_ids,
         object_ids,
-        target_object_ids=None,
         max_angle=np.deg2rad(45),
         num_trial=10,
         random_state=None,
@@ -394,10 +394,6 @@ class PandaRobotInterface:
         # This should be called after moving camera to observe the scene.
         K = self.get_opengl_intrinsic_matrix()
 
-        if target_object_ids is None:
-            target_object_ids = object_ids
-
-        mask = ~np.isnan(depth) & np.isin(segm, target_object_ids)
         if mask.sum() == 0:
             logger.warning("mask is empty")
             return
