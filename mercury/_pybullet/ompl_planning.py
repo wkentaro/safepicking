@@ -1,7 +1,6 @@
 import os.path as osp
 import sys
 
-from loguru import logger
 import numpy as np
 import path
 import pybullet as p
@@ -150,7 +149,7 @@ class PbPlanner:
             simplifier = og.PathSimplifier(self.si)
             simplifier.simplifyMax(path)
         else:
-            logger.warning("No solution found")
+            # logger.warning("No solution found")
             path = None
 
         ou.setLogLevel(log_level)
