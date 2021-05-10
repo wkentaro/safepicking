@@ -154,3 +154,11 @@ def get_canonical_quaternion(class_id):
     else:
         quaternion = [0, 0, 0, 1]
     return quaternion
+
+
+def pause(enabled):
+    if enabled:
+        print("Please press 'n' to start")
+        while True:
+            if ord("n") in p.getKeyboardEvents():
+                break

@@ -29,14 +29,6 @@ def get_camera_pose(camera_config):
     return c_cam_to_ee.pose
 
 
-def pause(enabled):
-    if enabled:
-        print("Please press 'n' to start")
-        while True:
-            if ord("n") in p.getKeyboardEvents():
-                break
-
-
 class StepSimulation:
     def __init__(self, ri, imshow=False, retime=1, video_dir=None):
         self.ri = ri

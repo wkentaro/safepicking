@@ -75,7 +75,7 @@ def main():
     )
     step_simulation()
 
-    baseline_utils.pause(args.pause)
+    common_utils.pause(args.pause)
 
     while True:
         ri.homej[0] = -np.pi / 2
