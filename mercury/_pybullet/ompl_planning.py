@@ -141,10 +141,9 @@ class PbPlanner:
             ob.PathLengthOptimizationObjective(self.si)
         )
         optimizingPlanner = getattr(og, self.planner)(self.si)
-        optimizingPlanner.setRange(0.1)
         optimizingPlanner.setProblemDefinition(pdef)
         optimizingPlanner.setup()
-        solved = optimizingPlanner.solve(solveTime=5)
+        solved = optimizingPlanner.solve(solveTime=1)
 
         if solved:
             path = pdef.getSolutionPath()
