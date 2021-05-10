@@ -62,6 +62,8 @@ class GraspWithIntentEnv(Env):
             ),
         )
 
+        self.random_state = np.random.RandomState()
+
     @property
     def action_shape(self):
         return (2,)
@@ -89,9 +91,9 @@ class GraspWithIntentEnv(Env):
 
         if pile_file is None:
             if self.eval:
-                i = np.random.randint(1000, 1200)
+                i = self.random_state.randint(1000, 1200)
             else:
-                i = np.random.randint(0, 1000)
+                i = self.random_state.randint(0, 1000)
             pile_file = self.piles_dir / f"{i:08d}.npz"
 
         if not pp.is_connected():
@@ -112,7 +114,7 @@ class GraspWithIntentEnv(Env):
             suction_max_force=None,
             suction_surface_threshold=np.inf,
             suction_surface_alignment=False,
-            planner="RRTConnect",
+            planner="SBL",
         )
         c_cam_to_ee = mercury.geometry.Coordinate()
         c_cam_to_ee.translate([0, -0.1, -0.1])
@@ -175,7 +177,7 @@ class GraspWithIntentEnv(Env):
             if class_id == fg_class_id:
                 fg_object_ids.append(object_id)
         self.object_ids = object_ids
-        self.fg_object_id = np.random.choice(fg_object_ids)
+        self.fg_object_id = self.random_state.choice(fg_object_ids)
 
         self.bin = mercury.pybullet.create_bin(0.2, 0.4, 0.2)
         c = mercury.geometry.Coordinate()
@@ -338,6 +340,7 @@ class GraspWithIntentEnv(Env):
             *mercury.geometry.pose_from_matrix(T_ee_af_to_world)
         )
         c.translate([0, 0, -0.1])
+        c.rotate([0, 0, self.random_state.uniform(-np.pi, np.pi)])
 
         obj_to_world = pp.get_pose(object_id)
 
@@ -349,6 +352,15 @@ class GraspWithIntentEnv(Env):
             before_return()
             return False, result
         result["j_pre_grasp"] = j
+
+        js = self.ri.planj(j)
+        if js is None:
+            logger.error(
+                f"Failed to solve pre-grasping path: {act_result.action}"
+            )
+            before_return()
+            return False, result
+        result["js_pre_grasp"] = js
 
         self.ri.setj(j)
 
@@ -368,11 +380,14 @@ class GraspWithIntentEnv(Env):
             pp.Attachment(self.ri.robot, self.ri.ee, obj_to_ee, object_id)
         ]
 
-        self.ri.setj(self.ri.homej)
+        j = self.ri.homej.copy()
+        j[0] = np.pi / 2
+        self.ri.setj(j)
         self.ri.attachments[0].assign()
 
         with self.ri.enabling_attachments():
-            c = mercury.geometry.Coordinate([0, 0.6, 0.6])
+            c = mercury.geometry.Coordinate(pp.get_pose(self.bin)[0])
+            c.translate([0, -0.3, 0], wrt="world")
             obj_to_world = c.pose
             pp.draw_pose(obj_to_world)
 
@@ -381,19 +396,39 @@ class GraspWithIntentEnv(Env):
                 move_target=self.ri.robot_model.attachment_link0,
             )
         if j is None:
+            logger.error(
+                f"Failed to solve pre-placing IK: {act_result.action}"
+            )
+            before_return()
+            return False, result
+        result["j_pre_place"] = j
+
+        js = self.ri.planj(j, obstacles=[self.plane, self.bin])
+        if js is None:
+            logger.error(
+                f"Failed to solve pre-placing path: {act_result.action}"
+            )
+            before_return()
+            return False, result
+        result["js_pre_place"] = js
+
+        self.ri.setj(j)
+
+        c = mercury.geometry.Coordinate(*self.ri.get_pose("tipLink"))
+        c.translate([0, 0.3, 0], wrt="world")
+        j = self.ri.solve_ik(c.pose)
+        if j is None:
             logger.error(f"Failed to solve placing IK: {act_result.action}")
             before_return()
             return False, result
         result["j_place"] = j
 
-        self.ri.setj(j)
-        self.ri.attachments[0].assign()
-
-        path = self.ri.planj(j, obstacles=[self.bin])
-        if path is None:
-            logger.error(f"Goal state is invalid: {act_result.action}")
+        js = self.ri.planj(j, obstacles=[self.plane, self.bin])
+        if js is None:
+            logger.error(f"Failed to solve placing path: {act_result.action}")
             before_return()
             return False, result
+        result["js_place"] = js
 
         before_return()
         return True, result
@@ -413,16 +448,19 @@ class GraspWithIntentEnv(Env):
         assert self.ri.gripper.grasped_object is None
         assert self.ri.gripper.activated is False
 
+        js = validation_result["js_pre_grasp"]
+        for _ in (_ for j in js for _ in self.ri.movej(j)):
+            pp.step_simulation()
+            time.sleep(pp.get_time_step())
+
         object_id = validation_result["object_id"]
         obj_to_world = pp.get_pose(object_id)
 
-        self.ri.setj(validation_result["j_pre_grasp"])
-        if self._gui:
-            time.sleep(1)
-
-        self.ri.setj(validation_result["j_grasp"])
-        if self._gui:
-            time.sleep(1)
+        for _ in self.ri.grasp(
+            min_dz=0.08, max_dz=0.12, speed=0.001, rotation_axis=True
+        ):
+            pp.step_simulation()
+            time.sleep(pp.get_time_step())
 
         ee_to_world = self.ri.get_pose("tipLink")
         obj_to_ee = pp.multiply(pp.invert(ee_to_world), obj_to_world)
@@ -430,20 +468,34 @@ class GraspWithIntentEnv(Env):
             pp.Attachment(self.ri.robot, self.ri.ee, obj_to_ee, object_id)
         ]
 
-        self.ri.setj(self.ri.homej)
-        self.ri.attachments[0].assign()
-        if self._gui:
-            time.sleep(1)
+        for _ in (_ for _ in self.ri.movej(self.ri.homej)):
+            pp.step_simulation()
+            time.sleep(pp.get_time_step())
 
-        self.ri.setj(validation_result["j_place"])
-        self.ri.attachments[0].assign()
-        if self._gui:
-            time.sleep(1)
+        self.ri.homej[0] = np.pi / 2
+        for _ in (_ for _ in self.ri.movej(self.ri.homej)):
+            pp.step_simulation()
+            time.sleep(pp.get_time_step())
+
+        js = validation_result["js_pre_place"]
+        for _ in (_ for j in js for _ in self.ri.movej(j)):
+            pp.step_simulation()
+            time.sleep(pp.get_time_step())
+
+        js = validation_result["js_place"]
+        for _ in (_ for j in js for _ in self.ri.movej(j)):
+            pp.step_simulation()
+            time.sleep(pp.get_time_step())
 
         def before_return():
+            for _ in range(240):
+                p.stepSimulation()
+                if self._step_callback:
+                    self._step_callback()
+                if self._gui:
+                    time.sleep(pp.get_time_step())
+
             self.ri.ungrasp()
-            pp.remove_body(object_id)
-            self.object_ids.remove(object_id)
 
             for _ in range(240):
                 p.stepSimulation()
@@ -451,6 +503,9 @@ class GraspWithIntentEnv(Env):
                     self._step_callback()
                 if self._gui:
                     time.sleep(pp.get_time_step())
+
+            pp.remove_body(object_id)
+            self.object_ids.remove(object_id)
 
         before_return()
         return 1
