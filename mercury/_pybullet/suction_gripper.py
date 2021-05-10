@@ -76,13 +76,13 @@ class SuctionGripper:
             if mass > 0:
                 if angle > self._surface_threshold:
                     logger.warning(
-                        "failed to grasp with surface angle "
+                        "Failed to grasp with surface angle "
                         f">{np.rad2deg(self._surface_threshold):.1f} deg: "
                         f"{np.rad2deg(angle):.1f} deg"
                     )
                     return
                 logger.info(
-                    f"grasping surface angle: {np.rad2deg(angle):.1f} deg"
+                    f"Grasping surface angle: {np.rad2deg(angle):.1f} deg"
                 )
 
                 # simulate compliance of suction gripper

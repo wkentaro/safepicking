@@ -152,6 +152,8 @@ def plan_reorient(env, T_obj_af_to_world):
     )
     normals_in_ee = mercury.geometry.normals_from_pointcloud(pcd_in_ee)
 
+    logger.info("Started planning reorientation")
+
     indices = np.argwhere(mask)
     env.random_state.shuffle(indices)
     for y, x in indices[:10]:
@@ -249,8 +251,14 @@ def plan_reorient(env, T_obj_af_to_world):
             env.ri.attachments[0].assign()
         before_return()
         break
+    success = "js_place" in result
 
-    return "js_place" in result, result
+    if success:
+        logger.success("Found the solution for reorientation")
+    else:
+        logger.error("Cannot find the solution for reorientation")
+
+    return success, result
 
 
 def reorient(env, target_pose):
@@ -306,9 +314,9 @@ def reorient(env, target_pose):
             quaternion=c.quaternion,
         )
 
-        is_valid, result = plan_reorient(env, c.matrix)
+        success, result = plan_reorient(env, c.matrix)
 
-        if is_valid:
+        if success:
             break
 
     if 0:
@@ -391,7 +399,7 @@ def main():
             act_result.validation_result = validation_result
             break
     else:
-        logger.error("no valid actions")
+        logger.error("No valid actions")
         return
 
     env.step(act_result)
