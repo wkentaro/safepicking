@@ -91,7 +91,7 @@ class GraspNet(torch.nn.Module):
             if isinstance(m, torch.nn.Conv2d):
                 torch.nn.init.kaiming_normal_(m.weight.data)
 
-    def forward(self, rgb, depth, ins):
+    def forward(self, rgb, depth):
         if self._model == "rgb":
             conv0 = self.conv0_rgb(rgb)
         elif self._model == "rgbd":
