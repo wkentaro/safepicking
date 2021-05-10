@@ -114,7 +114,7 @@ class GraspWithIntentEnv(Env):
             suction_max_force=None,
             suction_surface_threshold=np.inf,
             suction_surface_alignment=False,
-            planner="SBL",
+            planner="RRTConnect",
         )
         c_cam_to_ee = mercury.geometry.Coordinate()
         c_cam_to_ee.translate([0, -0.1, -0.1])
@@ -179,7 +179,7 @@ class GraspWithIntentEnv(Env):
         self.object_ids = object_ids
         self.fg_object_id = self.random_state.choice(fg_object_ids)
 
-        self.bin = mercury.pybullet.create_bin(0.2, 0.4, 0.2)
+        self.bin = mercury.pybullet.create_bin(0.3, 0.4, 0.2)
         c = mercury.geometry.Coordinate()
         c.position = [0, 0.6, 0.6]
         c.rotate([np.deg2rad(90), 0, 0])
@@ -380,8 +380,7 @@ class GraspWithIntentEnv(Env):
             pp.Attachment(self.ri.robot, self.ri.ee, obj_to_ee, object_id)
         ]
 
-        j = self.ri.homej.copy()
-        j[0] = np.pi / 2
+        j = self.ri.homej
         self.ri.setj(j)
         self.ri.attachments[0].assign()
 
@@ -415,7 +414,7 @@ class GraspWithIntentEnv(Env):
         self.ri.setj(j)
 
         c = mercury.geometry.Coordinate(*self.ri.get_pose("tipLink"))
-        c.translate([0, 0.3, 0], wrt="world")
+        c.translate([0, 0.25, 0], wrt="world")
         j = self.ri.solve_ik(c.pose)
         if j is None:
             logger.error(f"Failed to solve placing IK: {act_result.action}")
@@ -468,11 +467,6 @@ class GraspWithIntentEnv(Env):
             pp.Attachment(self.ri.robot, self.ri.ee, obj_to_ee, object_id)
         ]
 
-        for _ in (_ for _ in self.ri.movej(self.ri.homej)):
-            pp.step_simulation()
-            time.sleep(pp.get_time_step())
-
-        self.ri.homej[0] = np.pi / 2
         for _ in (_ for _ in self.ri.movej(self.ri.homej)):
             pp.step_simulation()
             time.sleep(pp.get_time_step())

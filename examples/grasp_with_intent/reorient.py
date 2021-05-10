@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 
+import argparse
 import time
 
+from loguru import logger
 import numpy as np
 import open3d
 import pybullet_planning as pp
 import sklearn.neighbors
-import trimesh
 from yarr.agents.agent import ActResult
 
 import mercury
@@ -16,10 +17,82 @@ import common_utils
 from env import GraspWithIntentEnv
 
 
-def get_query_ocs(env):
+def visualize(
+    env,
+    query_ocs,
+    query_ocs_normal_ends,
+    target_point,
+    target_point_normal_end,
+    T_obj_af_to_world,
+    T_obj_fn_to_world,
+):
+    vis = open3d.visualization.Visualizer()
+    vis.create_window(height=int(480 * 1.5), width=int(640 * 1.5))
+
+    vis.add_geometry(
+        _open3d.LineSet(
+            points=[target_point, target_point_normal_end],
+            lines=np.array([[0, 1]]),
+        )
+    )
+
+    # obj -> obj_af
+    class_id = common_utils.get_class_id(env.fg_object_id)
+    visual_file = mercury.datasets.ycb.get_visual_file(class_id)
+    geometry = open3d.io.read_triangle_mesh(visual_file)
+    geometry.transform(T_obj_af_to_world)
+    vis.add_geometry(geometry)
+
+    # obj -> obj_fn
+    geometry = open3d.io.read_triangle_mesh(visual_file)
+    geometry.transform(T_obj_fn_to_world)
+    vis.add_geometry(geometry)
+
+    vis.add_geometry(_open3d.TriangleMesh.create_coordinate_frame(size=0.2))
+
+    # # target ocs
+    # geometry = trimesh.PointCloud(vertices=ocs)
+    # geometries.append(_open3d.PointCloud.from_trimesh(geometry))
+
+    # # target ocs aabb
+    # aabb = ocs.min(axis=0), ocs.max(axis=0)
+    # geometry = trimesh.path.creation.box_outline(extents=aabb[1] - aabb[0])  # NOQA
+    # geometry.apply_translation(np.mean(aabb, axis=0))
+    # geometries.append(_open3d.LineSet.from_trimesh(geometry))
+
+    # result ocs
+    p = np.random.permutation(len(query_ocs))[:1000]
+    geometry = _open3d.PointCloud(
+        points=query_ocs[p],
+        colors=(0, 1, 0),
+        normals=(query_ocs_normal_ends - query_ocs)[p],
+    )
+    vis.add_geometry(geometry)
+
+    for object_id in env.object_ids:
+        class_id = common_utils.get_class_id(object_id)
+        visual_file = mercury.datasets.ycb.get_visual_file(class_id)
+        geometry = open3d.io.read_triangle_mesh(visual_file)
+        geometry.transform(
+            mercury.geometry.transformation_matrix(*pp.get_pose(object_id))
+        )
+        vis.add_geometry(geometry)
+
+    view_control = vis.get_view_control()
+    camera = pp.get_camera()
+    view_control.set_zoom(camera.dist)
+    view_control.set_front(-np.asarray(camera.cameraForward))
+    view_control.set_lookat(camera.target)
+    view_control.set_up(camera.cameraUp)
+
+    vis.run()
+    vis.destroy_window()
+
+
+def get_query_ocs(env, target_pose):
     # get query ocs
     with pp.LockRenderer(), pp.WorldSaver():
-        pp.set_pose(env.fg_object_id, [(0, 0.6, 0.6), (0, 0, 0, 1)])
+        pp.set_pose(env.fg_object_id, target_pose)
 
         T_camera_to_world = mercury.geometry.look_at(
             [0, 0.3, 0.6], [0, 0.6, 0.6]
@@ -48,16 +121,6 @@ def get_query_ocs(env):
         )
         pcd_normal_ends_in_world = pcd_in_world + normals_in_world
 
-        if 0:
-            mask = ~np.isnan(depth) & (depth < 1)
-            p = np.random.permutation(mask.sum())[:1000]
-            geometry = _open3d.PointCloud(
-                points=pcd_in_world[mask][p],
-                colors=(0, 1.0, 0),
-                normals=normals_in_world[mask][p],
-            )
-            open3d.visualization.draw_geometries([geometry])
-
         world_to_obj = pp.invert(pp.get_pose(env.fg_object_id))
         mask = segm == env.fg_object_id
         query_ocs = mercury.geometry.transform_points(
@@ -72,8 +135,128 @@ def get_query_ocs(env):
     return query_ocs, query_ocs_normal_ends
 
 
-def reorient(env):
-    query_ocs, query_ocs_normal_ends = get_query_ocs(env)
+def plan_reorient(env, T_obj_af_to_world):
+    segm = env.obs["segm"]
+    depth = env.obs["depth"]
+
+    K = env.ri.get_opengl_intrinsic_matrix()
+    mask = segm == env.fg_object_id
+    pcd_in_camera = mercury.geometry.pointcloud_from_depth(
+        depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
+    )
+    camera_to_world = env.ri.get_pose("camera_link")
+    ee_to_world = env.ri.get_pose("tipLink")
+    camera_to_ee = pp.multiply(pp.invert(ee_to_world), camera_to_world)
+    pcd_in_ee = mercury.geometry.transform_points(
+        pcd_in_camera, mercury.geometry.transformation_matrix(*camera_to_ee)
+    )
+    normals_in_ee = mercury.geometry.normals_from_pointcloud(pcd_in_ee)
+
+    indices = np.argwhere(mask)
+    env.random_state.shuffle(indices)
+    for y, x in indices[:10]:
+        lock_renderer = pp.LockRenderer()
+        world_saver = pp.WorldSaver()
+
+        result = {}
+
+        def before_return():
+            env.ri.attachments = []
+            world_saver.restore()
+            lock_renderer.restore()
+
+        object_id = segm[y, x]
+        position = pcd_in_ee[y, x]
+        quaternion = mercury.geometry.quaternion_from_vec2vec(
+            [0, 0, 1], normals_in_ee[y, x]
+        )
+        T_ee_to_ee_af_in_ee = mercury.geometry.transformation_matrix(
+            position, quaternion
+        )
+
+        T_ee_to_world = mercury.geometry.transformation_matrix(
+            *env.ri.get_pose("tipLink")
+        )
+        T_ee_to_ee = np.eye(4)
+        T_ee_af_to_ee = T_ee_to_ee_af_in_ee @ T_ee_to_ee
+        T_ee_af_to_world = T_ee_to_world @ T_ee_af_to_ee
+
+        c = mercury.geometry.Coordinate(
+            *mercury.geometry.pose_from_matrix(T_ee_af_to_world)
+        )
+        c.translate([0, 0, -0.1])
+
+        j = env.ri.solve_ik(c.pose)
+        if j is None:
+            logger.warning("j_pre_grasp is not found")
+            before_return()
+            continue
+        result["j_pre_grasp"] = j
+
+        js = env.ri.planj(j, obstacles=[env.plane, env.bin] + env.object_ids)
+        if js is None:
+            logger.warning("js_pre_grasp is not found")
+            before_return()
+            continue
+        result["js_pre_grasp"] = js
+
+        env.ri.setj(j)
+
+        js = []
+        for _ in range(10):
+            c.translate([0, 0, 0.01])
+            j = env.ri.solve_ik(c.pose)
+            if j is None:
+                break
+            js.append(j)
+        if j is None:
+            logger.warning("js_grasp is not found")
+            before_return()
+            continue
+        result["js_grasp"] = js
+
+        env.ri.setj(j)
+
+        obj_to_world = pp.get_pose(object_id)
+        ee_to_world = env.ri.get_pose("tipLink")
+        obj_to_ee = pp.multiply(pp.invert(ee_to_world), obj_to_world)
+        env.ri.attachments = [
+            pp.Attachment(env.ri.robot, env.ri.ee, obj_to_ee, object_id)
+        ]
+
+        with env.ri.enabling_attachments():
+            j = env.ri.solve_ik(
+                mercury.geometry.pose_from_matrix(T_obj_af_to_world),
+                move_target=env.ri.robot_model.attachment_link0,
+            )
+            if j is None:
+                before_return()
+                continue
+            result["j_place"] = j
+
+            obstacles = [env.plane, env.bin] + env.object_ids
+            obstacles.remove(object_id)
+            js = env.ri.planj(
+                j, obstacles=obstacles, min_distances={(object_id, -1): -0.01}
+            )
+            if js is None:
+                logger.warning("js_place is not found")
+                before_return()
+                continue
+            result["js_place"] = js
+
+            env.ri.setj(j)
+            env.ri.attachments[0].assign()
+        before_return()
+        break
+
+    return "js_place" in result, result
+
+
+def reorient(env, target_pose):
+    query_ocs, query_ocs_normal_ends = get_query_ocs(
+        env, target_pose=target_pose
+    )
 
     obj_to_world = pp.get_pose(env.fg_object_id)
     query_ocs = mercury.geometry.transform_points(
@@ -84,164 +267,121 @@ def reorient(env):
         mercury.geometry.transformation_matrix(*obj_to_world),
     )
 
-    centroid = query_ocs.mean(axis=0)
-    nearest_index = np.argmin(np.linalg.norm(query_ocs - centroid, axis=1))
-    target_point = query_ocs[nearest_index]
-    target_point_normal_end = query_ocs_normal_ends[nearest_index]
+    indices = env.random_state.permutation(query_ocs.shape[0])
+    for index in indices:
+        target_point = query_ocs[index]
+        target_point_normal_end = query_ocs_normal_ends[index]
 
-    quaternion = mercury.geometry.quaternion_from_vec2vec(
-        v1=target_point_normal_end - target_point, v2=[0, 0, -1], flip=False
-    )
-    T_obj_to_world = mercury.geometry.transformation_matrix(*obj_to_world)
-    T_obj_to_obj_af_in_world = mercury.geometry.transform_around(
-        mercury.geometry.quaternion_matrix(quaternion),
-        pp.get_pose(env.fg_object_id)[0],
-    )
-    T_obj_af_to_world = T_obj_to_obj_af_in_world @ T_obj_to_world
+        quaternion = mercury.geometry.quaternion_from_vec2vec(
+            v1=target_point_normal_end - target_point,
+            v2=[0, 0, -1],
+            flip=False,
+        )
+        T_obj_to_world = mercury.geometry.transformation_matrix(*obj_to_world)
+        T_obj_to_obj_af_in_world = mercury.geometry.transform_around(
+            mercury.geometry.quaternion_matrix(quaternion),
+            pp.get_pose(env.fg_object_id)[0],
+        )
+        T_obj_af_to_world = T_obj_to_obj_af_in_world @ T_obj_to_world
+
+        c = mercury.geometry.Coordinate.from_matrix(T_obj_af_to_world)
+
+        for _ in range(5):
+            c.position = env.random_state.uniform(
+                [0.4, -0.2, c.position[2]], [0.6, 0.2, c.position[2] + 0.2]
+            )
+            with pp.LockRenderer(), pp.WorldSaver():
+                pp.set_pose(env.fg_object_id, c.pose)
+                if not mercury.pybullet.is_colliding(env.fg_object_id):
+                    break
+        else:
+            continue
+
+        mercury.pybullet.duplicate(
+            env.fg_object_id,
+            collision=False,
+            rgba_color=(0, 1, 0, 0.5),
+            texture=False,
+            position=c.position,
+            quaternion=c.quaternion,
+        )
+
+        is_valid, result = plan_reorient(env, c.matrix)
+
+        if is_valid:
+            break
 
     if 0:
-        vis = open3d.visualization.Visualizer()
-        vis.create_window(height=int(480 * 1.5), width=int(640 * 1.5))
-
-        vis.add_geometry(
-            _open3d.LineSet(
-                points=[target_point, target_point_normal_end],
-                lines=np.array([[0, 1]]),
-            )
+        visualize(
+            env,
+            query_ocs,
+            query_ocs_normal_ends,
+            target_point,
+            target_point_normal_end,
+            c.matrix,
+            mercury.geometry.transformation_matrix(*target_pose),
         )
 
-        # obj -> obj_af
-        class_id = common_utils.get_class_id(env.fg_object_id)
-        visual_file = mercury.datasets.ycb.get_visual_file(class_id)
-        geometry = open3d.io.read_triangle_mesh(visual_file)
-        geometry.transform(T_obj_af_to_world)
-        vis.add_geometry(geometry)
-
-        vis.add_geometry(
-            _open3d.TriangleMesh.create_coordinate_frame(size=0.2)
-        )
-
-        # # target ocs
-        # geometry = trimesh.PointCloud(vertices=ocs)
-        # geometries.append(_open3d.PointCloud.from_trimesh(geometry))
-
-        # # target ocs aabb
-        # aabb = ocs.min(axis=0), ocs.max(axis=0)
-        # geometry = trimesh.path.creation.box_outline(extents=aabb[1] - aabb[0])  # NOQA
-        # geometry.apply_translation(np.mean(aabb, axis=0))
-        # geometries.append(_open3d.LineSet.from_trimesh(geometry))
-
-        # result ocs
-        p = np.random.permutation(len(query_ocs))[:1000]
-        geometry = _open3d.PointCloud(
-            points=query_ocs[p],
-            colors=(0, 1, 0),
-            normals=(query_ocs_normal_ends - query_ocs)[p],
-        )
-        vis.add_geometry(geometry)
-
-        for object_id in env.object_ids:
-            class_id = common_utils.get_class_id(object_id)
-            visual_file = mercury.datasets.ycb.get_visual_file(class_id)
-            geometry = _open3d.TriangleMesh.from_trimesh(
-                trimesh.load_mesh(visual_file, process=False)
-            )
-            geometry.transform(
-                mercury.geometry.transformation_matrix(*pp.get_pose(object_id))
-            )
-            vis.add_geometry(geometry)
-
-        view_control = vis.get_view_control()
-        camera = pp.get_camera()
-        view_control.set_zoom(camera.dist)
-        view_control.set_front(-np.asarray(camera.cameraForward))
-        view_control.set_lookat(camera.target)
-        view_control.set_up(camera.cameraUp)
-
-        vis.run()
-        vis.destroy_window()
-
-    for _ in env.ri.random_grasp(
-        env.obs["depth"],
-        env.obs["segm"],
-        bg_object_ids=[env.plane],
-        object_ids=env.object_ids,
-        target_object_ids=[env.fg_object_id],
-        max_angle=np.inf,
-        random_state=env.random_state,
-    ):
+    js = result["js_pre_grasp"]
+    for _ in (_ for j in js for _ in env.ri.movej(j)):
         pp.step_simulation()
-        time.sleep(pp.get_time_step() / 10)
+        time.sleep(pp.get_time_step())
 
-    c = mercury.geometry.Coordinate(*env.ri.get_pose("tipLink"))
-    c.translate([0, 0, 0.2], wrt="world")
-    j = env.ri.solve_ik(c.pose)
-    for _ in env.ri.movej(j):
+    for _ in env.ri.grasp(min_dz=0.08, max_dz=0.12, rotation_axis=True):
         pp.step_simulation()
-        time.sleep(pp.get_time_step() / 10)
+        time.sleep(pp.get_time_step())
 
-    with env.ri.enabling_attachments():
-        while True:
-            c = mercury.geometry.Coordinate.from_matrix(T_obj_af_to_world)
-            c.position = np.random.uniform(
-                [0.3, 0, c.position[2] + 0.2], [0.7, 0, c.position[2] + 0.2]
-            )
-            j = env.ri.solve_ik(
-                c.pose,
-                move_target=env.ri.robot_model.attachment_link0,
-            )
-            if j is None:
-                continue
-            obstacles = [env.plane] + env.object_ids
-            obstacles.remove(env.fg_object_id)
-            js = env.ri.planj(
-                j,
-                obstacles=obstacles,
-                min_distances={(env.fg_object_id, -1): -0.01},
-            )
-            if js is None:
-                continue
-            break
-        for _ in (_ for j in js for _ in env.ri.movej(j)):
-            pp.step_simulation()
-            time.sleep(pp.get_time_step() / 10)
-
-    c = mercury.geometry.Coordinate(*env.ri.get_pose("tipLink"))
-    c.translate([0, 0, -0.1], wrt="world")
-    j = env.ri.solve_ik(c.pose)
-    for _ in env.ri.movej(j):
+    js = result["js_place"]
+    for _ in (_ for j in js for _ in env.ri.movej(j)):
         pp.step_simulation()
-        time.sleep(pp.get_time_step() / 10)
+        time.sleep(pp.get_time_step())
 
     for _ in range(int(1 / pp.get_time_step())):
         pp.step_simulation()
-        time.sleep(pp.get_time_step() / 10)
+        time.sleep(pp.get_time_step())
 
     env.ri.ungrasp()
 
-    for _ in range(int(1 / pp.get_time_step())):
+    for _ in range(int(3 / pp.get_time_step())):
         pp.step_simulation()
-        time.sleep(pp.get_time_step() / 10)
+        time.sleep(pp.get_time_step())
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument("--seed", type=int, default=1, help="seed")
+    parser.add_argument("--pause", action="store_true", help="pause")
+    args = parser.parse_args()
+
     env = GraspWithIntentEnv()
-    env.random_state = np.random.RandomState(1)
+    env.random_state = np.random.RandomState(args.seed)
     env.reset(
         pile_file="/home/wkentaro/data/mercury/pile_generation/00001000.npz"
     )
 
-    reorient(env)
+    common_utils.pause(args.pause)
+
+    target_pose = (0, 0.6, 0.6), (0, 0, 0, 1)
+
+    reorient(env, target_pose=target_pose)
 
     env.setj_to_camera_pose()
     env.update_obs()
 
     ocs = env.obs["ocs"].transpose(1, 2, 0)
+    fg_mask = env.obs["fg_mask"]
 
-    query_ocs, _ = get_query_ocs(env)
+    query_ocs, _ = get_query_ocs(env, target_pose=target_pose)
     kdtree = sklearn.neighbors.KDTree(ocs.reshape(-1, 3))
     distances, indices = kdtree.query(query_ocs)
-    a_flattens = indices[distances < 0.001]
+    a_flattens = indices[
+        (fg_mask.flatten()[indices] == 1) & (distances < 0.001)
+    ]
+
+    a_flattens = np.unique(a_flattens)
+    env.random_state.shuffle(a_flattens)
 
     for a_flatten in a_flattens:
         action = (a_flatten // ocs.shape[1], a_flatten % ocs.shape[1])
@@ -250,6 +390,9 @@ def main():
         if is_valid:
             act_result.validation_result = validation_result
             break
+    else:
+        logger.error("no valid actions")
+        return
 
     env.step(act_result)
 
