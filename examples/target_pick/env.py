@@ -37,6 +37,7 @@ class PickFromPileEnv(Env):
         easy=False,
         action="XYzABG",
         suction_max_force=10,
+        reward="completion_shaped",
     ):
         super().__init__()
 
@@ -46,6 +47,12 @@ class PickFromPileEnv(Env):
         self._pose_noise = pose_noise
         self._easy = easy
         self._suction_max_force = suction_max_force
+
+        if reward == "sum_of_velocities":
+            assert suction_max_force is None
+        else:
+            assert reward in ["completion", "completion_shaped"]
+        self._reward = reward
 
         self.plane = None
         self.ri = None
@@ -437,6 +444,17 @@ class PickFromPileEnv(Env):
                 observation=self.get_obs(), reward=0, terminal=True
             )
 
+        velocities = {}
+
+        def step_callback():
+            for object_id in self.object_ids:
+                if object_id == self.target_object_id:
+                    continue
+                velocities[object_id] = max(
+                    velocities.get(object_id, 0),
+                    np.linalg.norm(pp.get_velocity(object_id)[0]),
+                )
+
         for _ in self.ri.movej(j, speed=0.001):
             p.stepSimulation()
             self.ri.step_simulation()
@@ -461,8 +479,16 @@ class PickFromPileEnv(Env):
             if self.eval:
                 reward = 0
             else:
-                reward = self.i * 0.2 * self.ri.gripper.check_grasp()
+                if self._reward == "completion_shaped":
+                    reward = self.i * 0.2 * self.ri.gripper.check_grasp()
+                else:
+                    assert self._reward in ["completion", "sum_of_velocities"]
             terminal = False
+
+        if self._reward == "sum_of_velocities":
+            reward = -sum(velocities.values())
+        else:
+            assert self._reward in ["completion_shaped", "completion"]
 
         self.past_actions = np.r_[
             self.past_actions[1:],

@@ -67,6 +67,12 @@ def main():
     parser.add_argument(
         "--suction-max-force", type=float, default=10, help="suction max force"
     )
+    parser.add_argument(
+        "--reward",
+        choices=["completion_shaped", "completion", "sum_of_velocities"],
+        default="completion_shaped",
+        help="reward",
+    )
     args = parser.parse_args()
 
     hparams = args.__dict__.copy()
@@ -105,6 +111,7 @@ def main():
         easy=hparams["easy"],
         action=hparams["action"],
         suction_max_force=hparams["suction_max_force"],
+        reward=hparams["reward"],
     )
 
     # Setup replay buffer
