@@ -20,7 +20,26 @@ home = path.Path("~").expanduser()
 
 class GraspWithIntentEnv(Env):
 
-    piles_dir = home / "data/mercury/pile_generation"
+    # parameters
+    IMAGE_HEIGHT = 240
+    IMAGE_WIDTH = 240
+
+    FG_CLASS_ID = 11
+
+    PILES_DIR = home / "data/mercury/pile_generation"
+    PILE_TRAIN_IDS = np.arange(0, 1000)
+    PILE_EVAL_IDS = np.arange(1000, 1200)
+    PILE_POSITION = np.array([0.5, 0, 0])
+
+    c = mercury.geometry.Coordinate([0, 0.6, 0.6])
+    c.rotate([np.pi / 2, 0, 0])
+    BIN_EXTENTS = (0.3, 0.4, 0.2)
+    BIN_POSE = c.pose
+
+    CAMERA_POSITION = np.array([PILE_POSITION[0], PILE_POSITION[1], 0.7])
+
+    PRE_PLACE_POSE = BIN_POSE[0] + (0, -0.3, 0), (0, 0, 0, 1)
+    PLACE_POSE = PRE_PLACE_POSE[0] + (0, 0.25, 0), PRE_PLACE_POSE[1]
 
     def __init__(self, gui=True, retime=1, step_callback=None):
         super().__init__()
@@ -32,25 +51,25 @@ class GraspWithIntentEnv(Env):
         rgb = gym.spaces.Box(
             low=0,
             high=255,
-            shape=(3, 240, 240),
+            shape=(3, self.IMAGE_HEIGHT, self.IMAGE_WIDTH),
             dtype=np.uint8,
         )
         depth = gym.spaces.Box(
             low=-np.inf,
             high=np.inf,
-            shape=(240, 240),
+            shape=(self.IMAGE_HEIGHT, self.IMAGE_WIDTH),
             dtype=np.float32,
         )
         ocs = gym.spaces.Box(
             low=-np.inf,
             high=np.inf,
-            shape=(3, 240, 240),
+            shape=(3, self.IMAGE_HEIGHT, self.IMAGE_WIDTH),
             dtype=np.float32,
         )
         fg_mask = gym.spaces.Box(
             low=0,
             high=1,
-            shape=(240, 240),
+            shape=(self.IMAGE_HEIGHT, self.IMAGE_WIDTH),
             dtype=np.uint8,
         )
         self.observation_space = gym.spaces.Dict(
@@ -91,10 +110,10 @@ class GraspWithIntentEnv(Env):
 
         if pile_file is None:
             if self.eval:
-                i = self.random_state.randint(1000, 1200)
+                i = self.random_state.choice(self.PILE_EVAL_IDS)
             else:
-                i = self.random_state.randint(0, 1000)
-            pile_file = self.piles_dir / f"{i:08d}.npz"
+                i = self.random_state.choice(self.PILE_TRAIN_IDS)
+            pile_file = self.PILES_DIR / f"{i:08d}.npz"
 
         if not pp.is_connected():
             pp.connect(use_gui=self._gui)
@@ -121,16 +140,13 @@ class GraspWithIntentEnv(Env):
         self.ri.add_camera(
             pose=c_cam_to_ee.pose,
             fovy=np.deg2rad(60),
-            height=240,
-            width=240,
+            height=self.IMAGE_HEIGHT,
+            width=self.IMAGE_WIDTH,
         )
 
         data = dict(np.load(pile_file))
 
-        pile_center = [0.5, 0, 0]
-
-        fg_class_id = 11
-        if fg_class_id not in data["class_id"]:
+        if self.FG_CLASS_ID not in data["class_id"]:
             if raise_on_failure:
                 raise RuntimeError("fg_object_ids == []")
             else:
@@ -144,7 +160,7 @@ class GraspWithIntentEnv(Env):
             position = data["position"][i]
             quaternion = data["quaternion"][i]
 
-            position += pile_center
+            position += self.PILE_POSITION
 
             visual_file = mercury.datasets.ycb.get_visual_file(
                 class_id=class_id
@@ -174,18 +190,15 @@ class GraspWithIntentEnv(Env):
                     length=0.2,
                 )
             object_ids.append(object_id)
-            if class_id == fg_class_id:
+            if class_id == self.FG_CLASS_ID:
                 fg_object_ids.append(object_id)
         self.object_ids = object_ids
         self.fg_object_id = self.random_state.choice(fg_object_ids)
 
-        self.bin = mercury.pybullet.create_bin(0.3, 0.4, 0.2)
-        c = mercury.geometry.Coordinate()
-        c.position = [0, 0.6, 0.6]
-        c.rotate([np.deg2rad(90), 0, 0])
-        pp.set_pose(self.bin, c.pose)
+        self.bin = mercury.pybullet.create_bin(*self.BIN_EXTENTS)
+        pp.set_pose(self.bin, self.BIN_POSE)
 
-        for _ in range(240):
+        for _ in range(int(1 / pp.get_time_step())):
             p.stepSimulation()
             if self._step_callback:
                 self._step_callback()
@@ -198,15 +211,11 @@ class GraspWithIntentEnv(Env):
         return self.get_obs()
 
     def setj_to_camera_pose(self):
-        aabb = [0.3, -0.2, 0], [0.7, 0.2, 0.6]
-        pp.draw_aabb(aabb)
-
         self.ri.setj(self.ri.homej)
         j = None
         while j is None:
             c = mercury.geometry.Coordinate(*self.ri.get_pose("camera_link"))
-            c.position = np.mean(aabb, axis=0)
-            c.position[2] = 0.7
+            c.position = self.CAMERA_POSITION
             j = self.ri.solve_ik(
                 c.pose, move_target=self.ri.robot_model.camera_link
             )
@@ -353,7 +362,9 @@ class GraspWithIntentEnv(Env):
             return False, result
         result["j_pre_grasp"] = j
 
-        js = self.ri.planj(j)
+        js = self.ri.planj(
+            j, obstacles=[self.plane, self.bin] + self.object_ids
+        )
         if js is None:
             logger.error(
                 f"Failed to solve pre-grasping path: {act_result.action}"
@@ -385,13 +396,8 @@ class GraspWithIntentEnv(Env):
         self.ri.attachments[0].assign()
 
         with self.ri.enabling_attachments():
-            c = mercury.geometry.Coordinate(pp.get_pose(self.bin)[0])
-            c.translate([0, -0.3, 0], wrt="world")
-            obj_to_world = c.pose
-            pp.draw_pose(obj_to_world)
-
             j = self.ri.solve_ik(
-                obj_to_world,
+                self.PRE_PLACE_POSE,
                 move_target=self.ri.robot_model.attachment_link0,
             )
         if j is None:
@@ -413,9 +419,11 @@ class GraspWithIntentEnv(Env):
 
         self.ri.setj(j)
 
-        c = mercury.geometry.Coordinate(*self.ri.get_pose("tipLink"))
-        c.translate([0, 0.25, 0], wrt="world")
-        j = self.ri.solve_ik(c.pose)
+        with self.ri.enabling_attachments():
+            j = self.ri.solve_ik(
+                self.PLACE_POSE,
+                move_target=self.ri.robot_model.attachment_link0,
+            )
         if j is None:
             logger.error(f"Failed to solve placing IK: {act_result.action}")
             before_return()

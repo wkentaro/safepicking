@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
+import itertools
 import time
 
 from loguru import logger
@@ -24,7 +25,6 @@ def visualize(
     target_point,
     target_point_normal_end,
     T_obj_af_to_world,
-    T_obj_fn_to_world,
 ):
     vis = open3d.visualization.Visualizer()
     vis.create_window(height=int(480 * 1.5), width=int(640 * 1.5))
@@ -44,6 +44,7 @@ def visualize(
     vis.add_geometry(geometry)
 
     # obj -> obj_fn
+    T_obj_fn_to_world = mercury.geometry.transformation_matrix(*env.PLACE_POSE)
     geometry = open3d.io.read_triangle_mesh(visual_file)
     geometry.transform(T_obj_fn_to_world)
     vis.add_geometry(geometry)
@@ -89,10 +90,10 @@ def visualize(
     vis.destroy_window()
 
 
-def get_query_ocs(env, target_pose):
+def get_query_ocs(env):
     # get query ocs
     with pp.LockRenderer(), pp.WorldSaver():
-        pp.set_pose(env.fg_object_id, target_pose)
+        pp.set_pose(env.fg_object_id, env.PLACE_POSE)
 
         T_camera_to_world = mercury.geometry.look_at(
             [0, 0.3, 0.6], [0, 0.6, 0.6]
@@ -135,7 +136,7 @@ def get_query_ocs(env, target_pose):
     return query_ocs, query_ocs_normal_ends
 
 
-def plan_reorient(env, T_obj_af_to_world):
+def plan_reorient(env, T_obj_af_to_world, iterations=5):
     segm = env.obs["segm"]
     depth = env.obs["depth"]
 
@@ -156,8 +157,8 @@ def plan_reorient(env, T_obj_af_to_world):
 
     indices = np.argwhere(mask)
     env.random_state.shuffle(indices)
-    for y, x in indices[:10]:
-        lock_renderer = pp.LockRenderer()
+    for y, x in indices[:iterations]:
+        # lock_renderer = pp.LockRenderer()
         world_saver = pp.WorldSaver()
 
         result = {}
@@ -165,7 +166,7 @@ def plan_reorient(env, T_obj_af_to_world):
         def before_return():
             env.ri.attachments = []
             world_saver.restore()
-            lock_renderer.restore()
+            # lock_renderer.restore()
 
         object_id = segm[y, x]
         position = pcd_in_ee[y, x]
@@ -183,76 +184,91 @@ def plan_reorient(env, T_obj_af_to_world):
         T_ee_af_to_ee = T_ee_to_ee_af_in_ee @ T_ee_to_ee
         T_ee_af_to_world = T_ee_to_world @ T_ee_af_to_ee
 
+        result["j_init"] = env.ri.getj()
+
+        # solve j_grasp
         c = mercury.geometry.Coordinate(
             *mercury.geometry.pose_from_matrix(T_ee_af_to_world)
         )
-        c.translate([0, 0, -0.1])
-
         j = env.ri.solve_ik(c.pose)
         if j is None:
-            logger.warning("j_pre_grasp is not found")
+            logger.warning("j_grasp is not found")
             before_return()
             continue
-        result["j_pre_grasp"] = j
+        result["j_grasp"] = j
 
-        js = env.ri.planj(j, obstacles=[env.plane, env.bin] + env.object_ids)
+        env.ri.setj(result["j_grasp"])
+
+        obj_to_world = pp.get_pose(object_id)
+        ee_to_world = env.ri.get_pose("tipLink")
+        obj_to_ee = pp.multiply(pp.invert(ee_to_world), obj_to_world)
+        attachments = [
+            pp.Attachment(env.ri.robot, env.ri.ee, obj_to_ee, object_id)
+        ]
+
+        # solve j_place
+        env.ri.attachments = attachments
+        with env.ri.enabling_attachments():
+            j = env.ri.solve_ik(
+                mercury.geometry.pose_from_matrix(T_obj_af_to_world),
+                move_target=env.ri.robot_model.attachment_link0,
+            )
+        if j is None:
+            logger.warning("j_place is not found")
+            before_return()
+            continue
+        result["j_place"] = j
+        env.ri.attachments = []
+
+        # solve js_grasp
+        js = []
+        for _ in range(10):
+            c.translate([0, 0, -0.01])
+            j = env.ri.solve_ik(c.pose)
+            if j is None:
+                break
+            js.append(j)
+        js = js[::-1]
+        if j is None:
+            logger.warning("js_grasp is not found")
+            before_return()
+            continue
+        result["js_grasp"] = js
+        result["j_pre_grasp"] = js[0]
+
+        # solve js_pre_grasp
+        env.ri.setj(result["j_init"])
+        js = env.ri.planj(
+            result["j_pre_grasp"],
+            obstacles=[env.plane, env.bin] + env.object_ids,
+        )
         if js is None:
             logger.warning("js_pre_grasp is not found")
             before_return()
             continue
         result["js_pre_grasp"] = js
 
-        env.ri.setj(j)
+        env.ri.setj(result["j_grasp"])
 
-        js = []
-        for _ in range(10):
-            c.translate([0, 0, 0.01])
-            j = env.ri.solve_ik(c.pose)
-            if j is None:
-                break
-            js.append(j)
-        if j is None:
-            logger.warning("js_grasp is not found")
+        # solve js_place
+        env.ri.attachments = attachments
+        obstacles = [env.plane, env.bin] + env.object_ids
+        obstacles.remove(object_id)
+        js = env.ri.planj(
+            result["j_place"],
+            obstacles=obstacles,
+            min_distances={(object_id, -1): -0.01},
+        )
+        if js is None:
+            logger.warning("js_place is not found")
             before_return()
             continue
-        result["js_grasp"] = js
+        result["js_place"] = js
 
-        env.ri.setj(j)
-
-        obj_to_world = pp.get_pose(object_id)
-        ee_to_world = env.ri.get_pose("tipLink")
-        obj_to_ee = pp.multiply(pp.invert(ee_to_world), obj_to_world)
-        env.ri.attachments = [
-            pp.Attachment(env.ri.robot, env.ri.ee, obj_to_ee, object_id)
-        ]
-
-        with env.ri.enabling_attachments():
-            j = env.ri.solve_ik(
-                mercury.geometry.pose_from_matrix(T_obj_af_to_world),
-                move_target=env.ri.robot_model.attachment_link0,
-            )
-            if j is None:
-                before_return()
-                continue
-            result["j_place"] = j
-
-            obstacles = [env.plane, env.bin] + env.object_ids
-            obstacles.remove(object_id)
-            js = env.ri.planj(
-                j, obstacles=obstacles, min_distances={(object_id, -1): -0.01}
-            )
-            if js is None:
-                logger.warning("js_place is not found")
-                before_return()
-                continue
-            result["js_place"] = js
-
-            env.ri.setj(j)
-            env.ri.attachments[0].assign()
         before_return()
         break
-    success = "js_place" in result
 
+    success = "js_place" in result
     if success:
         logger.success("Found the solution for reorientation")
     else:
@@ -261,10 +277,8 @@ def plan_reorient(env, T_obj_af_to_world):
     return success, result
 
 
-def reorient(env, target_pose):
-    query_ocs, query_ocs_normal_ends = get_query_ocs(
-        env, target_pose=target_pose
-    )
+def reorient(env, iterations=5):
+    query_ocs, query_ocs_normal_ends = get_query_ocs(env)
 
     obj_to_world = pp.get_pose(env.fg_object_id)
     query_ocs = mercury.geometry.transform_points(
@@ -275,8 +289,10 @@ def reorient(env, target_pose):
         mercury.geometry.transformation_matrix(*obj_to_world),
     )
 
+    results = []
+
     indices = env.random_state.permutation(query_ocs.shape[0])
-    for index in indices:
+    for index in indices[:iterations]:
         target_point = query_ocs[index]
         target_point_normal_end = query_ocs_normal_ends[index]
 
@@ -292,32 +308,59 @@ def reorient(env, target_pose):
         )
         T_obj_af_to_world = T_obj_to_obj_af_in_world @ T_obj_to_world
 
-        c = mercury.geometry.Coordinate.from_matrix(T_obj_af_to_world)
-
-        for _ in range(5):
-            c.position = env.random_state.uniform(
-                [0.4, -0.2, c.position[2]], [0.6, 0.2, c.position[2] + 0.2]
-            )
-            with pp.LockRenderer(), pp.WorldSaver():
-                pp.set_pose(env.fg_object_id, c.pose)
-                if not mercury.pybullet.is_colliding(env.fg_object_id):
-                    break
-        else:
-            continue
-
-        mercury.pybullet.duplicate(
-            env.fg_object_id,
-            collision=False,
-            rgba_color=(0, 1, 0, 0.5),
-            texture=False,
-            position=c.position,
-            quaternion=c.quaternion,
+        aabb = (
+            env.PILE_POSITION + (-0.2, -0.2, 0),
+            env.PILE_POSITION + (0.2, 0.2, 0.4),
         )
 
-        success, result = plan_reorient(env, c.matrix)
+        for dx, dy, dz, dg in itertools.product(
+            np.linspace(-0.2, 0.2, 4),
+            np.linspace(-0.2, 0.2, 4),
+            np.linspace(-0.2, 0.2, 4),
+            np.linspace(-np.pi, np.pi, 4),
+        ):
+            c = mercury.geometry.Coordinate.from_matrix(T_obj_af_to_world)
+            c.translate([dx, dy, dz], wrt="world")
+            c.rotate([0, 0, dg], wrt="world")
 
-        if success:
+            if not ((c.position > aabb[0]) & (c.position < aabb[1])).all():
+                continue
+
+            with pp.LockRenderer(), pp.WorldSaver():
+                pp.set_pose(env.fg_object_id, c.pose)
+                if mercury.pybullet.is_colliding(env.fg_object_id):
+                    continue
+
+            obj_af = mercury.pybullet.duplicate(
+                env.fg_object_id,
+                collision=True,
+                texture=False,
+                rgba_color=(0, 1, 0, 0.5),
+                position=c.position,
+                quaternion=c.quaternion,
+            )
+
+            success, result = plan_reorient(env, c.matrix)
+
+            pp.remove_body(obj_af)
+
+            if not success:
+                continue
+
+            js_length = 0
+            j_prev = None
+            for j in result["js_place"]:
+                if j_prev is not None:
+                    js_length += np.linalg.norm(j_prev - j)
+                j_prev = j
+
+            results.append((result, js_length))
+            if len(results) >= 10:
+                break
+        if len(results) >= 10:
             break
+
+    result, _ = min(results, key=lambda x: x[1])
 
     if 0:
         visualize(
@@ -327,7 +370,6 @@ def reorient(env, target_pose):
             target_point,
             target_point_normal_end,
             c.matrix,
-            mercury.geometry.transformation_matrix(*target_pose),
         )
 
     js = result["js_pre_grasp"]
@@ -359,7 +401,7 @@ def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--seed", type=int, default=1, help="seed")
+    parser.add_argument("--seed", type=int, default=5, help="seed")
     parser.add_argument("--pause", action="store_true", help="pause")
     args = parser.parse_args()
 
@@ -371,9 +413,7 @@ def main():
 
     common_utils.pause(args.pause)
 
-    target_pose = (0, 0.6, 0.6), (0, 0, 0, 1)
-
-    reorient(env, target_pose=target_pose)
+    reorient(env)
 
     env.setj_to_camera_pose()
     env.update_obs()
@@ -381,7 +421,7 @@ def main():
     ocs = env.obs["ocs"].transpose(1, 2, 0)
     fg_mask = env.obs["fg_mask"]
 
-    query_ocs, _ = get_query_ocs(env, target_pose=target_pose)
+    query_ocs, _ = get_query_ocs(env)
     kdtree = sklearn.neighbors.KDTree(ocs.reshape(-1, 3))
     distances, indices = kdtree.query(query_ocs)
     a_flattens = indices[
