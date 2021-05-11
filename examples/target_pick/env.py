@@ -303,9 +303,9 @@ class PickFromPileEnv(Env):
                 for _ in self.ri.random_grasp(
                     depth,
                     segm,
+                    mask=segm == object_ids[target_index],
                     bg_object_ids=[self.plane],
                     object_ids=object_ids,
-                    target_object_ids=[object_ids[target_index]],
                     random_state=random_state,
                     noise=False,
                 ):
