@@ -35,7 +35,8 @@ class PickFromPileEnv(Env):
         planner="RRTConnect",
         pose_noise=False,
         easy=False,
-        action="XYZABG",
+        action="XYzABG",
+        suction_max_force=10,
     ):
         super().__init__()
 
@@ -44,6 +45,7 @@ class PickFromPileEnv(Env):
         self.planner = planner
         self._pose_noise = pose_noise
         self._easy = easy
+        self._suction_max_force = suction_max_force
 
         self.plane = None
         self.ri = None
@@ -210,7 +212,7 @@ class PickFromPileEnv(Env):
         self.plane = p.loadURDF("plane.urdf")
 
         self.ri = mercury.pybullet.PandaRobotInterface(
-            suction_max_force=10, planner="RRTConnect"
+            suction_max_force=self._suction_max_force, planner="RRTConnect"
         )
         c_cam_to_ee = mercury.geometry.Coordinate()
         c_cam_to_ee.translate([0, -0.05, -0.1])

@@ -46,7 +46,10 @@ def main():
         hparams = json.load(f)
 
     env = PickFromPileEnv(
-        gui=not args.nogui, planner="RRTConnect", pose_noise=args.pose_noise
+        gui=not args.nogui,
+        planner="RRTConnect",
+        action=hparams.get("action", "XYzABG"),
+        pose_noise=args.pose_noise,
     )
     env.eval = True
     obs = env.reset(

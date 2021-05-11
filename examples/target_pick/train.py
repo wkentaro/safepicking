@@ -64,6 +64,9 @@ def main():
         default="XYZABG",
         help="action",
     )
+    parser.add_argument(
+        "--suction-max-force", type=float, default=10, help="suction max force"
+    )
     args = parser.parse_args()
 
     hparams = args.__dict__.copy()
@@ -101,6 +104,7 @@ def main():
         pose_noise=hparams["pose_noise"],
         easy=hparams["easy"],
         action=hparams["action"],
+        suction_max_force=hparams["suction_max_force"],
     )
 
     # Setup replay buffer
