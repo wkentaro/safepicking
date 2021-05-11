@@ -65,7 +65,10 @@ def main():
         help="action",
     )
     parser.add_argument(
-        "--suction-max-force", type=float, default=10, help="suction max force"
+        "--suction-max-force",
+        type=lambda x: None if x.lower() == "none" else float(x),
+        default=10,
+        help="suction max force",
     )
     parser.add_argument(
         "--reward",
