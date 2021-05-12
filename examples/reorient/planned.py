@@ -284,38 +284,34 @@ def execute_plan(env, result):
 
 
 def rollout_plan_reorient(env):
-    results = []
     for c_reorient in get_reorient_poses(env):
-        obj_af = mercury.pybullet.duplicate(
-            env.fg_object_id,
-            collision=False,
-            texture=False,
-            rgba_color=(0, 1, 0, 0.5),
-            position=c_reorient.position,
-            quaternion=c_reorient.quaternion,
-        )
-
-        def before_return():
-            pp.remove_body(obj_af)
-
         for c_grasp in itertools.islice(get_grasp_poses(env), 3):
+            obj_af = mercury.pybullet.duplicate(
+                env.fg_object_id,
+                collision=False,
+                texture=False,
+                rgba_color=(0, 1, 0, 0.5),
+                position=c_reorient.position,
+                quaternion=c_reorient.quaternion,
+            )
+
             success, result = plan_reorient(
                 env, c_grasp=c_grasp, c_reorient=c_reorient
             )
+
+            pp.remove_body(obj_af)
+
             if success:
-                js_length = 0
+                result["c_grasp"] = c_grasp
+                result["c_reorient"] = c_reorient
+                result["js_place_length"] = 0
                 j_prev = None
                 for j in result["js_place"]:
                     if j_prev is not None:
-                        js_length += np.linalg.norm(j_prev - j)
+                        result["js_place_length"] += np.linalg.norm(j_prev - j)
                     j_prev = j
 
-                results.append((result, js_length))
-                if len(results) == 10:
-                    before_return()
-                    return results
-
-        before_return()
+                yield result
 
 
 def main():
@@ -323,9 +319,9 @@ def main():
     env.random_state = np.random.RandomState(5)
     env.reset(pile_file=env.PILES_DIR / "00001000.npz")
 
-    results = rollout_plan_reorient(env)
+    results = itertools.islice(rollout_plan_reorient(env), 10)
 
-    result, _ = min(results, key=lambda x: x[1])
+    result, _ = min(results, key=lambda x: x["js_place_length"])
     execute_plan(env, result)
 
 
