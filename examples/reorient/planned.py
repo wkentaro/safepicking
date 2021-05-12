@@ -9,7 +9,7 @@ import pybullet_planning as pp
 
 import mercury
 
-from reorient_env import ReorientEnv
+from pick_and_place_env import PickAndPlaceEnv
 
 
 def get_query_ocs(env):
@@ -319,7 +319,7 @@ def rollout_plan_reorient(env):
 
 
 def main():
-    env = ReorientEnv()
+    env = PickAndPlaceEnv()
     env.random_state = np.random.RandomState(5)
     env.reset()
 
