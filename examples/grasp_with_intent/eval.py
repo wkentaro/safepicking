@@ -10,7 +10,7 @@ import path
 import mercury
 
 from agent import DqnAgent
-from env import GraspWithIntentEnv
+from env import PickAndPlaceEnv
 
 
 here = path.Path(__file__).abspath().parent
@@ -52,7 +52,7 @@ def main():
                 imgviz.io.imsave(rgb_file, rgb)
             self._i += 1
 
-    env = GraspWithIntentEnv(
+    env = PickAndPlaceEnv(
         gui=not args.nogui, retime=retime, step_callback=StepCallback()
     )
     env.eval = True

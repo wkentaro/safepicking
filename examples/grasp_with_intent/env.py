@@ -18,7 +18,7 @@ import mercury
 home = path.Path("~").expanduser()
 
 
-class GraspWithIntentEnv(Env):
+class PickAndPlaceEnv(Env):
 
     # parameters
     IMAGE_HEIGHT = 240

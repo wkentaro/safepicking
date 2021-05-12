@@ -4,14 +4,14 @@ from loguru import logger
 import path
 
 from agent import DqnAgent
-from env import GraspWithIntentEnv
+from env import PickAndPlaceEnv
 
 
 home = path.Path("~").expanduser()
 
 
 def main():
-    env = GraspWithIntentEnv()
+    env = PickAndPlaceEnv()
     obs = env.reset()
 
     agent = DqnAgent(env=env, model="rgb", imshow=False)

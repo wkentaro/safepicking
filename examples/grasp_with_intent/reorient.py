@@ -15,7 +15,7 @@ import mercury
 
 import _open3d
 import common_utils
-from env import GraspWithIntentEnv
+from env import PickAndPlaceEnv
 
 
 def visualize(
@@ -405,7 +405,7 @@ def main():
     parser.add_argument("--pause", action="store_true", help="pause")
     args = parser.parse_args()
 
-    env = GraspWithIntentEnv()
+    env = PickAndPlaceEnv()
     env.random_state = np.random.RandomState(args.seed)
     env.reset(
         pile_file="/home/wkentaro/data/mercury/pile_generation/00001000.npz"

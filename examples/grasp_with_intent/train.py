@@ -24,7 +24,7 @@ from yarr.utils.stat_accumulator import SimpleAccumulator
 
 from agent import DqnAgent
 import common_utils
-from env import GraspWithIntentEnv
+from env import PickAndPlaceEnv
 from rollout_generator import RolloutGenerator
 
 
@@ -98,7 +98,7 @@ def main():
     # Setup env
     ###################
 
-    env = GraspWithIntentEnv(gui=False)
+    env = PickAndPlaceEnv(gui=False)
 
     # Setup replay buffer
     #####################
