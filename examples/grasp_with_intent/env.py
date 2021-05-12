@@ -195,6 +195,12 @@ class PickAndPlaceEnv(Env):
         self.object_ids = object_ids
         self.fg_object_id = self.random_state.choice(fg_object_ids)
 
+        pp.draw_aabb(
+            pp.get_aabb(self.fg_object_id),
+            color=(1, 0, 0),
+            width=2,
+        )
+
         self.bin = mercury.pybullet.create_bin(*self.BIN_EXTENTS)
         pp.set_pose(self.bin, self.BIN_POSE)
 
