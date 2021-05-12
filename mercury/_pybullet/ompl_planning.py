@@ -1,3 +1,4 @@
+import itertools
 import os.path as osp
 import sys
 
@@ -37,22 +38,63 @@ class pbValidityChecker(ob.StateValidityChecker):
             )
 
     def check_self_collision(self):
-        # TODO(wkentaro)
-        return True
+        is_colliding = False
+
+        links = pp.get_links(self.ri.robot)
+        for link_a, link_b in itertools.combinations(links, 2):
+            assert link_b > link_a
+            if link_b - link_a == 1:
+                continue
+            if link_a == 6 and link_b == 8:
+                continue
+            is_colliding |= (
+                len(
+                    p.getClosestPoints(
+                        bodyA=self.ri.robot,
+                        linkIndexA=link_a,
+                        bodyB=self.ri.robot,
+                        linkIndexB=link_b,
+                        distance=0,
+                    )
+                )
+                > 0
+            )
+
+        for attachment in self.ri.attachments:
+            assert attachment.parent == self.ri.robot
+            min_distance = self.min_distances.get((attachment.child, -1), 0)
+            for link in links:
+                if link == attachment.parent_link:
+                    continue
+                is_colliding |= (
+                    len(
+                        p.getClosestPoints(
+                            bodyA=attachment.child,
+                            linkIndexA=-1,
+                            bodyB=self.ri.robot,
+                            linkIndexB=link,
+                            distance=min_distance,
+                        )
+                    )
+                    > 0
+                )
+
+        return not is_colliding
 
     def check_collision(self, ids_to_check):
         if len(ids_to_check) == 0:
             return True
 
         is_colliding = False
+
         for link in pp.get_links(self.ri.robot):
             min_distance = self.min_distances.get((self.ri.robot, link), 0)
             is_colliding |= (
                 len(
                     p.getClosestPoints(
                         bodyA=self.ri.robot,
-                        bodyB=ids_to_check[-1],
                         linkIndexA=link,
+                        bodyB=ids_to_check[-1],
                         linkIndexB=-1,
                         distance=min_distance,
                     )

@@ -66,21 +66,13 @@ def main():
     j2 = ri.solve_ik(c2.pose)
 
     while True:
-        traj = ri.planj(
-            j1,
-            obstacles=obstacles,
-            min_distances={(ri.robot, ri.ee): 0.1},
-        )
+        traj = ri.planj(j1, obstacles=obstacles)
         for j in traj:
             for _ in ri.movej(j):
                 p.stepSimulation()
                 time.sleep(1 / 240)
 
-        traj = ri.planj(
-            j2,
-            obstacles=obstacles,
-            min_distances={(ri.attachments[0].child, -1): 0.1},
-        )
+        traj = ri.planj(j2, obstacles=obstacles)
         for j in traj:
             for _ in ri.movej(j):
                 p.stepSimulation()
