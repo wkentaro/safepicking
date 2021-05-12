@@ -321,7 +321,7 @@ def rollout_plan_reorient(env):
 def main():
     env = PickAndPlaceEnv()
     env.random_state = np.random.RandomState(5)
-    env.reset()
+    env.reset(pile_file=env.PILES_DIR / "00001000.npz")
 
     results = rollout_plan_reorient(env)
 

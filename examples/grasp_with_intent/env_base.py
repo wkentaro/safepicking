@@ -68,14 +68,12 @@ class EnvBase(Env):
     def reset(self, pile_file=None):
         raise_on_failure = pile_file is not None
 
-        # if pile_file is None:
-        #     if self.eval:
-        #         i = self.random_state.choice(self.PILE_EVAL_IDS)
-        #     else:
-        #         i = self.random_state.choice(self.PILE_TRAIN_IDS)
-        #     pile_file = self.PILES_DIR / f"{i:08d}.npz"
-        assert pile_file is None
-        pile_file = self.PILES_DIR / "00001000.npz"
+        if pile_file is None:
+            if self.eval:
+                i = self.random_state.choice(self.PILE_EVAL_IDS)
+            else:
+                i = self.random_state.choice(self.PILE_TRAIN_IDS)
+            pile_file = self.PILES_DIR / f"{i:08d}.npz"
 
         if not pp.is_connected():
             pp.connect(use_gui=self._gui)
