@@ -24,7 +24,7 @@ from yarr.utils.stat_accumulator import SimpleAccumulator
 
 from agent import DqnAgent
 import common_utils
-from env import PickAndPlaceEnv
+from pick_and_place_env import PickAndPlaceEnv
 from rollout_generator import RolloutGenerator
 
 

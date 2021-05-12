@@ -10,7 +10,7 @@ import path
 import mercury
 
 from agent import DqnAgent
-from env import PickAndPlaceEnv
+from pick_and_place_env import PickAndPlaceEnv
 
 
 here = path.Path(__file__).abspath().parent

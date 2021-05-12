@@ -15,7 +15,7 @@ import mercury
 
 import _open3d
 import common_utils
-from env import PickAndPlaceEnv
+from pick_and_place_env import PickAndPlaceEnv
 
 
 def visualize(

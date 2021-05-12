@@ -4,7 +4,7 @@ from loguru import logger
 import path
 
 from agent import DqnAgent
-from env import PickAndPlaceEnv
+from pick_and_place_env import PickAndPlaceEnv
 
 
 home = path.Path("~").expanduser()
