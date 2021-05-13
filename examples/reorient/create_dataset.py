@@ -16,7 +16,7 @@ def main():
     env.random_state = np.random.RandomState(5)
     env.reset(pile_file=env.PILES_DIR / "00001000.npz")
 
-    for i, result in enumerate(rollout_plan_reorient(env)):
+    for i, result in enumerate(rollout_plan_reorient(env, return_failed=True)):
         npz_file = home / f"data/mercury/reorient/00001000/seed5/{i:08d}.npz"
         npz_file.parent.makedirs_p()
         np.savez_compressed(
@@ -24,7 +24,7 @@ def main():
             **dict(
                 grasp_pose=np.hstack(result["c_grasp"].pose),
                 reorient_pose=np.hstack(result["c_reorient"].pose),
-                js_place_length=result["js_place_length"],
+                js_place_length=result.get("js_place_length"),
             ),
         )
         logger.info(f"Saved to: {npz_file}")

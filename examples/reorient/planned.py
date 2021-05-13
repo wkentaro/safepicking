@@ -248,13 +248,12 @@ def plan_reorient(env, c_grasp, c_reorient):
 
     before_return()
 
-    success = "js_place" in result
-    if success:
+    if "js_place" in result:
         logger.success("Found the solution for reorientation")
     else:
         logger.error("Cannot find the solution for reorientation")
 
-    return success, result
+    return result
 
 
 def execute_plan(env, result):
@@ -283,7 +282,7 @@ def execute_plan(env, result):
         time.sleep(pp.get_time_step())
 
 
-def rollout_plan_reorient(env):
+def rollout_plan_reorient(env, return_failed=False):
     for c_reorient in get_reorient_poses(env):
         for c_grasp in itertools.islice(get_grasp_poses(env), 3):
             obj_af = mercury.pybullet.duplicate(
@@ -295,22 +294,23 @@ def rollout_plan_reorient(env):
                 quaternion=c_reorient.quaternion,
             )
 
-            success, result = plan_reorient(
-                env, c_grasp=c_grasp, c_reorient=c_reorient
-            )
+            result = plan_reorient(env, c_grasp=c_grasp, c_reorient=c_reorient)
+            success = "js_place" in result
 
             pp.remove_body(obj_af)
 
+            result["c_grasp"] = c_grasp
+            result["c_reorient"] = c_reorient
+            result["js_place_length"] = 0
+
             if success:
-                result["c_grasp"] = c_grasp
-                result["c_reorient"] = c_reorient
-                result["js_place_length"] = 0
                 j_prev = None
                 for j in result["js_place"]:
                     if j_prev is not None:
                         result["js_place_length"] += np.linalg.norm(j_prev - j)
                     j_prev = j
 
+            if return_failed or success:
                 yield result
 
 
