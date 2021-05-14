@@ -61,7 +61,7 @@ def get_query_ocs(env):
     return query_ocs, query_ocs_normal_ends
 
 
-def get_reorient_poses(env, num_delta=4, centroid=True):
+def get_reorient_poses(env, num_delta=4, num_sample=4, centroid=False):
     query_ocs, query_ocs_normal_ends = get_query_ocs(env)
 
     obj_to_world = pp.get_pose(env.fg_object_id)
@@ -77,11 +77,12 @@ def get_reorient_poses(env, num_delta=4, centroid=True):
     )
 
     if centroid:
+        assert num_sample == 1
         query_ocs_centroid = query_ocs.mean(axis=0)
         distances = np.linalg.norm(query_ocs - query_ocs_centroid, axis=1)
         indices = [np.argmin(distances)]
     else:
-        indices = env.random_state.permutation(query_ocs.shape[0])
+        indices = env.random_state.permutation(query_ocs.shape[0])[:num_sample]
 
     for i in indices:
         quaternion = mercury.geometry.quaternion_from_vec2vec(
@@ -299,9 +300,23 @@ def execute_plan(env, result):
         time.sleep(pp.get_time_step())
 
 
-def rollout_plan_reorient(env, return_failed=False):
-    for c_reorient in get_reorient_poses(env):
-        for c_grasp in itertools.islice(get_grasp_poses(env), 3):
+def rollout_plan_reorient(
+    env,
+    return_failed=False,
+    num_delta=4,
+    num_reorient_sample=4,
+    centroid=False,
+    num_grasp_sample=4,
+):
+    for c_reorient in get_reorient_poses(
+        env,
+        num_delta=num_delta,
+        num_sample=num_reorient_sample,
+        centroid=centroid,
+    ):
+        for c_grasp in itertools.islice(
+            get_grasp_poses(env), num_grasp_sample
+        ):
             obj_af = mercury.pybullet.duplicate(
                 env.fg_object_id,
                 collision=False,
