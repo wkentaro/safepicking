@@ -209,7 +209,11 @@ class PickAndPlaceEnv(EnvBase):
             return False, result
         result["j_pre_place"] = j
 
-        js = self.ri.planj(j, obstacles=[self.plane, self.bin])
+        js = self.ri.planj(
+            j,
+            obstacles=[self.plane, self.bin],
+            min_distances={(self.ri.attachments[0].child, -1): -0.01},
+        )
         if js is None:
             logger.error(
                 f"Failed to solve pre-placing path: {act_result.action}"
@@ -231,7 +235,11 @@ class PickAndPlaceEnv(EnvBase):
             return False, result
         result["j_place"] = j
 
-        js = self.ri.planj(j, obstacles=[self.plane, self.bin])
+        js = self.ri.planj(
+            j,
+            obstacles=[self.plane, self.bin],
+            min_distances={(self.ri.attachments[0].child, -1): -0.01},
+        )
         if js is None:
             logger.error(f"Failed to solve placing path: {act_result.action}")
             before_return()

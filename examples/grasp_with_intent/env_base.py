@@ -30,7 +30,7 @@ class EnvBase(Env):
     PILE_EVAL_IDS = np.arange(1000, 1200)
     PILE_POSITION = np.array([0.5, 0, 0])
 
-    c = mercury.geometry.Coordinate([0, 0.6, 0.6])
+    c = mercury.geometry.Coordinate([0, 0.8, 0.8])
     c.rotate([np.pi / 2, 0, 0])
     BIN_EXTENTS = (0.3, 0.4, 0.2)
     BIN_POSE = c.pose
@@ -38,7 +38,7 @@ class EnvBase(Env):
     CAMERA_POSITION = np.array([PILE_POSITION[0], PILE_POSITION[1], 0.7])
 
     PRE_PLACE_POSE = BIN_POSE[0] + (0, -0.3, 0), (0, 0, 0, 1)
-    PLACE_POSE = PRE_PLACE_POSE[0] + (0, 0.25, 0), PRE_PLACE_POSE[1]
+    PLACE_POSE = BIN_POSE[0], PRE_PLACE_POSE[1]
 
     def __init__(self, gui=True, retime=1, step_callback=None):
         super().__init__()

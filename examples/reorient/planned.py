@@ -6,6 +6,8 @@ import time
 from loguru import logger
 import numpy as np
 import pybullet_planning as pp
+import sklearn.neighbors
+from yarr.agents.agent import ActResult
 
 import mercury
 
@@ -18,7 +20,8 @@ def get_query_ocs(env):
         pp.set_pose(env.fg_object_id, env.PLACE_POSE)
 
         T_camera_to_world = mercury.geometry.look_at(
-            [0, 0.3, 0.6], [0, 0.6, 0.6]
+            env.BIN_POSE[0] + [0, -0.3, 0],
+            env.BIN_POSE[0],
         )
         fovy = np.deg2rad(60)
         height = 240
@@ -58,7 +61,7 @@ def get_query_ocs(env):
     return query_ocs, query_ocs_normal_ends
 
 
-def get_reorient_poses(env):
+def get_reorient_poses(env, num_delta=4, centroid=True):
     query_ocs, query_ocs_normal_ends = get_query_ocs(env)
 
     obj_to_world = pp.get_pose(env.fg_object_id)
@@ -73,7 +76,14 @@ def get_reorient_poses(env):
         env.PILE_POSITION + (0.2, 0.2, 0.4),
     )
 
-    for i in env.random_state.permutation(query_ocs.shape[0]):
+    if centroid:
+        query_ocs_centroid = query_ocs.mean(axis=0)
+        distances = np.linalg.norm(query_ocs - query_ocs_centroid, axis=1)
+        indices = [np.argmin(distances)]
+    else:
+        indices = env.random_state.permutation(query_ocs.shape[0])
+
+    for i in indices:
         quaternion = mercury.geometry.quaternion_from_vec2vec(
             v1=query_ocs_normal_ends[i] - query_ocs[i],
             v2=[0, 0, -1],
@@ -88,10 +98,10 @@ def get_reorient_poses(env):
         deltas = np.array(
             list(
                 itertools.product(
-                    np.linspace(-0.2, 0.2, 4),
-                    np.linspace(-0.2, 0.2, 4),
-                    np.linspace(-0.2, 0.2, 4),
-                    np.linspace(-np.pi, np.pi, 4),
+                    np.linspace(-0.2, 0.2, num_delta),
+                    np.linspace(-0.2, 0.2, num_delta),
+                    np.linspace(-0.2, 0.2, num_delta),
+                    np.linspace(-np.pi, np.pi, num_delta),
                 )
             )
         )
@@ -175,7 +185,7 @@ def plan_reorient(env, c_grasp, c_reorient):
     if j is None:
         logger.warning("j_grasp is not found")
         before_return()
-        return False, result
+        return result
     result["j_grasp"] = j
 
     env.ri.setj(result["j_grasp"])
@@ -197,7 +207,7 @@ def plan_reorient(env, c_grasp, c_reorient):
     if j is None:
         logger.warning("j_place is not found")
         before_return()
-        return False, result
+        return result
     result["j_place"] = j
     env.ri.attachments = []
 
@@ -213,7 +223,7 @@ def plan_reorient(env, c_grasp, c_reorient):
     if j is None:
         logger.warning("js_grasp is not found")
         before_return()
-        return False, result
+        return result
     result["js_grasp"] = js
     result["j_pre_grasp"] = js[0]
 
@@ -226,7 +236,7 @@ def plan_reorient(env, c_grasp, c_reorient):
     if js is None:
         logger.warning("js_pre_grasp is not found")
         before_return()
-        return False, result
+        return result
     result["js_pre_grasp"] = js
 
     env.ri.setj(result["j_grasp"])
@@ -243,12 +253,19 @@ def plan_reorient(env, c_grasp, c_reorient):
     if js is None:
         logger.warning("js_place is not found")
         before_return()
-        return False, result
+        return result
     result["js_place"] = js
+
+    result["js_place_length"] = 0
+    j_prev = None
+    for j in result["js_place"]:
+        if j_prev is not None:
+            result["js_place_length"] += np.linalg.norm(j_prev - j)
+        j_prev = j
 
     before_return()
 
-    if "js_place" in result:
+    if "js_place_length" in result:
         logger.success("Found the solution for reorientation")
     else:
         logger.error("Cannot find the solution for reorientation")
@@ -295,23 +312,56 @@ def rollout_plan_reorient(env, return_failed=False):
             )
 
             result = plan_reorient(env, c_grasp=c_grasp, c_reorient=c_reorient)
-            success = "js_place" in result
+            success = "js_place_length" in result
 
             pp.remove_body(obj_af)
 
             result["c_grasp"] = c_grasp
             result["c_reorient"] = c_reorient
-            result["js_place_length"] = 0
-
-            if success:
-                j_prev = None
-                for j in result["js_place"]:
-                    if j_prev is not None:
-                        result["js_place_length"] += np.linalg.norm(j_prev - j)
-                    j_prev = j
 
             if return_failed or success:
                 yield result
+
+
+def plan_and_execute_place(env):
+    env.setj_to_camera_pose()
+    env.update_obs()
+
+    ocs = env.obs["ocs"].transpose(1, 2, 0)
+    fg_mask = env.obs["fg_mask"]
+
+    query_ocs, _ = get_query_ocs(env)
+    kdtree = sklearn.neighbors.KDTree(ocs.reshape(-1, 3))
+    distances, indices = kdtree.query(query_ocs)
+    a_flattens = indices[
+        (fg_mask.flatten()[indices] == 1) & (distances < 0.01)
+    ]
+
+    a_flattens = np.unique(a_flattens)
+    env.random_state.shuffle(a_flattens)
+
+    if 0:
+        obj_to_world = pp.get_pose(env.fg_object_id)
+        for a_flatten in a_flattens:
+            action = (a_flatten // ocs.shape[1], a_flatten % ocs.shape[1])
+            point = ocs[action[0], action[1]]
+            point = mercury.geometry.transform_points(
+                [point], mercury.geometry.transformation_matrix(*obj_to_world)
+            )[0]
+            pp.draw_point(point, color=(0, 1, 0, 1))
+
+    for a_flatten in a_flattens:
+        action = (a_flatten // ocs.shape[1], a_flatten % ocs.shape[1])
+        act_result = ActResult(action)
+        is_valid, validation_result = env.validate_action(act_result)
+        if is_valid:
+            act_result.validation_result = validation_result
+            break
+    else:
+        logger.error("No valid actions")
+        return
+
+    env.step(act_result)
 
 
 def main():
@@ -320,9 +370,10 @@ def main():
     env.reset(pile_file=env.PILES_DIR / "00001000.npz")
 
     results = itertools.islice(rollout_plan_reorient(env), 10)
-
-    result, _ = min(results, key=lambda x: x["js_place_length"])
+    result = min(results, key=lambda x: x["js_place_length"])
     execute_plan(env, result)
+
+    plan_and_execute_place(env)
 
 
 if __name__ == "__main__":
