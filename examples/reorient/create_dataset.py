@@ -35,7 +35,7 @@ def main():
             break
 
         if "js_place_length" in result:
-            with pp.LockRenderer(), pp.WorldSaver():
+            with pp.WorldSaver():
                 pp.set_pose(env.fg_object_id, result["c_reorient"].pose)
                 for _ in range(int(1 / pp.get_time_step())):
                     pp.step_simulation()
@@ -53,7 +53,9 @@ def main():
             query = mercury.geometry.transform_points(
                 pcd, mercury.geometry.quaternion_matrix(pose_actual[1])
             )
-            auc = mercury.geometry.average_distance_auc(reference, query)
+            auc = mercury.geometry.average_distance_auc(
+                reference, query, max_threshold=0.1
+            )
         else:
             auc = np.nan
 
