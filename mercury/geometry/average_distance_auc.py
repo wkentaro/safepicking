@@ -21,6 +21,8 @@ def average_distance_auc(
         plt.hist(distances)
         plt.subplot(122)
         plt.plot(x, y)
+        plt.xlim(0, max_threshold)
+        plt.ylim(0, 1)
         plt.show()
 
     return auc
