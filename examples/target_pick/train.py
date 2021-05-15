@@ -72,7 +72,7 @@ def main():
     )
     parser.add_argument(
         "--reward",
-        choices=["completion_shaped", "completion", "sum_of_velocities"],
+        choices=["completion_shaped", "completion", "max_velocities"],
         default="completion_shaped",
         help="reward",
     )

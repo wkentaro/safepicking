@@ -48,7 +48,7 @@ class PickFromPileEnv(Env):
         self._easy = easy
         self._suction_max_force = suction_max_force
 
-        if reward == "sum_of_velocities":
+        if reward == "max_velocities":
             assert suction_max_force is None
         else:
             assert reward in ["completion", "completion_shaped"]
@@ -432,7 +432,7 @@ class PickFromPileEnv(Env):
 
         return self.ri.solve_ik(c.pose)
 
-    def step(self, act_result, step_callback=None):
+    def step(self, act_result):
         if hasattr(act_result, "j"):
             j = act_result.j
         else:
@@ -441,17 +441,20 @@ class PickFromPileEnv(Env):
         if j is None:
             logger.error("failed to solve IK")
             return Transition(
-                observation=self.get_obs(), reward=0, terminal=True
+                observation=self.get_obs(),
+                reward=0,
+                terminal=True,
+                info=dict(max_velocities=None),
             )
 
-        velocities = {}
+        max_velocities = {}
 
         def step_callback():
             for object_id in self.object_ids:
                 if object_id == self.target_object_id:
                     continue
-                velocities[object_id] = max(
-                    velocities.get(object_id, 0),
+                max_velocities[object_id] = max(
+                    max_velocities.get(object_id, 0),
                     np.linalg.norm(pp.get_velocity(object_id)[0]),
                 )
 
@@ -482,11 +485,11 @@ class PickFromPileEnv(Env):
                 if self._reward == "completion_shaped":
                     reward = self.i * 0.2 * self.ri.gripper.check_grasp()
                 else:
-                    assert self._reward in ["completion", "sum_of_velocities"]
+                    assert self._reward in ["completion", "max_velocities"]
             terminal = False
 
-        if self._reward == "sum_of_velocities":
-            reward = -sum(velocities.values())
+        if self._reward == "max_velocities":
+            reward = -sum(max_velocities.values())
         else:
             assert self._reward in ["completion_shaped", "completion"]
 
@@ -504,5 +507,8 @@ class PickFromPileEnv(Env):
         ]
 
         return Transition(
-            observation=self.get_obs(), reward=reward, terminal=terminal
+            observation=self.get_obs(),
+            reward=reward,
+            terminal=terminal,
+            info=dict(max_velocities=max_velocities),
         )

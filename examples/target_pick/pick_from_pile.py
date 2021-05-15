@@ -116,7 +116,7 @@ def main():
     json_file.parent.makedirs_p()
     with open(json_file, "w") as f:
         json.dump(data, f, indent=2)
-    logger.info(f"saved to: {json_file}")
+    logger.info(f"Saved to: {json_file}")
 
 
 if __name__ == "__main__":
