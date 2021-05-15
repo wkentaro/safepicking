@@ -6,6 +6,7 @@ import time
 
 from loguru import logger
 import numpy as np
+import path
 import torch
 
 import mercury
@@ -41,9 +42,9 @@ def main():
 
     model = Model()
     model.cuda()
-    model.load_state_dict(
-        torch.load("logs/test/model_best-epoch_0219-eval_loss_0.342.pth")
-    )
+    model_file = sorted(path.Path("logs/test").glob("*.pth"))[-1]
+    logger.info(f"Loading {model_file}")
+    model.load_state_dict(torch.load(model_file))
     model.eval()
 
     t_start = time.time()
@@ -63,24 +64,43 @@ def main():
         N = len(reorient_pose)
         success_pred = np.full(N, np.nan)
         length_pred = np.full(N, np.nan)
+        auc_pred = np.full(N, np.nan)
         indices = np.arange(N)
     else:
         with torch.no_grad():
-            success_pred, length_pred = model(
+            success_pred, length_pred, auc_pred = model(
                 grasp_pose=torch.as_tensor(grasp_pose).cuda(),
                 reorient_pose=torch.as_tensor(reorient_pose).cuda(),
             )
         success_pred = success_pred.cpu().numpy()
-        length_pred = length_pred.cpu().numpy()
-        indices = np.argsort(length_pred)
+        length_pred = (
+            length_pred.cpu().numpy() * Dataset.JS_PLACE_LENGTH_SCALING
+        )
+        auc_pred = auc_pred.cpu().numpy()
+
+        keep = success_pred > 0.6
+
+        success_pred = success_pred[keep]
+        length_pred = length_pred[keep]
+        auc_pred = auc_pred[keep]
+
+        grasp_pose = grasp_pose[keep]
+        reorient_pose = reorient_pose[keep]
+
+        length_pred_normalized = (
+            length_pred - length_pred.mean()
+        ) / length_pred.std()
+        auc_pred_normalized = (auc_pred - auc_pred.mean()) / auc_pred.std()
+
+        metric = length_pred_normalized - auc_pred_normalized
+        indices = np.argsort(metric)
 
     results = []
     for index in indices[: args.num_sample]:
-        if success_pred[index] < 0.6:
-            continue
         logger.info(
             f"success_pred={success_pred[index]:.1%}, "
-            f"length_pred={length_pred[index] * Dataset.SCALING:.2f}"
+            f"length_pred={length_pred[index]:.2f}, "
+            f"auc_pred={auc_pred[index]:.2f}, "
         )
         c_grasp = mercury.geometry.Coordinate(
             grasp_pose[index, :3], grasp_pose[index, 3:]

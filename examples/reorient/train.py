@@ -33,23 +33,28 @@ class Model(torch.nn.Module):
             torch.nn.Linear(32, 1),
             torch.nn.Sigmoid(),
         )
+        self.fc_auc = torch.nn.Sequential(
+            torch.nn.Linear(32, 1),
+            torch.nn.Sigmoid(),
+        )
 
     def forward(self, grasp_pose, reorient_pose):
         h = torch.cat([grasp_pose, reorient_pose], dim=1)
         h = self.features(h)
         fc_success = self.fc_success(h)[:, 0]
         fc_length = self.fc_length(h)[:, 0]
-        return fc_length, fc_success
+        fc_auc = self.fc_auc(h)[:, 0]
+        return fc_success, fc_length, fc_auc
 
 
 class Dataset(torch.utils.data.Dataset):
 
-    ROOT_DIR = home / "data/mercury/reorient/00001000/seed5"
+    ROOT_DIR = home / "data/mercury/reorient/00001000"
 
-    TRAIN_SIZE = 4000
-    EVAL_SIZE = 1000
+    TRAIN_SIZE = 8000
+    EVAL_SIZE = 2000
 
-    SCALING = 10
+    JS_PLACE_LENGTH_SCALING = 12
 
     def __init__(self, split):
         self._split = split
@@ -65,15 +70,19 @@ class Dataset(torch.utils.data.Dataset):
     def __getitem__(self, i):
         if self._split == "val":
             i += self.TRAIN_SIZE
-        data = np.load(self.ROOT_DIR / f"{i:08d}.npz")
-        assert 0 <= data["js_place_length"] <= self.SCALING, data[
-            "js_place_length"
-        ]
+        data = np.load(self.ROOT_DIR / f"0005_{i:04d}.npz")
+        success = ~np.isnan(data["js_place_length"])
+        if success:
+            assert (
+                0 <= data["js_place_length"] <= self.JS_PLACE_LENGTH_SCALING
+            ), data["js_place_length"]
         return dict(
             grasp_pose=data["grasp_pose"],
             reorient_pose=data["reorient_pose"],
-            js_place_length=data["js_place_length"] / self.SCALING,
-            success=data["js_place_length"] != 0,
+            js_place_length=data["js_place_length"]
+            / self.JS_PLACE_LENGTH_SCALING,
+            auc=data["auc"],
+            success=success,
         )
 
 
@@ -108,12 +117,13 @@ def main():
             for batch in tqdm.tqdm(
                 loader_train, desc="Train loop", leave=False
             ):
-                success_pred, length_pred = model(
+                success_pred, length_pred, auc_pred = model(
                     grasp_pose=batch["grasp_pose"].float().cuda(),
                     reorient_pose=batch["reorient_pose"].float().cuda(),
                 )
                 length_true = batch["js_place_length"].float().cuda()
                 success_true = batch["success"].cuda()
+                auc_true = batch["auc"].float().cuda()
 
                 optimizer.zero_grad()
 
@@ -123,7 +133,10 @@ def main():
                 loss_length = torch.nn.functional.smooth_l1_loss(
                     length_pred[success_true], length_true[success_true]
                 )
-                loss = loss_success + loss_length
+                loss_auc = torch.nn.functional.smooth_l1_loss(
+                    auc_pred[success_true], auc_true[success_true]
+                )
+                loss = loss_success + loss_length + loss_auc
                 loss.backward()
 
                 optimizer.step()
@@ -135,12 +148,13 @@ def main():
                 for batch in tqdm.tqdm(
                     loader_val, desc="Val loop", leave=False
                 ):
-                    success_pred, length_pred = model(
+                    success_pred, length_pred, auc_pred = model(
                         grasp_pose=batch["grasp_pose"].float().cuda(),
                         reorient_pose=batch["reorient_pose"].float().cuda(),
                     )
                     length_true = batch["js_place_length"].float().cuda()
                     success_true = batch["success"].cuda()
+                    auc_true = batch["auc"].float().cuda()
 
                     loss_success = torch.nn.functional.binary_cross_entropy(
                         success_pred, success_true.float()
@@ -148,7 +162,10 @@ def main():
                     loss_length = torch.nn.functional.smooth_l1_loss(
                         length_pred[success_true], length_true[success_true]
                     )
-                    loss = loss_success + loss_length
+                    loss_auc = torch.nn.functional.smooth_l1_loss(
+                        auc_pred[success_true], auc_true[success_true]
+                    )
+                    loss = loss_success + loss_length + loss_auc
 
                     losses.append(loss.item())
             eval_loss = np.mean(losses)
@@ -156,8 +173,7 @@ def main():
             if eval_loss < eval_loss_min:
                 torch.save(
                     model.state_dict(),
-                    log_dir
-                    / f"model_best-epoch_{epoch:04d}-eval_loss_{eval_loss:.3f}.pth",  # NOQA
+                    log_dir / f"model_best-epoch_{epoch:04d}.pth",
                 )
                 eval_loss_min = eval_loss
 
