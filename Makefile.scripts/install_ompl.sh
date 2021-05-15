@@ -29,5 +29,5 @@ cd ompl
 mkdir -p build
 cd build
 cmake .. -DOMPL_BUILD_PYBINDINGS=TRUE
-make -j update_bindings
-make -j
+make -j4 update_bindings
+make -j4
