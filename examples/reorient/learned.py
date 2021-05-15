@@ -27,6 +27,7 @@ def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+    parser.add_argument("log_dir", type=path.Path, help="log dir")
     parser.add_argument("--pause", action="store_true", help="pause")
     parser.add_argument("--nolearning", action="store_true", help="nolearning")
     parser.add_argument(
@@ -42,7 +43,7 @@ def main():
 
     model = Model()
     model.cuda()
-    model_file = sorted(path.Path("logs/test").glob("*.pth"))[-1]
+    model_file = sorted(args.log_dir.glob("model_best-epoch_*.pth"))[-1]
     logger.info(f"Loading {model_file}")
     model.load_state_dict(torch.load(model_file))
     model.eval()

@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 
 import collections
+import datetime
 
 import numpy as np
 import path
+import pytz
 import torch
 import tqdm
 
@@ -101,7 +103,8 @@ def main():
 
     optimizer = torch.optim.Adam(params=model.parameters(), lr=1e-3)
 
-    log_dir = here / "logs/test"
+    now = datetime.datetime.now(pytz.timezone("Asia/Tokyo"))
+    log_dir = here / "logs" / now.strftime("%Y%m%d_%H%M%S.%f")
     log_dir.makedirs_p()
 
     eval_loss_min = np.inf
