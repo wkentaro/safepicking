@@ -32,6 +32,12 @@ def main():
     parser.add_argument("--seed", type=int, default=0, help="random seed")
     parser.add_argument("--nogui", action="store_true", help="no gui")
     parser.add_argument("--force", action="store_true", help="force")
+    parser.add_argument(
+        "--suction-max-force",
+        type=lambda x: None if x.lower() == "none" else float(x),
+        default=10,
+        help="suction max force",
+    )
     args = parser.parse_args()
 
     log_dir = here / f"logs/{args.planner}"
@@ -46,7 +52,10 @@ def main():
         return
 
     env = PickFromPileEnv(
-        gui=not args.nogui, planner=args.planner, pose_noise=args.pose_noise
+        gui=not args.nogui,
+        planner=args.planner,
+        pose_noise=args.pose_noise,
+        suction_max_force=args.suction_max_force,
     )
     env.eval = True
     obs = env.reset(
@@ -73,18 +82,19 @@ def main():
             timeout=30,
         )
 
-    velocities = {}
+    max_velocities = {}
     for _ in steps:
         p.stepSimulation()
-        ri.step_simulation()
+        if args.suction_max_force is not None:
+            ri.step_simulation()
         if not args.nogui:
             time.sleep(1 / 240)
 
         for object_id in object_ids:
             if object_id == target_object_id:
                 continue
-            velocities[object_id] = max(
-                velocities.get(object_id, 0),
+            max_velocities[object_id] = max(
+                max_velocities.get(object_id, 0),
                 np.linalg.norm(pp.get_velocity(object_id)[0]),
             )
 
@@ -100,17 +110,17 @@ def main():
         logger.info(
             f"object_id={object_id}, "
             f"class_id={common_utils.get_class_id(object_id):02d}, "
-            f"velocity={velocities[object_id]:.3f}"
+            f"max_velocity={max_velocities[object_id]:.3f}"
         )
-    logger.info(f"sum_of_velocities: {sum(velocities.values()):.3f}")
+    logger.info(f"sum_of_max_velocities: {sum(max_velocities.values()):.3f}")
 
     data = dict(
         planner=args.planner,
         scene_id=scene_id,
         seed=args.seed,
         success=success,
-        velocities=list(velocities.values()),
-        sum_of_velocities=sum(velocities.values()),
+        max_velocities=list(max_velocities.values()),
+        sum_of_max_velocities=sum(max_velocities.values()),
     )
 
     json_file.parent.makedirs_p()

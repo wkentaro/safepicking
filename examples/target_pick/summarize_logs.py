@@ -15,7 +15,7 @@ def main():
     args = parser.parse_args()
 
     success = []
-    sum_of_velocities = []
+    sum_of_max_velocities = []
     for scene_dir in sorted(args.log_dir.listdir()):
         assert scene_dir.isdir()
         for result_file in scene_dir.listdir():
@@ -23,15 +23,18 @@ def main():
             with open(result_file) as f:
                 data = json.load(f)
             success.append(data["success"])
-            sum_of_velocities.append(data["sum_of_velocities"])
+            sum_of_max_velocities.append(data["sum_of_max_velocities"])
     success = np.array(success, dtype=bool)
-    sum_of_velocities = np.array(sum_of_velocities, dtype=float)
+    sum_of_max_velocities = np.array(sum_of_max_velocities, dtype=float)
 
     print(f"Log dir: {args.log_dir}")
     print(f"Success: {success.mean():.1%} ({success.sum()} / {success.size})")
-    print(f"Unsafety (all): {sum_of_velocities.mean():.2f}")
-    print(f"Unsafety (success): {sum_of_velocities[success].mean():.2f}")
-    print(f"Unsafety (failure): {sum_of_velocities[~success].mean():.2f}")
+    print(f"Unsafety (all): {sum_of_max_velocities.mean():.2f}")
+    print(f"Unsafety (success): {sum_of_max_velocities[success].mean():.2f}")
+    if not success.all():
+        print(
+            f"Unsafety (failure): {sum_of_max_velocities[~success].mean():.2f}"
+        )
 
 
 if __name__ == "__main__":
