@@ -35,9 +35,9 @@ class PickFromPileEnv(Env):
         planner="RRTConnect",
         pose_noise=False,
         easy=False,
-        action="XYzABG",
-        suction_max_force=10,
-        reward="completion_shaped",
+        suction_max_force=None,
+        reward="max_velocities",
+        action_discretization=3,
     ):
         super().__init__()
 
@@ -57,47 +57,26 @@ class PickFromPileEnv(Env):
         self.plane = None
         self.ri = None
 
-        dpos = 0.05
-        drot = np.deg2rad(15)
+        dpos = 0.4 / 8
+        drot = np.deg2rad(120 / 8)
+        num = action_discretization
+        dx_options = np.linspace(-dpos, dpos, num=num)
+        dy_options = np.linspace(-dpos, dpos, num=num)
+        dz_options = np.linspace(-dpos, dpos, num=num)
+        da_options = np.linspace(-drot, drot, num=num)
+        db_options = np.linspace(-drot, drot, num=num)
+        dg_options = np.linspace(-drot, drot, num=num)
 
-        dx_options = [0, dpos, -dpos]
-        dy_options = [0, dpos, -dpos]
-        dz_options = [0, dpos, -dpos]
-        da_options = [0, drot, -drot]
-        db_options = [0, drot, -drot]
-        dg_options = [0, drot, -drot]
-        if action == "XYZABG":
-            pass
-        elif action == "XYz'ABG":
-            dz_options = [0, dpos / 2]
-        elif action == "XYzABG":
-            dz_options = [dpos / 2]
-        elif action == "XYz'":
-            dz_options = [0, dpos / 2]
-            da_options = [0]
-            db_options = [0]
-            dg_options = [0]
-        elif action == "XYz":
-            dz_options = [dpos / 2]
-            da_options = [0]
-            db_options = [0]
-            dg_options = [0]
-        elif action == "XY":
-            dz_options = [0]
-            da_options = [0]
-            db_options = [0]
-            dg_options = [0]
-        else:
-            raise ValueError
-
-        actions = []
-        for dx in dx_options:
-            for dy in dy_options:
-                for dz in dz_options:
-                    for da in da_options:
-                        for db in db_options:
-                            for dg in dg_options:
-                                actions.append([dx, dy, dz, da, db, dg])
+        actions = list(
+            itertools.product(
+                dx_options,
+                dy_options,
+                dz_options,
+                da_options,
+                db_options,
+                dg_options,
+            )
+        )
         self.actions = actions
 
         grasp_pose = gym.spaces.Box(

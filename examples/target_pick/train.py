@@ -59,22 +59,22 @@ def main():
     parser.add_argument("--device", default="cuda:0", help="device")
     parser.add_argument("--easy", action="store_true", help="easy")
     parser.add_argument(
-        "--action",
-        choices=["XYzABG", "XYZABG", "XYz'ABG", "XYz", "XYz'", "XY"],
-        default="XYzABG",
-        help="action",
-    )
-    parser.add_argument(
         "--suction-max-force",
-        type=lambda x: None if x.lower() == "none" else float(x),
-        default=10,
+        type=float,
+        default=None,
         help="suction max force",
     )
     parser.add_argument(
         "--reward",
         choices=["completion_shaped", "completion", "max_velocities"],
-        default="completion_shaped",
+        default="max_velocities",
         help="reward",
+    )
+    parser.add_argument(
+        "--action-discretization",
+        type=int,
+        default=3,
+        help="action discretization",
     )
     args = parser.parse_args()
 
@@ -112,9 +112,9 @@ def main():
         gui=False,
         pose_noise=hparams["pose_noise"],
         easy=hparams["easy"],
-        action=hparams["action"],
         suction_max_force=hparams["suction_max_force"],
         reward=hparams["reward"],
+        action_discretization=hparams["action_discretization"],
     )
 
     # Setup replay buffer
