@@ -327,7 +327,8 @@ class PickFromPileEnv(Env):
 
             for _ in range(int(round(1 / pp.get_time_step()))):
                 p.stepSimulation()
-                self.ri.step_simulation()
+                if self._suction_max_force is not None:
+                    self.ri.step_simulation()
                 if self._gui:
                     time.sleep(pp.get_time_step() / self._retime)
 
@@ -460,7 +461,8 @@ class PickFromPileEnv(Env):
 
         for _ in self.ri.movej(j, speed=0.001):
             p.stepSimulation()
-            self.ri.step_simulation()
+            if self._suction_max_force is not None:
+                self.ri.step_simulation()
             if step_callback:
                 step_callback()
             if self._gui:
@@ -471,7 +473,8 @@ class PickFromPileEnv(Env):
         if self.i == 5:
             for _ in self.ri.movej(self.ri.homej, speed=0.001, timeout=30):
                 p.stepSimulation()
-                self.ri.step_simulation()
+                if self._suction_max_force is not None:
+                    self.ri.step_simulation()
                 if step_callback:
                     step_callback()
                 if self._gui:
