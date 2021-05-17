@@ -113,7 +113,7 @@ def get_reorient_poses(
             deltas = env.random_state.uniform(
                 [-0.1, -0.1, -0.1, -np.pi],
                 [0.1, 0.1, 0.1, np.pi],
-                size=(4 ** 4, 4),
+                size=(num_delta ** 4, 4),
             )
         for dx, dy, dz, dg in deltas[
             env.random_state.permutation(deltas.shape[0])
