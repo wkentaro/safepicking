@@ -113,7 +113,8 @@ def main():
         if "js_place_length" in result:
             results.append(result)
             if args.num_sample < 0:
-                break
+                if len(results) == abs(args.num_sample):
+                    break
     result = min(results, key=lambda x: x["js_place_length"])
     logger.info(f"length_true={result['js_place_length']:.2f}")
 
