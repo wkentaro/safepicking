@@ -7,6 +7,7 @@ import time
 from loguru import logger
 import numpy as np
 import path
+import pybullet_planning as pp
 import torch
 
 import mercury
@@ -28,6 +29,7 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("log_dir", type=path.Path, help="log dir")
+    parser.add_argument("--seed", type=int, default=0, help="seed")
     parser.add_argument("--pause", action="store_true", help="pause")
     parser.add_argument("--nolearning", action="store_true", help="nolearning")
     parser.add_argument(
@@ -36,8 +38,8 @@ def main():
     args = parser.parse_args()
 
     env = PickAndPlaceEnv()
-    env.random_state = np.random.RandomState(5)
-    env.reset(pile_file=env.PILES_DIR / "00001000.npz")
+    env.random_state = np.random.RandomState(args.seed)
+    env.reset(pile_file=env.PILES_DIR / "00001006.npz")
 
     common_utils.pause(args.pause)
 
@@ -51,14 +53,17 @@ def main():
     t_start = time.time()
 
     grasp_pose = []
+    initial_pose = []
     reorient_pose = []
-    for c_reorient, c_grasp in itertools.product(
-        itertools.islice(get_reorient_poses(env, discretize=False), 4 ** 4),
-        itertools.islice(get_grasp_poses(env), 16),
-    ):
-        grasp_pose.append(np.concatenate(c_grasp.pose))
-        reorient_pose.append(np.concatenate(c_reorient.pose))
+    c_initial = mercury.geometry.Coordinate(*pp.get_pose(env.fg_object_id))
+    c_reorients = list(get_reorient_poses(env, discretize=False))
+    c_grasps = list(itertools.islice(get_grasp_poses(env), 32))
+    for c_reorient, c_grasp in itertools.product(c_reorients, c_grasps):
+        grasp_pose.append(np.hstack(c_grasp.pose))
+        initial_pose.append(np.hstack(c_initial.pose))
+        reorient_pose.append(np.hstack(c_reorient.pose))
     grasp_pose = np.stack(grasp_pose, axis=0).astype(np.float32)
+    initial_pose = np.stack(initial_pose, axis=0).astype(np.float32)
     reorient_pose = np.stack(reorient_pose, axis=0).astype(np.float32)
 
     if args.nolearning:
@@ -71,6 +76,7 @@ def main():
         with torch.no_grad():
             success_pred, length_pred, auc_pred = model(
                 grasp_pose=torch.as_tensor(grasp_pose).cuda(),
+                initial_pose=torch.as_tensor(initial_pose).cuda(),
                 reorient_pose=torch.as_tensor(reorient_pose).cuda(),
             )
         success_pred = success_pred.cpu().numpy()
@@ -109,12 +115,29 @@ def main():
         c_reorient = mercury.geometry.Coordinate(
             reorient_pose[index, :3], reorient_pose[index, 3:]
         )
+
+        obj_af = mercury.pybullet.duplicate(
+            env.fg_object_id,
+            collision=False,
+            texture=False,
+            rgba_color=(0, 1, 0, 0.5),
+            position=c_reorient.position,
+            quaternion=c_reorient.quaternion,
+        )
+
         result = plan_reorient(env, c_grasp, c_reorient)
+
+        pp.remove_body(obj_af)
+
         if "js_place_length" in result:
             results.append(result)
             if args.num_sample < 0:
                 if len(results) == abs(args.num_sample):
                     break
+    if not results:
+        logger.error("No solution is found")
+        return
+
     result = min(results, key=lambda x: x["js_place_length"])
     logger.info(f"length_true={result['js_place_length']:.2f}")
 

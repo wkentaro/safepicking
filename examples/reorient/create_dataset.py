@@ -28,7 +28,7 @@ def main():
 
     i = 0
     while True:
-        env.reset(pile_file=env.PILES_DIR / "00001000.npz")
+        env.reset(pile_file=env.PILES_DIR / "00001006.npz")
 
         for result in itertools.islice(
             rollout_plan_reorient(
@@ -63,7 +63,7 @@ def main():
             else:
                 auc = np.nan
 
-            npz_file = home / f"data/mercury/reorient/00001000/{i:04d}.npz"
+            npz_file = home / f"data/mercury/reorient/{i:08d}.npz"
             npz_file.parent.makedirs_p()
             np.savez_compressed(
                 npz_file,
@@ -78,7 +78,8 @@ def main():
             logger.info(f"Saved to: {npz_file}")
 
             i += 1
-            if i > 9999:
+
+            if i >= 10 ** 5:
                 return
 
 

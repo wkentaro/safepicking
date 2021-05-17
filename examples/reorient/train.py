@@ -19,7 +19,7 @@ class Model(torch.nn.Module):
         super().__init__()
         self.features = torch.nn.Sequential(
             collections.OrderedDict(
-                fc1=torch.nn.Linear(7 + 7, 32),
+                fc1=torch.nn.Linear(7 + 7 + 7, 32),
                 relu1=torch.nn.ReLU(),
                 fc2=torch.nn.Linear(32, 32),
                 relu2=torch.nn.ReLU(),
@@ -40,8 +40,8 @@ class Model(torch.nn.Module):
             torch.nn.Sigmoid(),
         )
 
-    def forward(self, grasp_pose, reorient_pose):
-        h = torch.cat([grasp_pose, reorient_pose], dim=1)
+    def forward(self, grasp_pose, initial_pose, reorient_pose):
+        h = torch.cat([grasp_pose, initial_pose, reorient_pose], dim=1)
         h = self.features(h)
         fc_success = self.fc_success(h)[:, 0]
         fc_length = self.fc_length(h)[:, 0]
@@ -51,7 +51,7 @@ class Model(torch.nn.Module):
 
 class Dataset(torch.utils.data.Dataset):
 
-    ROOT_DIR = home / "data/mercury/reorient/00001000"
+    ROOT_DIR = home / "data/mercury/reorient/00001006"
 
     TRAIN_SIZE = 8000
     EVAL_SIZE = 2000
@@ -72,7 +72,7 @@ class Dataset(torch.utils.data.Dataset):
     def __getitem__(self, i):
         if self._split == "val":
             i += self.TRAIN_SIZE
-        data = np.load(self.ROOT_DIR / f"0005_{i:04d}.npz")
+        data = np.load(self.ROOT_DIR / f"{i:08d}.npz")
         success = ~np.isnan(data["js_place_length"])
         if success:
             assert (
@@ -80,6 +80,7 @@ class Dataset(torch.utils.data.Dataset):
             ), data["js_place_length"]
         return dict(
             grasp_pose=data["grasp_pose"],
+            initial_pose=data["initial_pose"],
             reorient_pose=data["reorient_pose"],
             js_place_length=data["js_place_length"]
             / self.JS_PLACE_LENGTH_SCALING,
@@ -108,7 +109,7 @@ def main():
     log_dir.makedirs_p()
 
     eval_loss_min = np.inf
-    with tqdm.trange(1000) as pbar:
+    with tqdm.trange(1000, ncols=100) as pbar:
         for epoch in pbar:
             pbar.set_description(
                 f"Epoch loop (eval_loss_min={eval_loss_min:.3f})"
@@ -118,10 +119,11 @@ def main():
             model.train()
 
             for batch in tqdm.tqdm(
-                loader_train, desc="Train loop", leave=False
+                loader_train, desc="Train loop", leave=False, ncols=100
             ):
                 success_pred, length_pred, auc_pred = model(
                     grasp_pose=batch["grasp_pose"].float().cuda(),
+                    initial_pose=batch["initial_pose"].float().cuda(),
                     reorient_pose=batch["reorient_pose"].float().cuda(),
                 )
                 length_true = batch["js_place_length"].float().cuda()
@@ -149,10 +151,11 @@ def main():
             losses = []
             with torch.no_grad():
                 for batch in tqdm.tqdm(
-                    loader_val, desc="Val loop", leave=False
+                    loader_val, desc="Val loop", leave=False, ncols=100
                 ):
                     success_pred, length_pred, auc_pred = model(
                         grasp_pose=batch["grasp_pose"].float().cuda(),
+                        initial_pose=batch["initial_pose"].float().cuda(),
                         reorient_pose=batch["reorient_pose"].float().cuda(),
                     )
                     length_true = batch["js_place_length"].float().cuda()
