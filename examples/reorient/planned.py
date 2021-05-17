@@ -344,6 +344,9 @@ def rollout_plan_reorient(
 
             pp.remove_body(obj_af)
 
+            result["c_init"] = mercury.geometry.Coordinate(
+                *pp.get_pose(env.fg_object_id)
+            )
             result["c_grasp"] = c_grasp
             result["c_reorient"] = c_reorient
 
