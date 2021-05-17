@@ -296,7 +296,7 @@ def execute_plan(env, result):
         time.sleep(pp.get_time_step())
 
     js = result["js_place"]
-    for _ in (_ for j in js for _ in env.ri.movej(j)):
+    for _ in (_ for j in js for _ in env.ri.movej(j, speed=0.005)):
         pp.step_simulation()
         time.sleep(pp.get_time_step())
 
