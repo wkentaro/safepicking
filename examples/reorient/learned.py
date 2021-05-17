@@ -53,7 +53,7 @@ def main():
     grasp_pose = []
     reorient_pose = []
     for c_reorient, c_grasp in itertools.product(
-        itertools.islice(get_reorient_poses(env), 4 ** 4),
+        itertools.islice(get_reorient_poses(env, discretize=False), 4 ** 4),
         itertools.islice(get_grasp_poses(env), 16),
     ):
         grasp_pose.append(np.concatenate(c_grasp.pose))
