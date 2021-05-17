@@ -66,7 +66,13 @@ def main():
     )
     parser.add_argument(
         "--reward",
-        choices=["completion_shaped", "completion", "max_velocities"],
+        choices=[
+            "completion_shaped",
+            "completion",
+            "max_velocities",
+            "max_velocities_end",
+            "max_velocities_accumulated",
+        ],
         default="max_velocities",
         help="reward",
     )

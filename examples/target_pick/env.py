@@ -50,7 +50,11 @@ class PickFromPileEnv(Env):
         self._suction_max_force = suction_max_force
         self._episode_length = episode_length
 
-        if reward == "max_velocities":
+        if reward in [
+            "max_velocities",
+            "max_velocities_end",
+            "max_velocities_accumulated",
+        ]:
             assert suction_max_force is None
         else:
             assert reward in ["completion", "completion_shaped"]
@@ -339,6 +343,7 @@ class PickFromPileEnv(Env):
         )
 
         self.i = 0
+        self._max_velocities = {}
 
         return self.get_obs()
 
@@ -428,10 +433,19 @@ class PickFromPileEnv(Env):
             j = self.validate_action(act_result)
 
         if j is None:
-            logger.error("failed to solve IK")
+            logger.error("Failed to solve IK")
+            if self._reward in ["completion_shaped", "completion"]:
+                reward = 0
+            elif self._reward == "max_velocities":
+                reward = -1
+            elif self._reward in [
+                "max_velocities_end",
+                "max_velocities_accumulated",
+            ]:
+                reward = -sum(self._max_velocities.values())
             return Transition(
                 observation=self.get_obs(),
-                reward=0,
+                reward=reward,
                 terminal=True,
                 info=dict(max_velocities=None),
             )
@@ -456,6 +470,9 @@ class PickFromPileEnv(Env):
             if self._gui:
                 time.sleep(pp.get_time_step() / self._retime)
 
+        for k, v in max_velocities.items():
+            self._max_velocities[k] = max(self._max_velocities.get(k, 0), v)
+
         self.i += 1
 
         if self.i == self._episode_length:
@@ -467,7 +484,22 @@ class PickFromPileEnv(Env):
                     step_callback()
                 if self._gui:
                     time.sleep(pp.get_time_step() / self._retime)
-            reward = int(self.ri.gripper.check_grasp())
+
+            if self._reward in ["completion_shaped", "completion"]:
+                reward = int(self.ri.gripper.check_grasp())
+            elif self._reward == "max_velocities":
+                if self.eval:
+                    reward = -sum(self._max_velocities.values())
+                else:
+                    reward = -sum(max_velocities.values())
+            elif self._reward in [
+                "max_velocities_end",
+                "max_velocities_accumulated",
+            ]:
+                reward = -sum(self._max_velocities.values())
+            else:
+                raise ValueError
+
             terminal = True
         else:
             if self.eval:
@@ -475,14 +507,18 @@ class PickFromPileEnv(Env):
             else:
                 if self._reward == "completion_shaped":
                     reward = self.i * 0.2 * self.ri.gripper.check_grasp()
+                elif self._reward == "completion":
+                    reward = 0
+                elif self._reward == "max_velocities":
+                    reward = -sum(max_velocities.values())
+                elif self._reward == "max_velocities_end":
+                    reward = 0
+                elif self._reward == "max_velocities_accumulated":
+                    reward = -sum(self._max_velocities.values())
                 else:
-                    assert self._reward in ["completion", "max_velocities"]
-            terminal = False
+                    raise ValueError
 
-        if self._reward == "max_velocities":
-            reward = -sum(max_velocities.values())
-        else:
-            assert self._reward in ["completion_shaped", "completion"]
+            terminal = False
 
         self.past_actions = np.r_[
             self.past_actions[1:],
