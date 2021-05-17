@@ -38,6 +38,7 @@ class PickFromPileEnv(Env):
         suction_max_force=None,
         reward="max_velocities",
         action_discretization=3,
+        episode_length=5,
     ):
         super().__init__()
 
@@ -47,6 +48,7 @@ class PickFromPileEnv(Env):
         self._pose_noise = pose_noise
         self._easy = easy
         self._suction_max_force = suction_max_force
+        self._episode_length = episode_length
 
         if reward == "max_velocities":
             assert suction_max_force is None
@@ -57,15 +59,14 @@ class PickFromPileEnv(Env):
         self.plane = None
         self.ri = None
 
-        dpos = 0.4 / 8
-        drot = np.deg2rad(120 / 8)
-        num = action_discretization
-        dx_options = np.linspace(-dpos, dpos, num=num)
-        dy_options = np.linspace(-dpos, dpos, num=num)
-        dz_options = np.linspace(-dpos, dpos, num=num)
-        da_options = np.linspace(-drot, drot, num=num)
-        db_options = np.linspace(-drot, drot, num=num)
-        dg_options = np.linspace(-drot, drot, num=num)
+        dpos = 0.05 * 5 / self.episode_length
+        drot = np.deg2rad(15) * 5 / self.episode_length
+        dx_options = np.linspace(-dpos, dpos, num=action_discretization)
+        dy_options = np.linspace(-dpos, dpos, num=action_discretization)
+        dz_options = np.linspace(-dpos, dpos, num=action_discretization)
+        da_options = np.linspace(-drot, drot, num=action_discretization)
+        db_options = np.linspace(-drot, drot, num=action_discretization)
+        dg_options = np.linspace(-drot, drot, num=action_discretization)
 
         actions = list(
             itertools.product(
@@ -94,13 +95,13 @@ class PickFromPileEnv(Env):
         past_actions = gym.spaces.Box(
             low=0,
             high=1,
-            shape=(4, len(self.actions)),
+            shape=(self.episode_length - 1, len(self.actions)),
             dtype=np.uint8,
         )
         past_grasped_object_poses = gym.spaces.Box(
             low=-np.inf,
             high=np.inf,
-            shape=(4, 7),
+            shape=(self.episode_length - 1, 7),
             dtype=np.float32,
         )
         grasp_flags_openloop = gym.spaces.Box(
@@ -145,6 +146,10 @@ class PickFromPileEnv(Env):
                 object_poses=object_poses,
             )
         )
+
+    @property
+    def episode_length(self):
+        return self._episode_length
 
     @property
     def action_shape(self):
@@ -326,8 +331,12 @@ class PickFromPileEnv(Env):
         self.object_state = object_state
         self.object_ids = object_ids
         self.target_object_id = object_ids[target_index]
-        self.past_actions = np.zeros((4, len(self.actions)), dtype=np.uint8)
-        self.past_grasped_object_poses = np.zeros((4, 7), dtype=np.float32)
+        self.past_actions = np.zeros(
+            (self.episode_length - 1, len(self.actions)), dtype=np.uint8
+        )
+        self.past_grasped_object_poses = np.zeros(
+            (self.episode_length - 1, 7), dtype=np.float32
+        )
 
         self.i = 0
 
@@ -449,7 +458,7 @@ class PickFromPileEnv(Env):
 
         self.i += 1
 
-        if self.i == 5:
+        if self.i == self._episode_length:
             for _ in self.ri.movej(self.ri.homej, speed=0.001, timeout=30):
                 p.stepSimulation()
                 if self._suction_max_force is not None:

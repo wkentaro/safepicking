@@ -19,11 +19,15 @@ class DqnModel(torch.nn.Module):
 
         if self._model == "closedloop_pose_net":
             self.module = PoseNet(
-                closedloop=True, n_action=len(env.actions), n_past_action=4
+                closedloop=True,
+                n_action=len(env.actions),
+                n_past_action=env.episode_length - 1,
             )
         elif self._model == "openloop_pose_net":
             self.module = PoseNet(
-                closedloop=False, n_action=len(env.actions), n_past_action=4
+                closedloop=False,
+                n_action=len(env.actions),
+                n_past_action=env.episode_length - 1,
             )
         else:
             raise ValueError

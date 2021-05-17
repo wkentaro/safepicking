@@ -76,11 +76,15 @@ def main():
         default=3,
         help="action discretization",
     )
+    parser.add_argument(
+        "--episode-length",
+        type=int,
+        default=5,
+        help="episode length",
+    )
     args = parser.parse_args()
 
     hparams = args.__dict__.copy()
-    hparams["git_hash"] = common_utils.git_hash(cwd=here)
-    hparams["hostname"] = socket.gethostname()
 
     now = datetime.datetime.now(pytz.timezone("Japan"))
     hparams["timestamp"] = now.isoformat()
@@ -88,6 +92,9 @@ def main():
     log_dir = now.strftime("%Y%m%d_%H%M%S") + "_" + hparams["name"]
     log_dir = here / "logs" / log_dir
     log_dir.makedirs_p()
+
+    hparams["git_hash"] = common_utils.git_hash(cwd=here, log_dir=log_dir)
+    hparams["hostname"] = socket.gethostname()
 
     with open(log_dir / "hparams.json", "w") as f:
         json.dump(hparams, f, indent=2)
@@ -115,6 +122,7 @@ def main():
         suction_max_force=hparams["suction_max_force"],
         reward=hparams["reward"],
         action_discretization=hparams["action_discretization"],
+        episode_length=hparams["episode_length"],
     )
 
     # Setup replay buffer
@@ -154,7 +162,7 @@ def main():
         train_envs=hparams["train_envs"],
         eval_envs=hparams["train_envs"] // 10,
         episodes=999999,
-        episode_length=5,
+        episode_length=env.episode_length,
         stat_accumulator=stat_accumulator,
         weightsdir=log_dir / "weights",
         max_fails=10,
