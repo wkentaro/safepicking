@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import argparse
+
 from loguru import logger
 import numpy as np
 import path
@@ -15,9 +17,15 @@ home = path.Path("~").expanduser()
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument("--gui", action="store_true", help="gui")
+    args = parser.parse_args()
+
     seed = 5
 
-    env = PickAndPlaceEnv(gui=False)
+    env = PickAndPlaceEnv(gui=args.gui)
     env.random_state = np.random.RandomState(seed)
     env.reset(pile_file=env.PILES_DIR / "00001000.npz")
 
@@ -25,10 +33,11 @@ def main():
         rollout_plan_reorient(
             env,
             return_failed=True,
-            num_delta=32,
-            num_reorient_sample=4,
-            centroid=False,
-            num_grasp_sample=4,
+            reorient_num_delta=32,
+            reorient_num_sample=4,
+            reorient_centroid=False,
+            reorient_discretize=False,
+            grasp_num_sample=4,
         )
     ):
         if i > 9999:
@@ -46,15 +55,15 @@ def main():
             )
             reference = mercury.geometry.transform_points(
                 pcd,
-                mercury.geometry.quaternion_matrix(
-                    result["c_reorient"].quaternion
+                mercury.geometry.transformation_matrix(
+                    *result["c_reorient"].pose
                 ),
             )
             query = mercury.geometry.transform_points(
-                pcd, mercury.geometry.quaternion_matrix(pose_actual[1])
+                pcd, mercury.geometry.transformation_matrix(*pose_actual)
             )
             auc = mercury.geometry.average_distance_auc(
-                reference, query, max_threshold=0.1
+                reference, query, max_threshold=0.2
             )
         else:
             auc = np.nan

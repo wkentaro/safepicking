@@ -101,13 +101,13 @@ def get_aabb(unique_id):
     return np.array(aabb_min), np.array(aabb_max)
 
 
-def is_colliding(id1, ids2=None):
+def is_colliding(id1, ids2=None, distance=0):
     if ids2 is None:
         ids2 = np.array(get_body_unique_ids())
         ids2 = ids2[ids2 != id1]
     is_colliding = False
     for id2 in ids2:
-        points = pybullet.getClosestPoints(id1, id2, distance=0)
+        points = pybullet.getClosestPoints(id1, id2, distance=distance)
         if points:
             is_colliding = True
             break

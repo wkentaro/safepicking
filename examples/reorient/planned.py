@@ -61,7 +61,9 @@ def get_query_ocs(env):
     return query_ocs, query_ocs_normal_ends
 
 
-def get_reorient_poses(env, num_delta=4, num_sample=4, centroid=False):
+def get_reorient_poses(
+    env, num_delta=4, num_sample=4, centroid=False, discretize=True
+):
     query_ocs, query_ocs_normal_ends = get_query_ocs(env)
 
     obj_to_world = pp.get_pose(env.fg_object_id)
@@ -96,16 +98,23 @@ def get_reorient_poses(env, num_delta=4, num_sample=4, centroid=False):
         )
         T_obj_af_to_world = T_obj_to_obj_af_in_world @ T_obj_to_world
 
-        deltas = np.array(
-            list(
-                itertools.product(
-                    np.linspace(-0.2, 0.2, num_delta),
-                    np.linspace(-0.2, 0.2, num_delta),
-                    np.linspace(-0.2, 0.2, num_delta),
-                    np.linspace(-np.pi, np.pi, num_delta),
+        if discretize:
+            deltas = np.array(
+                list(
+                    itertools.product(
+                        np.linspace(-0.1, 0.1, num_delta),
+                        np.linspace(-0.1, 0.1, num_delta),
+                        np.linspace(-0.1, 0.1, num_delta),
+                        np.linspace(-np.pi, np.pi, num_delta),
+                    )
                 )
             )
-        )
+        else:
+            deltas = env.random_state.uniform(
+                [-0.1, -0.1, -0.1, -np.pi],
+                [0.1, 0.1, 0.1, np.pi],
+                size=(4 ** 4, 4),
+            )
         for dx, dy, dz, dg in deltas[
             env.random_state.permutation(deltas.shape[0])
         ]:
@@ -118,7 +127,9 @@ def get_reorient_poses(env, num_delta=4, num_sample=4, centroid=False):
 
             with pp.LockRenderer(), pp.WorldSaver():
                 pp.set_pose(env.fg_object_id, c.pose)
-                if mercury.pybullet.is_colliding(env.fg_object_id):
+                if mercury.pybullet.is_colliding(
+                    env.fg_object_id, distance=-0.01
+                ):
                     continue
 
             yield c
@@ -303,19 +314,21 @@ def execute_plan(env, result):
 def rollout_plan_reorient(
     env,
     return_failed=False,
-    num_delta=4,
-    num_reorient_sample=4,
-    centroid=False,
-    num_grasp_sample=4,
+    reorient_num_delta=4,
+    reorient_num_sample=4,
+    reorient_centroid=False,
+    reorient_discretize=True,
+    grasp_num_sample=4,
 ):
     for c_reorient in get_reorient_poses(
         env,
-        num_delta=num_delta,
-        num_sample=num_reorient_sample,
-        centroid=centroid,
+        num_delta=reorient_num_delta,
+        num_sample=reorient_num_sample,
+        centroid=reorient_centroid,
+        discretize=reorient_discretize,
     ):
         for c_grasp in itertools.islice(
-            get_grasp_poses(env), num_grasp_sample
+            get_grasp_poses(env), grasp_num_sample
         ):
             obj_af = mercury.pybullet.duplicate(
                 env.fg_object_id,
