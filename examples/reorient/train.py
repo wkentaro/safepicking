@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 
-import collections
+import argparse
 import datetime
+import time
 
 import numpy as np
 import path
 import pytz
 import torch
+from torch.utils.tensorboard import SummaryWriter
 import tqdm
 
 
@@ -14,19 +16,60 @@ home = path.Path("~").expanduser()
 here = path.Path(__file__).abspath().parent
 
 
+class PoseEncoder(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        # object_classes: 22, object_poses: 7
+        self.fc_encoder = torch.nn.Sequential(
+            torch.nn.Linear(22 + 7, 32),
+            torch.nn.ReLU(),
+        )
+        self.transformer_encoder = torch.nn.TransformerEncoder(
+            encoder_layer=torch.nn.TransformerEncoderLayer(
+                d_model=32,
+                nhead=4,
+                dim_feedforward=64,
+            ),
+            num_layers=2,
+            norm=None,
+        )
+
+    def forward(self, object_classes, object_poses):
+        h = torch.cat([object_classes, object_poses], dim=2)
+
+        B, O, _ = h.shape
+        h = h.reshape(B * O, -1)
+        h = self.fc_encoder(h)
+        h = h.reshape(B, O, -1)
+
+        h = h.permute(1, 0, 2)  # BOE -> OBE
+        h = self.transformer_encoder(h)
+        h = h.permute(1, 0, 2)  # OBE -> BOE
+
+        h = h.mean(dim=1)
+
+        return h
+
+
 class Model(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        self.features = torch.nn.Sequential(
-            collections.OrderedDict(
-                fc1=torch.nn.Linear(7 + 7 + 7, 32),
-                relu1=torch.nn.ReLU(),
-                fc2=torch.nn.Linear(32, 32),
-                relu2=torch.nn.ReLU(),
-                fc3=torch.nn.Linear(32, 32),
-                relu3=torch.nn.ReLU(),
-            )
+
+        self.pose_encoder = PoseEncoder()
+
+        # grasp_pose: 7, initial_pose: 7, reorient_pose: 7
+        self.action_encoder = torch.nn.Sequential(
+            torch.nn.Linear(7 + 7 + 7, 32),
+            torch.nn.ReLU(),
         )
+
+        self.encoder = torch.nn.Sequential(
+            torch.nn.Linear(32 + 32, 32),
+            torch.nn.ReLU(),
+            torch.nn.Linear(32, 32),
+            torch.nn.ReLU(),
+        )
+
         self.fc_success = torch.nn.Sequential(
             torch.nn.Linear(32, 1),
             torch.nn.Sigmoid(),
@@ -40,9 +83,22 @@ class Model(torch.nn.Module):
             torch.nn.Sigmoid(),
         )
 
-    def forward(self, grasp_pose, initial_pose, reorient_pose):
-        h = torch.cat([grasp_pose, initial_pose, reorient_pose], dim=1)
-        h = self.features(h)
+    def forward(
+        self,
+        object_classes,
+        object_poses,
+        grasp_pose,
+        initial_pose,
+        reorient_pose,
+    ):
+        h_pose = self.pose_encoder(object_classes, object_poses)
+
+        h_action = torch.cat([grasp_pose, initial_pose, reorient_pose], dim=1)
+        h_action = self.action_encoder(h_action)
+
+        h = torch.cat([h_pose, h_action], dim=1)
+        h = self.encoder(h)
+
         fc_success = self.fc_success(h)[:, 0]
         fc_length = self.fc_length(h)[:, 0]
         fc_auc = self.fc_auc(h)[:, 0]
@@ -51,10 +107,10 @@ class Model(torch.nn.Module):
 
 class Dataset(torch.utils.data.Dataset):
 
-    ROOT_DIR = home / "data/mercury/reorient/00001006"
+    ROOT_DIR = home / "data/mercury/reorient/train"
 
-    TRAIN_SIZE = 8000
-    EVAL_SIZE = 2000
+    TRAIN_SIZE = 40000
+    EVAL_SIZE = 7777
 
     JS_PLACE_LENGTH_SCALING = 12
 
@@ -78,7 +134,10 @@ class Dataset(torch.utils.data.Dataset):
             assert (
                 0 <= data["js_place_length"] <= self.JS_PLACE_LENGTH_SCALING
             ), data["js_place_length"]
+        object_classes = np.eye(22)[data["object_classes"]]
         return dict(
+            object_classes=object_classes,
+            object_poses=data["object_poses"],
             grasp_pose=data["grasp_pose"],
             initial_pose=data["initial_pose"],
             reorient_pose=data["reorient_pose"],
@@ -90,6 +149,12 @@ class Dataset(torch.utils.data.Dataset):
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument("--name", required=True, help="name")
+    args = parser.parse_args()
+
     data_train = Dataset(split="train")
     loader_train = torch.utils.data.DataLoader(
         data_train, batch_size=256, shuffle=True, drop_last=True
@@ -105,8 +170,12 @@ def main():
     optimizer = torch.optim.Adam(params=model.parameters(), lr=1e-3)
 
     now = datetime.datetime.now(pytz.timezone("Asia/Tokyo"))
-    log_dir = here / "logs" / now.strftime("%Y%m%d_%H%M%S.%f")
+    log_dir = (
+        here / "logs" / now.strftime("%Y%m%d_%H%M%S.%f") + "-" + args.name
+    )
     log_dir.makedirs_p()
+
+    writer = SummaryWriter(log_dir=log_dir)
 
     eval_loss_min = np.inf
     with tqdm.trange(1000, ncols=100) as pbar:
@@ -118,10 +187,14 @@ def main():
 
             model.train()
 
-            for batch in tqdm.tqdm(
-                loader_train, desc="Train loop", leave=False, ncols=100
+            for iteration, batch in enumerate(
+                tqdm.tqdm(
+                    loader_train, desc="Train loop", leave=False, ncols=100
+                )
             ):
                 success_pred, length_pred, auc_pred = model(
+                    object_classes=batch["object_classes"].float().cuda(),
+                    object_poses=batch["object_poses"].float().cuda(),
                     grasp_pose=batch["grasp_pose"].float().cuda(),
                     initial_pose=batch["initial_pose"].float().cuda(),
                     reorient_pose=batch["reorient_pose"].float().cuda(),
@@ -146,6 +219,13 @@ def main():
 
                 optimizer.step()
 
+                writer.add_scalar(
+                    "train/loss",
+                    loss.item(),
+                    global_step=len(loader_train) * epoch + iteration,
+                    walltime=time.time(),
+                )
+
             model.eval()
 
             losses = []
@@ -154,6 +234,8 @@ def main():
                     loader_val, desc="Val loop", leave=False, ncols=100
                 ):
                     success_pred, length_pred, auc_pred = model(
+                        object_classes=batch["object_classes"].float().cuda(),
+                        object_poses=batch["object_poses"].float().cuda(),
                         grasp_pose=batch["grasp_pose"].float().cuda(),
                         initial_pose=batch["initial_pose"].float().cuda(),
                         reorient_pose=batch["reorient_pose"].float().cuda(),
@@ -176,11 +258,19 @@ def main():
                     losses.append(loss.item())
             eval_loss = np.mean(losses)
 
+            writer.add_scalar(
+                "val/loss",
+                eval_loss,
+                global_step=len(loader_train) * epoch + iteration,
+                walltime=time.time(),
+            )
+
             if eval_loss < eval_loss_min:
-                torch.save(
-                    model.state_dict(),
-                    log_dir / f"model_best-epoch_{epoch:04d}.pth",
+                model_file = (
+                    log_dir / f"models/model_best-epoch_{epoch:04d}.pth"
                 )
+                model_file.parent.makedirs_p()
+                torch.save(model.state_dict(), model_file)
                 eval_loss_min = eval_loss
 
 

@@ -10,6 +10,7 @@ import pybullet_planning as pp
 
 import mercury
 
+import common_utils
 from pick_and_place_env import PickAndPlaceEnv
 from planned import rollout_plan_reorient
 
@@ -28,7 +29,7 @@ def main():
 
     i = 0
     while True:
-        env.reset(pile_file=env.PILES_DIR / "00001006.npz")
+        env.reset()
 
         for result in itertools.islice(
             rollout_plan_reorient(
@@ -63,11 +64,19 @@ def main():
             else:
                 auc = np.nan
 
-            npz_file = home / f"data/mercury/reorient/{i:08d}.npz"
+            object_classes = []
+            object_poses = []
+            for object_id in env.object_ids:
+                object_classes.append(common_utils.get_class_id(object_id))
+                object_poses.append(np.hstack(pp.get_pose(object_id)))
+
+            npz_file = home / f"data/mercury/reorient/train/{i:08d}.npz"
             npz_file.parent.makedirs_p()
             np.savez_compressed(
                 npz_file,
                 **dict(
+                    object_classes=object_classes,
+                    object_poses=object_poses,
                     grasp_pose=np.hstack(result["c_grasp"].pose),
                     initial_pose=np.hstack(result["c_init"].pose),
                     reorient_pose=np.hstack(result["c_reorient"].pose),
