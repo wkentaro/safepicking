@@ -470,9 +470,6 @@ class PickFromPileEnv(Env):
             if self._gui:
                 time.sleep(pp.get_time_step() / self._retime)
 
-        for k, v in max_velocities.items():
-            self._max_velocities[k] = max(self._max_velocities.get(k, 0), v)
-
         self.i += 1
 
         if self.i == self._episode_length:
@@ -485,6 +482,10 @@ class PickFromPileEnv(Env):
                 if self._gui:
                     time.sleep(pp.get_time_step() / self._retime)
 
+        for k, v in max_velocities.items():
+            self._max_velocities[k] = max(self._max_velocities.get(k, 0), v)
+
+        if self.i == self._episode_length:
             if self._reward in ["completion_shaped", "completion"]:
                 reward = int(self.ri.gripper.check_grasp())
             elif self._reward == "max_velocities":
