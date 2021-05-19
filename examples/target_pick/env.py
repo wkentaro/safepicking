@@ -320,7 +320,7 @@ class PickFromPileEnv(Env):
                 else:
                     return self.reset()
 
-            for _ in range(int(round(1 / pp.get_time_step()))):
+            for _ in range(int(round(3 / pp.get_time_step()))):
                 p.stepSimulation()
                 if self._suction_max_force is not None:
                     self.ri.step_simulation()
