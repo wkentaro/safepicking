@@ -269,6 +269,13 @@ class PickFromPileEnv(Env):
                 )
             object_ids.append(object_id)
 
+        for object_id in object_ids:
+            if mercury.pybullet.is_colliding(object_id, ids2=[self.ri.robot]):
+                if raise_on_failure:
+                    raise RuntimeError("object is colliding with robot")
+                else:
+                    return self.reset()
+
         c = mercury.geometry.Coordinate(*self.ri.get_pose("camera_link"))
         c.position = pp.get_pose(object_ids[target_index])[0]
         c.position[2] += 0.5
