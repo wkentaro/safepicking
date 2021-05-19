@@ -76,6 +76,8 @@ class PandaRobotInterface:
             lower, upper = p.getJointInfo(self.robot, joint)[8:10]
             lower_bounds.append(lower)
             upper_bounds.append(upper)
+        lower_bounds = np.array(lower_bounds)
+        upper_bounds = np.array(upper_bounds)
         return lower_bounds, upper_bounds
 
     def step_simulation(self):
@@ -127,11 +129,19 @@ class PandaRobotInterface:
                 logger.error("timeout in joint motor control")
                 return
 
-    def solve_ik(self, pose, move_target=None, n_init=5, **kwargs):
+    def solve_ik(
+        self, pose, move_target=None, n_init=5, random_state=None, **kwargs
+    ):
         if move_target is None:
             move_target = self.robot_model.tipLink
+        if random_state is None:
+            random_state = np.random.RandomState()
 
-        sample_fn = pybullet_planning.get_sample_fn(self.robot, self.joints)
+        def sample_fn():
+            lower, upper = self.get_bounds()
+            extents = upper - lower
+            scale = random_state.uniform(size=len(lower))
+            return lower + scale * extents
 
         self.update_robot_model()
         c = geometry.Coordinate(*pose)
@@ -441,7 +451,9 @@ class PandaRobotInterface:
         indices = np.where(mask)[0]
         random_state.shuffle(indices)
 
-        path = None
+        j_init = self.getj()
+
+        path1 = path2 = None
         for index in indices[:num_trial]:
             object_id = segm[index]
             position = pcd_in_ee[index]
@@ -475,20 +487,42 @@ class PandaRobotInterface:
                 logger.warning(f"angle > {np.rad2deg(max_angle)} deg")
                 continue
 
-            j = self.solve_ik(c.pose, rotation_axis="z")
+            j = self.solve_ik(
+                c.pose, rotation_axis="z", random_state=random_state
+            )
             if j is None:
                 logger.warning("j is None")
                 continue
 
-            path = self.planj(j, obstacles=bg_object_ids + object_ids)
-            if path is None:
-                logger.warning("path is None")
+            path1 = self.planj(j, obstacles=bg_object_ids + object_ids)
+            if path1 is None:
+                logger.warning("path1 is None")
                 continue
 
+            self.setj(j)
+
+            c.translate([0, 0, 0.1])
+            j = self.solve_ik(
+                c.pose, n_init=1, rotation_axis="z", random_state=random_state
+            )
+            if j is None:
+                logger.warning("j is None")
+                self.setj(j_init)
+                continue
+
+            obstacles = bg_object_ids + object_ids
+            obstacles.remove(object_id)
+            path2 = self.planj(j, obstacles=obstacles)
+            if path2 is None:
+                logger.warning("path2 is None")
+                self.setj(j_init)
+                continue
+
+            self.setj(j_init)
             break
-        if path is None:
+        if path1 is None or path2 is None:
             return
-        for _ in (_ for j in path for _ in self.movej(j)):
+        for _ in (_ for j in path1 for _ in self.movej(j)):
             yield
 
         # XXX: getting ground truth object pose

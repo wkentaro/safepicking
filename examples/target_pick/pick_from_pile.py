@@ -89,7 +89,7 @@ def main():
         if args.suction_max_force is not None:
             ri.step_simulation()
         if not args.nogui:
-            time.sleep(1 / 240)
+            time.sleep(pp.get_time_step() / env._retime)
 
         for object_id in object_ids:
             if object_id == target_object_id:

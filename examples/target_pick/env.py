@@ -207,7 +207,9 @@ class PickFromPileEnv(Env):
         self.plane = p.loadURDF("plane.urdf")
 
         self.ri = mercury.pybullet.PandaRobotInterface(
-            suction_max_force=self._suction_max_force, planner="RRTConnect"
+            suction_max_force=self._suction_max_force,
+            suction_surface_alignment=False,
+            planner="RRTConnect",
         )
         c_cam_to_ee = mercury.geometry.Coordinate()
         c_cam_to_ee.translate([0, -0.05, -0.1])
