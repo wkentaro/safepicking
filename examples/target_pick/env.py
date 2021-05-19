@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import collections
 import copy
 import itertools
 import time
@@ -54,6 +55,9 @@ class PickFromPileEnv(Env):
             "max_velocities",
             "max_velocities_end",
             "max_velocities_accumulated",
+            "translations",
+            "translations_end",
+            "translations_accumulated",
         ]:
             assert suction_max_force is None
         else:
@@ -352,7 +356,8 @@ class PickFromPileEnv(Env):
         )
 
         self.i = 0
-        self._max_velocities = {}
+        self._translations = collections.defaultdict(int)
+        self._max_velocities = collections.defaultdict(int)
 
         return self.get_obs()
 
@@ -447,11 +452,20 @@ class PickFromPileEnv(Env):
                 reward = 0
             elif self._reward == "max_velocities":
                 reward = -1
+            elif self._reward == "translations":
+                reward = -1
             elif self._reward in [
                 "max_velocities_end",
                 "max_velocities_accumulated",
             ]:
                 reward = -sum(self._max_velocities.values())
+            elif self._reward in [
+                "translations_end",
+                "translations_accumulated",
+            ]:
+                reward = -sum(self._translations.values())
+            else:
+                raise ValueError
             return Transition(
                 observation=self.get_obs(),
                 reward=reward,
@@ -459,14 +473,27 @@ class PickFromPileEnv(Env):
                 info=dict(max_velocities=None),
             )
 
-        max_velocities = {}
+        poses = {}
+        for object_id in self.object_ids:
+            if object_id == self.target_object_id:
+                continue
+            poses[object_id] = pp.get_pose(object_id)
+        translations = collections.defaultdict(int)
+        max_velocities = collections.defaultdict(int)
 
         def step_callback():
             for object_id in self.object_ids:
                 if object_id == self.target_object_id:
                     continue
+
+                pose = pp.get_pose(object_id)
+                translations[object_id] += np.linalg.norm(
+                    np.array(poses[object_id][0]) - np.array(pose[0])
+                )
+                poses[object_id] = pose
+
                 max_velocities[object_id] = max(
-                    max_velocities.get(object_id, 0),
+                    max_velocities[object_id],
                     np.linalg.norm(pp.get_velocity(object_id)[0]),
                 )
 
@@ -474,8 +501,7 @@ class PickFromPileEnv(Env):
             p.stepSimulation()
             if self._suction_max_force is not None:
                 self.ri.step_simulation()
-            if step_callback:
-                step_callback()
+            step_callback()
             if self._gui:
                 time.sleep(pp.get_time_step() / self._retime)
 
@@ -486,13 +512,19 @@ class PickFromPileEnv(Env):
                 p.stepSimulation()
                 if self._suction_max_force is not None:
                     self.ri.step_simulation()
-                if step_callback:
-                    step_callback()
+                step_callback()
                 if self._gui:
                     time.sleep(pp.get_time_step() / self._retime)
 
-        for k, v in max_velocities.items():
-            self._max_velocities[k] = max(self._max_velocities.get(k, 0), v)
+        for object_id in self.object_ids:
+            if object_id == self.target_object_id:
+                continue
+            self._translations[object_id] = (
+                self._translations[object_id] + translations[object_id]
+            )
+            self._max_velocities[object_id] = max(
+                self._max_velocities[object_id], max_velocities[object_id]
+            )
 
         if self.i == self._episode_length:
             if self._reward in ["completion_shaped", "completion"]:
@@ -507,6 +539,16 @@ class PickFromPileEnv(Env):
                 "max_velocities_accumulated",
             ]:
                 reward = -sum(self._max_velocities.values())
+            elif self._reward == "translations":
+                if self.eval:
+                    reward = -sum(self._translations.values())
+                else:
+                    reward = -sum(translations.values())
+            elif self._reward in [
+                "translations_end",
+                "translations_accumulated",
+            ]:
+                reward = -sum(self._translations.values())
             else:
                 raise ValueError
 
@@ -525,6 +567,12 @@ class PickFromPileEnv(Env):
                     reward = 0
                 elif self._reward == "max_velocities_accumulated":
                     reward = -sum(self._max_velocities.values())
+                elif self._reward == "translations":
+                    reward = -sum(translations.values())
+                elif self._reward == "translations_end":
+                    reward = 0
+                elif self._reward == "translations_accumulated":
+                    reward = -sum(self._translations.values())
                 else:
                     raise ValueError
 

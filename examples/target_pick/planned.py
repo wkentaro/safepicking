@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
+import collections
 import json
 import time
 
@@ -9,6 +10,8 @@ import numpy as np
 import path
 import pybullet as p
 import pybullet_planning as pp
+
+import mercury
 
 import common_utils
 from env import PickFromPileEnv
@@ -78,21 +81,37 @@ def main():
             timeout=30,
         )
 
-    max_velocities = {}
-    for _ in steps:
-        p.stepSimulation()
-        if args.suction_max_force is not None:
-            ri.step_simulation()
-        if not args.nogui:
-            time.sleep(pp.get_time_step() / env._retime)
+    poses = {}
+    for object_id in object_ids:
+        if object_id == target_object_id:
+            continue
+        poses[object_id] = pp.get_pose(object_id)
+    translations = collections.defaultdict(int)
+    max_velocities = collections.defaultdict(int)
 
+    def step_callback():
         for object_id in object_ids:
             if object_id == target_object_id:
                 continue
+
+            pose = pp.get_pose(object_id)
+            translations[object_id] += np.linalg.norm(
+                np.array(poses[object_id][0]) - np.array(pose[0])
+            )
+            poses[object_id] = pose
+
             max_velocities[object_id] = max(
-                max_velocities.get(object_id, 0),
+                max_velocities[object_id],
                 np.linalg.norm(pp.get_velocity(object_id)[0]),
             )
+
+    for _ in steps:
+        p.stepSimulation()
+        if env._suction_max_force is not None:
+            ri.step_simulation()
+        step_callback()
+        if not args.nogui:
+            time.sleep(pp.get_time_step() / env._retime)
 
     success = ri.gripper.check_grasp()
     if success:
@@ -103,12 +122,15 @@ def main():
     for object_id in object_ids:
         if object_id == target_object_id:
             continue
+        class_id = common_utils.get_class_id(object_id)
+        class_name = mercury.datasets.ycb.class_names[class_id]
         logger.info(
-            f"object_id={object_id}, "
-            f"class_id={common_utils.get_class_id(object_id):02d}, "
-            f"max_velocity={max_velocities[object_id]:.3f}"
+            f"[{object_id}] {class_name:20s}: "
+            f"translation={translations[object_id]:.2f}, "
+            f"max_velocity={max_velocities[object_id]:.2f}"
         )
-    logger.info(f"sum_of_max_velocities: {sum(max_velocities.values()):.3f}")
+    logger.info(f"sum_of_translations: {sum(translations.values()):.2f}")
+    logger.info(f"sum_of_max_velocities: {sum(max_velocities.values()):.2f}")
 
     if args.nogui:
         data = dict(
@@ -116,7 +138,9 @@ def main():
             scene_id=scene_id,
             seed=args.seed,
             success=success,
-            max_velocities=list(max_velocities.values()),
+            translations=dict(translations),
+            sum_of_translations=sum(translations.values()),
+            max_velocities=dict(max_velocities),
             sum_of_max_velocities=sum(max_velocities.values()),
         )
 

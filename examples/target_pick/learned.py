@@ -8,6 +8,8 @@ from loguru import logger
 import numpy as np
 import path
 
+import mercury
+
 from agent import DqnAgent
 from env import PickFromPileEnv
 
@@ -87,6 +89,9 @@ def main():
         else:
             obs = transition.observation
 
+    translations = env._translations
+    max_velocities = env._max_velocities
+
     success = ri.gripper.check_grasp()
     if success:
         logger.success("Task is complete")
@@ -96,14 +101,15 @@ def main():
     for object_id in object_ids:
         if object_id == target_object_id:
             continue
+        class_id = common_utils.get_class_id(object_id)
+        class_name = mercury.datasets.ycb.class_names[class_id]
         logger.info(
-            f"object_id={object_id}, "
-            f"class_id={common_utils.get_class_id(object_id):02d}, "
-            f"max_velocity={env._max_velocities[object_id]:.3f}"
+            f"[{object_id}] {class_name:20s}: "
+            f"translation={translations[object_id]:.2f}, "
+            f"max_velocity={max_velocities[object_id]:.2f}"
         )
-    logger.info(
-        f"sum_of_max_velocities: {sum(env._max_velocities.values()):.3f}"
-    )
+    logger.info(f"sum_of_translations: {sum(translations.values()):.2f}")
+    logger.info(f"sum_of_max_velocities: {sum(max_velocities.values()):.2f}")
 
     if args.nogui:
         data = dict(
@@ -111,8 +117,10 @@ def main():
             scene_id=scene_id,
             seed=args.seed,
             success=success,
-            max_velocities=list(env._max_velocities.values()),
-            sum_of_max_velocities=sum(env._max_velocities.values()),
+            translations=dict(translations),
+            sum_of_translations=sum(translations.values()),
+            max_velocities=dict(max_velocities),
+            sum_of_max_velocities=sum(max_velocities.values()),
         )
 
         json_file.parent.makedirs_p()
