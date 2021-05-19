@@ -20,12 +20,10 @@ def summarize(eval_dir, valid_ids):
 
     print(f"Eval dir: {eval_dir}")
     print(f"Success: {success.mean():.1%} ({success.sum()} / {success.size})")
-    print(f"Unsafety (all): {sum_of_max_velocities.mean():.2f}")
-    print(f"Unsafety (success): {sum_of_max_velocities[success].mean():.2f}")
-    if not success.all():
-        print(
-            f"Unsafety (failure): {sum_of_max_velocities[~success].mean():.2f}"
-        )
+    print(
+        f"Unsafety: {sum_of_max_velocities.mean():.2f} "
+        f"(+-{sum_of_max_velocities.std():.2f})"
+    )
     print()
 
 
@@ -54,7 +52,7 @@ def main():
         if all(id in ids for ids in eval_dir_to_ids.values()):
             valid_ids.add(id)
 
-    for eval_dir, ids in eval_dir_to_ids.items():
+    for eval_dir, ids in sorted(eval_dir_to_ids.items()):
         summarize(eval_dir, valid_ids)
 
 

@@ -31,7 +31,6 @@ def main():
     parser.add_argument("--pose-noise", action="store_true", help="pose noise")
     parser.add_argument("--seed", type=int, default=0, help="random seed")
     parser.add_argument("--nogui", action="store_true", help="no gui")
-    parser.add_argument("--force", action="store_true", help="force")
     parser.add_argument(
         "--suction-max-force",
         type=lambda x: None if x.lower() == "none" else float(x),
@@ -42,14 +41,15 @@ def main():
 
     log_dir = here / f"logs/{args.planner}"
     scene_id = args.export_file.stem
-    json_file = (
-        log_dir
-        / f"eval-pose_noise_{args.pose_noise}/{scene_id}/{args.seed}.json"
-    )
 
-    if not args.force and json_file.exists():
-        logger.info(f"Result file already exists: {json_file}")
-        return
+    if args.nogui:
+        json_file = (
+            log_dir
+            / f"eval-pose_noise_{args.pose_noise}/{scene_id}/{args.seed}.json"
+        )
+        if json_file.exists():
+            logger.info(f"Result file already exists: {json_file}")
+            return
 
     env = PickFromPileEnv(
         gui=not args.nogui,
@@ -115,19 +115,20 @@ def main():
         )
     logger.info(f"sum_of_max_velocities: {sum(max_velocities.values()):.3f}")
 
-    data = dict(
-        planner=args.planner,
-        scene_id=scene_id,
-        seed=args.seed,
-        success=success,
-        max_velocities=list(max_velocities.values()),
-        sum_of_max_velocities=sum(max_velocities.values()),
-    )
+    if args.nogui:
+        data = dict(
+            planner=args.planner,
+            scene_id=scene_id,
+            seed=args.seed,
+            success=success,
+            max_velocities=list(max_velocities.values()),
+            sum_of_max_velocities=sum(max_velocities.values()),
+        )
 
-    json_file.parent.makedirs_p()
-    with open(json_file, "w") as f:
-        json.dump(data, f, indent=2)
-    logger.info(f"Saved to: {json_file}")
+        json_file.parent.makedirs_p()
+        with open(json_file, "w") as f:
+            json.dump(data, f, indent=2)
+        logger.info(f"Saved to: {json_file}")
 
 
 if __name__ == "__main__":
