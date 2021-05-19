@@ -50,6 +50,7 @@ def main():
 
     env = PickFromPileEnv(
         gui=not args.nogui,
+        retime=10,
         planner="RRTConnect",
         pose_noise=args.pose_noise,
         suction_max_force=hparams["suction_max_force"],

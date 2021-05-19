@@ -53,6 +53,7 @@ def main():
 
     env = PickFromPileEnv(
         gui=not args.nogui,
+        retime=10,
         planner=args.planner,
         pose_noise=args.pose_noise,
         suction_max_force=args.suction_max_force,
