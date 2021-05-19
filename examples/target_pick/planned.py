@@ -31,12 +31,6 @@ def main():
     parser.add_argument("--pose-noise", action="store_true", help="pose noise")
     parser.add_argument("--seed", type=int, default=0, help="random seed")
     parser.add_argument("--nogui", action="store_true", help="no gui")
-    parser.add_argument(
-        "--suction-max-force",
-        type=lambda x: None if x.lower() == "none" else float(x),
-        default=10,
-        help="suction max force",
-    )
     args = parser.parse_args()
 
     log_dir = here / f"logs/{args.planner}"
@@ -56,7 +50,8 @@ def main():
         retime=10,
         planner=args.planner,
         pose_noise=args.pose_noise,
-        suction_max_force=args.suction_max_force,
+        suction_max_force=None,
+        reward="max_velocities",
     )
     env.eval = True
     obs = env.reset(
