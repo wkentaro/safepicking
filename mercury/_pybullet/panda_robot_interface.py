@@ -484,19 +484,19 @@ class PandaRobotInterface:
             v1 /= np.linalg.norm(v1)
             angle = geometry.angle_between_vectors(v0, v1)
             if angle > max_angle:
-                logger.warning(f"angle > {np.rad2deg(max_angle)} deg")
+                # logger.warning(f"angle > {np.rad2deg(max_angle)} deg")
                 continue
 
             j = self.solve_ik(
                 c.pose, rotation_axis="z", random_state=random_state
             )
             if j is None:
-                logger.warning("j is None")
+                # logger.warning("j is None")
                 continue
 
             path1 = self.planj(j, obstacles=bg_object_ids + object_ids)
             if path1 is None:
-                logger.warning("path1 is None")
+                # logger.warning("path1 is None")
                 continue
 
             self.setj(j)
@@ -506,7 +506,7 @@ class PandaRobotInterface:
                 c.pose, n_init=1, rotation_axis="z", random_state=random_state
             )
             if j is None:
-                logger.warning("j is None")
+                # logger.warning("j is None")
                 self.setj(j_init)
                 continue
 
@@ -514,7 +514,7 @@ class PandaRobotInterface:
             obstacles.remove(object_id)
             path2 = self.planj(j, obstacles=obstacles)
             if path2 is None:
-                logger.warning("path2 is None")
+                # logger.warning("path2 is None")
                 self.setj(j_init)
                 continue
 

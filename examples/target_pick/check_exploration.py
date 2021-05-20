@@ -27,7 +27,7 @@ def main():
     env = PickFromPileEnv(gui=not args.nogui, retime=10)
     t_start = time.time()
     obs = env.reset()
-    logger.info(f"{time.time() - t_start:.2f} [s]")
+    logger.info(f"Reset time: {time.time() - t_start:.2f} [s]")
     if args.print_obs:
         pprint.pprint(obs)
 
@@ -42,7 +42,7 @@ def main():
         )
         t_start = time.time()
         transition = env.step(act_result)
-        logger.info(f"{time.time() - t_start:.2f} [s]")
+        logger.info(f"Step time: {time.time() - t_start:.2f} [s]")
         logger.info(
             f"action={act_result.action}, reward={transition.reward}, "
             f"terminal={transition.terminal}",

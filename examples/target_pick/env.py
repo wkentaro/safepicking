@@ -260,13 +260,13 @@ class PickFromPileEnv(Env):
             else:
                 rgba_color = (0.5, 0.5, 0.5)
 
-            class_name = mercury.datasets.ycb.class_names[class_id]
-            visibility = data["visibility"][i]
-            logger.info(
-                f"class_id={class_id:02d}, "
-                f"class_name={class_name}, "
-                f"visibility={visibility:.1%}"
-            )
+            # class_name = mercury.datasets.ycb.class_names[class_id]
+            # visibility = data["visibility"][i]
+            # logger.info(
+            #     f"class_id={class_id:02d}, "
+            #     f"class_name={class_name}, "
+            #     f"visibility={visibility:.1%}"
+            # )
 
             with pp.LockRenderer():
                 object_id = mercury.pybullet.create_mesh_body(
