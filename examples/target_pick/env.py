@@ -212,6 +212,7 @@ class PickFromPileEnv(Env):
 
         self.ri = mercury.pybullet.PandaRobotInterface(
             suction_max_force=self._suction_max_force,
+            suction_surface_threshold=np.deg2rad(20),
             suction_surface_alignment=False,
             planner="RRTConnect",
         )
@@ -225,14 +226,18 @@ class PickFromPileEnv(Env):
 
         data = dict(np.load(pile_file))
 
-        is_occluded = data["visibility"] < 0.9
-        if is_occluded.sum() == 0:
+        is_partially_occluded = (0.2 < data["visibility"]) & (
+            data["visibility"] < 0.9
+        )
+        if is_partially_occluded.sum() == 0:
             if raise_on_failure:
-                raise RuntimeError("no occluded object is found")
+                raise RuntimeError("no partially occluded object is found")
             else:
                 return self.reset()
         else:
-            target_index = random_state.choice(np.where(is_occluded)[0])
+            target_index = random_state.choice(
+                np.where(is_partially_occluded)[0]
+            )
 
         pile_center = [0.5, 0, 0]
 
@@ -286,7 +291,7 @@ class PickFromPileEnv(Env):
         c.position = pp.get_pose(object_ids[target_index])[0]
         c.position[2] += 0.5
         for i in itertools.count():
-            if i == 10:
+            if i == 3:
                 if raise_on_failure:
                     raise RuntimeError("random grasping failed")
                 else:
