@@ -80,9 +80,8 @@ def main():
         )
         transition = env.step(act_result)
 
-        print(
-            f"action={act_result.action}, reward={transition.reward}, "
-            f"terminal={transition.terminal}",
+        logger.info(
+            f"reward={transition.reward}, terminal={transition.terminal}"
         )
         if transition.terminal:
             break

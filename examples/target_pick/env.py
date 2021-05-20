@@ -446,6 +446,12 @@ class PickFromPileEnv(Env):
         else:
             j = self.validate_action(act_result)
 
+        with np.printoptions(precision=2):
+            logger.info(
+                f"{act_result.action}: "
+                f"{np.array(self.actions[act_result.action])}"
+            )
+
         if j is None:
             logger.error("Failed to solve IK")
             if self._reward in ["completion_shaped", "completion"]:
