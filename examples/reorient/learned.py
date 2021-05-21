@@ -38,16 +38,16 @@ def main():
     args = parser.parse_args()
 
     env = PickAndPlaceEnv()
+    env.eval = True
     env.random_state = np.random.RandomState(args.seed)
-    env.reset(pile_file=env.PILES_DIR / "00001006.npz")
+    env.reset()
 
     common_utils.pause(args.pause)
 
     model = Model()
-    model.cuda()
-    model_file = sorted(args.log_dir.glob("model_best-epoch_*.pth"))[-1]
+    model_file = sorted(args.log_dir.glob("models/model_best-epoch_*.pth"))[-1]
     logger.info(f"Loading {model_file}")
-    model.load_state_dict(torch.load(model_file))
+    model.load_state_dict(torch.load(model_file, map_location="cpu"))
     model.eval()
 
     t_start = time.time()
@@ -66,18 +66,33 @@ def main():
     initial_pose = np.stack(initial_pose, axis=0).astype(np.float32)
     reorient_pose = np.stack(reorient_pose, axis=0).astype(np.float32)
 
+    B = reorient_pose.shape[0]
+
+    object_classes = []
+    object_poses = []
+    for object_id in env.object_ids:
+        class_id = common_utils.get_class_id(object_id)
+        object_classes.append(np.eye(22)[class_id])
+        object_poses.append(np.hstack(pp.get_pose(object_id)))
+    object_classes = np.stack(object_classes, axis=0).astype(np.float32)
+    object_poses = np.stack(object_poses, axis=0).astype(np.float32)
+
+    object_classes = np.tile(object_classes[None], (B, 1, 1))
+    object_poses = np.tile(object_poses[None], (B, 1, 1))
+
     if args.nolearning:
-        N = len(reorient_pose)
-        success_pred = np.full(N, np.nan)
-        length_pred = np.full(N, np.nan)
-        auc_pred = np.full(N, np.nan)
-        indices = np.arange(N)
+        success_pred = np.full(B, np.nan)
+        length_pred = np.full(B, np.nan)
+        auc_pred = np.full(B, np.nan)
+        indices = np.arange(B)
     else:
         with torch.no_grad():
             success_pred, length_pred, auc_pred = model(
-                grasp_pose=torch.as_tensor(grasp_pose).cuda(),
-                initial_pose=torch.as_tensor(initial_pose).cuda(),
-                reorient_pose=torch.as_tensor(reorient_pose).cuda(),
+                object_classes=torch.as_tensor(object_classes),
+                object_poses=torch.as_tensor(object_poses),
+                grasp_pose=torch.as_tensor(grasp_pose),
+                initial_pose=torch.as_tensor(initial_pose),
+                reorient_pose=torch.as_tensor(reorient_pose),
             )
         success_pred = success_pred.cpu().numpy()
         length_pred = (

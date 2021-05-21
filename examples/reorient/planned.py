@@ -397,8 +397,8 @@ def plan_and_execute_place(env):
 
 def main():
     env = PickAndPlaceEnv()
-    env.random_state = np.random.RandomState(5)
-    env.reset(pile_file=env.PILES_DIR / "00001000.npz")
+    env.random_state = np.random.RandomState(0)
+    env.reset()
 
     results = itertools.islice(rollout_plan_reorient(env), 10)
     result = min(results, key=lambda x: x["js_place_length"])
