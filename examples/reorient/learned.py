@@ -24,32 +24,7 @@ from train import Dataset
 from train import Model
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    parser.add_argument("log_dir", type=path.Path, help="log dir")
-    parser.add_argument("--seed", type=int, default=0, help="seed")
-    parser.add_argument("--pause", action="store_true", help="pause")
-    parser.add_argument("--nolearning", action="store_true", help="nolearning")
-    parser.add_argument(
-        "--num-sample", type=int, default=10, help="num sample"
-    )
-    args = parser.parse_args()
-
-    env = PickAndPlaceEnv()
-    env.eval = True
-    env.random_state = np.random.RandomState(args.seed)
-    env.reset()
-
-    common_utils.pause(args.pause)
-
-    model = Model()
-    model_file = sorted(args.log_dir.glob("models/model_best-epoch_*.pth"))[-1]
-    logger.info(f"Loading {model_file}")
-    model.load_state_dict(torch.load(model_file, map_location="cpu"))
-    model.eval()
-
+def plan_and_execute_reorient(env, model, nolearning, num_sample):
     t_start = time.time()
 
     grasp_pose = []
@@ -80,7 +55,7 @@ def main():
     object_classes = np.tile(object_classes[None], (B, 1, 1))
     object_poses = np.tile(object_poses[None], (B, 1, 1))
 
-    if args.nolearning:
+    if nolearning:
         success_pred = np.full(B, np.nan)
         length_pred = np.full(B, np.nan)
         auc_pred = np.full(B, np.nan)
@@ -118,7 +93,7 @@ def main():
         indices = np.argsort(metric)
 
     results = []
-    for index in indices[: args.num_sample]:
+    for index in indices[:num_sample]:
         logger.info(
             f"success_pred={success_pred[index]:.1%}, "
             f"length_pred={length_pred[index]:.2f}, "
@@ -146,8 +121,8 @@ def main():
 
         if "js_place_length" in result:
             results.append(result)
-            if args.num_sample < 0:
-                if len(results) == abs(args.num_sample):
+            if num_sample < 0:
+                if len(results) == abs(num_sample):
                     break
     if not results:
         logger.error("No solution is found")
@@ -160,7 +135,43 @@ def main():
 
     execute_plan(env, result)
 
-    plan_and_execute_place(env)
+
+def main():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument("log_dir", type=path.Path, help="log dir")
+    parser.add_argument("--seed", type=int, default=0, help="seed")
+    parser.add_argument("--pause", action="store_true", help="pause")
+    parser.add_argument("--nolearning", action="store_true", help="nolearning")
+    parser.add_argument(
+        "--num-sample", type=int, default=10, help="num sample"
+    )
+    args = parser.parse_args()
+
+    env = PickAndPlaceEnv()
+    env.eval = True
+    env.random_state = np.random.RandomState(args.seed)
+    env.reset()
+
+    common_utils.pause(args.pause)
+
+    model = Model()
+    model_file = sorted(args.log_dir.glob("models/model_best-epoch_*.pth"))[-1]
+    logger.info(f"Loading {model_file}")
+    model.load_state_dict(torch.load(model_file, map_location="cpu"))
+    model.eval()
+
+    while True:
+        if plan_and_execute_place(env):
+            return
+
+        plan_and_execute_reorient(
+            env,
+            model=model,
+            nolearning=args.nolearning,
+            num_sample=args.num_sample,
+        )
 
 
 if __name__ == "__main__":
