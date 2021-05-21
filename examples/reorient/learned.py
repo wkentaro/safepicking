@@ -24,11 +24,7 @@ from train import Dataset
 from train import Model
 
 
-def plan_and_execute_reorient(
-    env, model, nolearning, num_sample, visualize=True
-):
-    t_start = time.time()
-
+def plan_and_execute_reorient(env, model, nolearning, timeout, visualize=True):
     grasp_pose = []
     initial_pose = []
     reorient_pose = []
@@ -77,7 +73,10 @@ def plan_and_execute_reorient(
         )
         auc_pred = auc_pred.cpu().numpy()
 
-        keep = success_pred > 0.6
+        for threshold in [0.6, 0.4, 0.2, 0]:
+            keep = success_pred > threshold
+            if keep.sum() > 0:
+                break
 
         success_pred = success_pred[keep]
         length_pred = length_pred[keep]
@@ -94,8 +93,10 @@ def plan_and_execute_reorient(
         metric = length_pred_normalized - auc_pred_normalized
         indices = np.argsort(metric)
 
+    t_start = time.time()
+
     results = []
-    for index in indices[:num_sample]:
+    for index in indices:
         logger.info(
             f"success_pred={success_pred[index]:.1%}, "
             f"length_pred={length_pred[index]:.2f}, "
@@ -129,19 +130,18 @@ def plan_and_execute_reorient(
 
         if "js_place_length" in result:
             results.append(result)
-            if num_sample < 0:
-                if len(results) == abs(num_sample):
-                    break
+
+        if (time.time() - t_start) > timeout:
+            break
     if not results:
         logger.error("No solution is found")
-        return
+        return False
 
     result = min(results, key=lambda x: x["js_place_length"])
     logger.info(f"length_true={result['js_place_length']:.2f}")
 
-    logger.info(f"planning_time={time.time() - t_start:.2f} [s]")
-
     execute_plan(env, result)
+    return True
 
 
 def main():
@@ -152,9 +152,7 @@ def main():
     parser.add_argument("--seed", type=int, default=0, help="seed")
     parser.add_argument("--pause", action="store_true", help="pause")
     parser.add_argument("--nolearning", action="store_true", help="nolearning")
-    parser.add_argument(
-        "--num-sample", type=int, default=10, help="num sample"
-    )
+    parser.add_argument("--timeout", type=int, default=1, help="num sample")
     parser.add_argument("--visualize", action="store_true", help="visualize")
     parser.add_argument("--mp4", help="mp4")
     args = parser.parse_args()
@@ -176,13 +174,14 @@ def main():
         if plan_and_execute_place(env):
             return
 
-        plan_and_execute_reorient(
+        if not plan_and_execute_reorient(
             env,
             model=model,
             nolearning=args.nolearning,
-            num_sample=args.num_sample,
+            timeout=args.timeout,
             visualize=args.visualize,
-        )
+        ):
+            break
 
 
 if __name__ == "__main__":
