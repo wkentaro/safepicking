@@ -224,26 +224,34 @@ class PickAndPlaceEnv(EnvBase):
 
         self.ri.setj(j)
 
+        js = []
         with self.ri.enabling_attachments():
-            j = self.ri.solve_ik(
-                self.PLACE_POSE,
-                move_target=self.ri.robot_model.attachment_link0,
-            )
-        if j is None:
-            logger.error(f"Failed to solve placing IK: {act_result.action}")
-            before_return()
-            return False, result
-        result["j_place"] = j
-
-        js = self.ri.planj(
-            j,
-            obstacles=[self.plane, self.bin],
-            min_distances={(self.ri.attachments[0].child, -1): -0.01},
-        )
-        if js is None:
-            logger.error(f"Failed to solve placing path: {act_result.action}")
-            before_return()
-            return False, result
+            for pose in pp.interpolate_poses(
+                pose1=self.PRE_PLACE_POSE, pose2=self.PLACE_POSE
+            ):
+                j = self.ri.solve_ik(
+                    pose,
+                    move_target=self.ri.robot_model.attachment_link0,
+                    n_init=1,
+                )
+                if j is None:
+                    logger.error(
+                        f"Failed to solve placing IK: {act_result.action}"
+                    )
+                    before_return()
+                    return False, result
+                is_valid = self.ri.validatej(
+                    j,
+                    obstacles=[self.plane, self.bin],
+                    min_distances={(self.ri.attachments[0].child, -1): -0.01},
+                )
+                if not is_valid:
+                    logger.error(
+                        f"Failed to solve placing path: {act_result.action}"
+                    )
+                    before_return()
+                    return False, result
+                js.append(j)
         result["js_place"] = js
 
         before_return()
