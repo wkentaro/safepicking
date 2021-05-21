@@ -354,7 +354,7 @@ def rollout_plan_reorient(
                 yield result
 
 
-def plan_and_execute_place(env):
+def plan_and_execute_place(env, num_sample=5):
     env.setj_to_camera_pose()
     env.update_obs()
 
@@ -381,7 +381,7 @@ def plan_and_execute_place(env):
             )[0]
             pp.draw_point(point, color=(0, 1, 0, 1))
 
-    for a_flatten in a_flattens:
+    for a_flatten in a_flattens[:num_sample]:
         action = (a_flatten // ocs.shape[1], a_flatten % ocs.shape[1])
         act_result = ActResult(action)
         is_valid, validation_result = env.validate_action(act_result)
@@ -390,9 +390,10 @@ def plan_and_execute_place(env):
             break
     else:
         logger.error("No valid actions")
-        return
+        return False
 
     env.step(act_result)
+    return True
 
 
 def main():
