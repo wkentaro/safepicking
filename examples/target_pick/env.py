@@ -73,7 +73,7 @@ class PickFromPileEnv(Env):
         drot = np.deg2rad(15) * 5 / self.episode_length
         dx_options = np.linspace(-dpos, dpos, num=action_discretization)
         dy_options = np.linspace(-dpos, dpos, num=action_discretization)
-        dz_options = np.linspace(-dpos, dpos, num=action_discretization)
+        dz_options = np.linspace(0, dpos, num=action_discretization // 2 + 1)
         da_options = np.linspace(-drot, drot, num=action_discretization)
         db_options = np.linspace(-drot, drot, num=action_discretization)
         dg_options = np.linspace(-drot, drot, num=action_discretization)
