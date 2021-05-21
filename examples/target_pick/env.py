@@ -40,6 +40,7 @@ class PickFromPileEnv(Env):
         reward="max_velocities",
         action_discretization=3,
         episode_length=5,
+        mp4=None,
     ):
         super().__init__()
 
@@ -50,6 +51,7 @@ class PickFromPileEnv(Env):
         self._easy = easy
         self._suction_max_force = suction_max_force
         self._episode_length = episode_length
+        self._mp4 = mp4
 
         if reward in [
             "max_velocities",
@@ -197,7 +199,7 @@ class PickFromPileEnv(Env):
             pile_file = self.piles_dir / f"{i:08d}.npz"
 
         if not pp.is_connected():
-            pp.connect(use_gui=self._gui)
+            pp.connect(use_gui=self._gui, mp4=self._mp4)
             pp.add_data_path()
 
         p.resetSimulation()

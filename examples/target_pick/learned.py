@@ -30,6 +30,7 @@ def main():
     parser.add_argument("--pose-noise", action="store_true", help="pose noise")
     parser.add_argument("--seed", type=int, default=0, help="random seed")
     parser.add_argument("--nogui", action="store_true", help="no gui")
+    parser.add_argument("--mp4", help="mp4")
     args = parser.parse_args()
 
     log_dir = args.weight_dir.parent.parent
@@ -57,6 +58,7 @@ def main():
         pose_noise=args.pose_noise,
         suction_max_force=hparams["suction_max_force"],
         reward=hparams["reward"],
+        mp4=args.mp4,
     )
     env.eval = True
     obs = env.reset(
