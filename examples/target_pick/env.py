@@ -442,11 +442,16 @@ class PickFromPileEnv(Env):
         action = self.actions[act_result.action]
         dx, dy, dz, da, db, dg = action
 
-        c = mercury.geometry.Coordinate(*self.ri.get_pose("tipLink"))
-        c.translate([dx, dy, dz], wrt="world")
-        c.rotate([da, db, dg], wrt="world")
+        with self.ri.enabling_attachments():
+            pose = self.ri.get_pose("attachment_link0")
 
-        return self.ri.solve_ik(c.pose)
+            c = mercury.geometry.Coordinate(*pose)
+            c.translate([dx, dy, dz], wrt="world")
+            c.rotate([da, db, dg], wrt="world")
+
+            return self.ri.solve_ik(
+                c.pose, move_target=self.ri.robot_model.attachment_link0
+            )
 
     def step(self, act_result):
         if hasattr(act_result, "j"):
