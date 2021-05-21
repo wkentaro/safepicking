@@ -223,11 +223,18 @@ class PandaRobotInterface:
             # root_link=self.robot_model.root_link,
         )
 
+    def validatej(self, j, obstacles=None, min_distances=None):
+        planner = PbPlanner(
+            self,
+            obstacles=obstacles,
+            min_distances=min_distances,
+            planner=self.planner,
+        )
+        return planner.validityChecker.isValid(j)
+
     def planj(self, j, obstacles=None, min_distances=None):
         if self.planner == "Naive":
             return [j]
-
-        ndof = len(self.joints)
 
         planner = PbPlanner(
             self,
@@ -250,6 +257,7 @@ class PandaRobotInterface:
             # logger.warning("No solution found")
             return
 
+        ndof = len(self.joints)
         state_count = result.getStateCount()
         path = np.zeros((state_count, ndof), dtype=float)
         for i_state in range(state_count):
