@@ -40,12 +40,13 @@ class EnvBase(Env):
     PRE_PLACE_POSE = BIN_POSE[0] + (0, -0.3, 0), (0, 0, 0, 1)
     PLACE_POSE = BIN_POSE[0], PRE_PLACE_POSE[1]
 
-    def __init__(self, gui=True, retime=1, step_callback=None):
+    def __init__(self, gui=True, retime=1, step_callback=None, mp4=None):
         super().__init__()
 
         self._gui = gui
         self._retime = retime
         self._step_callback = step_callback
+        self._mp4 = mp4
 
         self.random_state = np.random.RandomState()
 
@@ -76,7 +77,7 @@ class EnvBase(Env):
             pile_file = self.PILES_DIR / f"{i:08d}.npz"
 
         if not pp.is_connected():
-            pp.connect(use_gui=self._gui)
+            pp.connect(use_gui=self._gui, mp4=self._mp4)
             pp.add_data_path()
 
         p.resetSimulation()

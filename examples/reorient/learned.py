@@ -24,7 +24,9 @@ from train import Dataset
 from train import Model
 
 
-def plan_and_execute_reorient(env, model, nolearning, num_sample):
+def plan_and_execute_reorient(
+    env, model, nolearning, num_sample, visualize=True
+):
     t_start = time.time()
 
     grasp_pose = []
@@ -106,18 +108,24 @@ def plan_and_execute_reorient(env, model, nolearning, num_sample):
             reorient_pose[index, :3], reorient_pose[index, 3:]
         )
 
-        obj_af = mercury.pybullet.duplicate(
-            env.fg_object_id,
-            collision=False,
-            texture=False,
-            rgba_color=(0, 1, 0, 0.5),
-            position=c_reorient.position,
-            quaternion=c_reorient.quaternion,
-        )
+        if visualize:
+            obj_af = mercury.pybullet.duplicate(
+                env.fg_object_id,
+                collision=False,
+                texture=False,
+                rgba_color=(0, 1, 0, 0.5),
+                position=c_reorient.position,
+                quaternion=c_reorient.quaternion,
+            )
+        else:
+            lock_renderer = pp.LockRenderer()
 
         result = plan_reorient(env, c_grasp, c_reorient)
 
-        pp.remove_body(obj_af)
+        if visualize:
+            pp.remove_body(obj_af)
+        else:
+            lock_renderer.restore()
 
         if "js_place_length" in result:
             results.append(result)
@@ -147,9 +155,11 @@ def main():
     parser.add_argument(
         "--num-sample", type=int, default=10, help="num sample"
     )
+    parser.add_argument("--visualize", action="store_true", help="visualize")
+    parser.add_argument("--mp4", help="mp4")
     args = parser.parse_args()
 
-    env = PickAndPlaceEnv()
+    env = PickAndPlaceEnv(mp4=args.mp4)
     env.eval = True
     env.random_state = np.random.RandomState(args.seed)
     env.reset()
@@ -171,6 +181,7 @@ def main():
             model=model,
             nolearning=args.nolearning,
             num_sample=args.num_sample,
+            visualize=args.visualize,
         )
 
 
