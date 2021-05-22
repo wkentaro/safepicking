@@ -45,7 +45,7 @@ class PickFromPileEnv(Env):
         dxs = np.linspace(-0.05, 0.05, 3)
         dys = np.linspace(-0.05, 0.05, 3)
         # dzs = np.linspace(-0.05, 0.05, 3)
-        dzs = np.linspace(0, 0.05, 2)
+        dzs = [0.05]
         das = np.linspace(np.deg2rad(-22.5), np.deg2rad(22.5), 3)
         dbs = np.linspace(np.deg2rad(-22.5), np.deg2rad(22.5), 3)
         dgs = np.linspace(np.deg2rad(-22.5), np.deg2rad(22.5), 3)
@@ -71,12 +71,6 @@ class PickFromPileEnv(Env):
                 object_poses=object_poses,
             )
         )
-
-        self._pcds = {}
-        for class_id in self.CLASS_IDS:
-            self._pcds[class_id] = np.loadtxt(
-                mercury.datasets.ycb.get_pcd_file(class_id)
-            )
 
     @property
     def episode_length(self):
@@ -110,7 +104,8 @@ class PickFromPileEnv(Env):
         if random_state is None:
             random_state = np.random.RandomState(0)
         if pile_file is None:
-            i = np.random.choice([1002, 1013, 1094, 1195, 1048])
+            # i = np.random.choice([1002, 1013, 1094, 1195, 1048])
+            i = 1002
             pile_file = self.PILES_DIR / f"{i:08d}.npz"
 
         if not pp.is_connected():
@@ -180,8 +175,14 @@ class PickFromPileEnv(Env):
                 )
 
             if i == target_index:
-                pp.draw_aabb(
-                    pp.get_aabb(object_id), color=(1, 0, 0, 1), width=2
+                mercury.pybullet.duplicate(
+                    object_id,
+                    collision=False,
+                    texture=False,
+                    rgba_color=(0, 1, 0, 0.5),
+                    position=position,
+                    quaternion=quaternion,
+                    mesh_scale=(1.05, 1.05, 1.05),
                 )
 
             object_ids.append(object_id)
@@ -272,8 +273,8 @@ class PickFromPileEnv(Env):
             poses[object_id] = pp.get_pose(object_id)
         translations = collections.defaultdict(int)
 
-        is_moving = {
-            object_id: True
+        num_paused = {
+            object_id: 0
             for object_id in self.object_ids
             if object_id != self.target_object_id
         }
@@ -283,23 +284,16 @@ class PickFromPileEnv(Env):
                 if object_id == self.target_object_id:
                     continue
 
-                class_id = common_utils.get_class_id(object_id)
-                pcd = self._pcds[class_id]
-
                 pose = pp.get_pose(object_id)
 
-                reference = mercury.geometry.transform_points(
-                    pcd,
-                    mercury.geometry.transformation_matrix(*poses[object_id]),
+                d_translation = np.linalg.norm(
+                    np.array(poses[object_id][0]) - np.array(pose[0])
                 )
-                target = mercury.geometry.transform_points(
-                    pcd, mercury.geometry.transformation_matrix(*pose)
-                )
-                auc = mercury.geometry.average_distance_auc(
-                    reference, target, min_threshold=0.001, max_threshold=0.01
-                )
-                translations[object_id] += 1 - auc
-                is_moving[object_id] = auc != 1
+                translations[object_id] += d_translation
+                if d_translation < 0.0001:
+                    num_paused[object_id] += 1
+                else:
+                    num_paused[object_id] = 0
 
                 poses[object_id] = pose
 
@@ -313,7 +307,7 @@ class PickFromPileEnv(Env):
             if self._gui:
                 time.sleep(pp.get_time_step())
 
-        for _ in range(240):
+        for _ in range(int(round(10 / pp.get_time_step()))):
             pp.set_pose(self.target_object_id, pose)
             pp.step_simulation()
             pp.set_pose(self.target_object_id, pose)
@@ -321,8 +315,18 @@ class PickFromPileEnv(Env):
             if self._gui:
                 time.sleep(pp.get_time_step())
 
-            if not any(is_moving.values()):
+            if all(n > 10 for n in num_paused.values()):
                 break
+
+        mercury.pybullet.duplicate(
+            self.target_object_id,
+            collision=False,
+            texture=False,
+            rgba_color=(0, 1, 0, 0.5),
+            position=pose[0],
+            quaternion=pose[1],
+            mesh_scale=(1.05, 1.05, 1.05),
+        )
 
         aabb_min, aabb_max = pp.get_aabb(self.target_object_id)
 
