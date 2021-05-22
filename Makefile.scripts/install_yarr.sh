@@ -11,11 +11,11 @@ echo_bold "==> Installing YARR"
 mkdir -p $ROOT/src
 cd $ROOT/src
 if [ ! -d _YARR ]; then
-  git clone https://github.com/stepjam/_YARR.git
+  git clone https://github.com/wkentaro/_YARR.git
 fi
 cd _YARR
 
-git checkout 82d84d6
+git checkout 8bd3808
 
 pip_install -r requirements.txt
 pip_install natsort
