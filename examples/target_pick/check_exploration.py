@@ -5,6 +5,8 @@ import pprint
 import time
 
 from loguru import logger
+import numpy as np
+from yarr.agents.agent import ActResult
 
 from agent import DqnAgent
 from env import PickFromPileEnv
@@ -16,43 +18,50 @@ def main():
     )
     parser.add_argument(
         "--model",
-        required=True,
-        choices=["closedloop_pose_net", "openloop_pose_net"],
+        choices=["closedloop_pose_net"],
         help="model",
     )
     parser.add_argument("--nogui", action="store_true", help="no gui")
     parser.add_argument("--print-obs", action="store_true", help="print obs")
     args = parser.parse_args()
 
-    env = PickFromPileEnv(gui=not args.nogui, retime=10)
+    env = PickFromPileEnv(gui=not args.nogui)
     t_start = time.time()
     obs = env.reset()
     logger.info(f"Reset time: {time.time() - t_start:.2f} [s]")
+    i = 0
     if args.print_obs:
         pprint.pprint(obs)
 
-    agent = DqnAgent(env=env, model=args.model)
-    agent.build(training=False)
+    if args.model is None:
+        agent = None
+    else:
+        agent = DqnAgent(env=env, model=args.model)
+        agent.build(training=False)
 
     while True:
         for key in obs:
             obs[key] = obs[key][None, None, :]
-        act_result = agent.act(
-            step=-1, observation=obs, deterministic=False, env=env
-        )
+        if agent is None:
+            for action in np.random.permutation(len(env.actions)):
+                act_result = ActResult(action)
+                if env.validate_action(act_result):
+                    break
+        else:
+            act_result = agent.act(
+                step=-1, observation=obs, deterministic=False, env=env
+            )
         t_start = time.time()
         transition = env.step(act_result)
-        logger.info(f"Step time: {time.time() - t_start:.2f} [s]")
-        logger.info(
-            f"action={act_result.action}, reward={transition.reward}, "
-            f"terminal={transition.terminal}",
-        )
+        logger.info(f"[{i}] Step time: {time.time() - t_start:.2f} [s]")
         if transition.terminal:
             t_start = time.time()
             obs = env.reset()
-            logger.info(f"{time.time() - t_start:.2f} [s]")
+            logger.info(f"Reset time: {time.time() - t_start:.2f} [s]")
+            i = 0
         else:
             obs = transition.observation
+            i += 1
 
 
 if __name__ == "__main__":

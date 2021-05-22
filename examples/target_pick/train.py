@@ -39,58 +39,16 @@ def main():
     parser.add_argument(
         "--model",
         required=True,
-        choices=["closedloop_pose_net", "openloop_pose_net"],
+        choices=["closedloop_pose_net"],
         help="model",
     )
-    parser.add_argument("--pose-noise", action="store_true", help="pose noise")
     parser.add_argument(
         "--train-envs", type=int, default=5, help="number of train envs"
     )
     parser.add_argument(
-        "--lr",
-        type=float,
-        default=1e-3,
-        help="learning rate",
-    )
-    parser.add_argument(
         "--epsilon-max-step", type=int, default=5000, help="epsilon max step"
     )
-    parser.add_argument("--debug", action="store_true", help="debug")
     parser.add_argument("--device", default="cuda:0", help="device")
-    parser.add_argument("--easy", action="store_true", help="easy")
-    parser.add_argument(
-        "--suction-max-force",
-        type=float,
-        default=None,
-        help="suction max force",
-    )
-    parser.add_argument(
-        "--reward",
-        choices=[
-            "completion_shaped",
-            "completion",
-            "max_velocities",
-            "max_velocities_end",
-            "max_velocities_accumulated",
-            "translations",
-            "translations_end",
-            "translations_accumulated",
-        ],
-        default="max_velocities",
-        help="reward",
-    )
-    parser.add_argument(
-        "--action-discretization",
-        type=int,
-        default=3,
-        help="action discretization",
-    )
-    parser.add_argument(
-        "--episode-length",
-        type=int,
-        default=5,
-        help="episode length",
-    )
     args = parser.parse_args()
 
     hparams = args.__dict__.copy()
@@ -124,15 +82,7 @@ def main():
     # Setup env
     ###################
 
-    env = PickFromPileEnv(
-        gui=False,
-        pose_noise=hparams["pose_noise"],
-        easy=hparams["easy"],
-        suction_max_force=hparams["suction_max_force"],
-        reward=hparams["reward"],
-        action_discretization=hparams["action_discretization"],
-        episode_length=hparams["episode_length"],
-    )
+    env = PickFromPileEnv(gui=False)
 
     # Setup replay buffer
     #####################

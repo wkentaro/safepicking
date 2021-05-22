@@ -18,17 +18,7 @@ class DqnModel(torch.nn.Module):
         self._model = model
 
         if self._model == "closedloop_pose_net":
-            self.module = PoseNet(
-                closedloop=True,
-                n_action=len(env.actions),
-                n_past_action=env.episode_length - 1,
-            )
-        elif self._model == "openloop_pose_net":
-            self.module = PoseNet(
-                closedloop=False,
-                n_action=len(env.actions),
-                n_past_action=env.episode_length - 1,
-            )
+            self.module = PoseNet(n_action=len(env.actions))
         else:
             raise ValueError
 
@@ -37,26 +27,6 @@ class DqnModel(torch.nn.Module):
             grasp_flags = observation["grasp_flags"]
             object_labels = observation["object_labels"]
             object_poses = observation["object_poses"]
-            kwargs = dict(
-                ee_pose=observation["ee_pose"],
-                past_grasped_object_poses=observation[
-                    "past_grasped_object_poses"
-                ].reshape(
-                    observation["past_grasped_object_poses"].shape[0], -1
-                ),
-            )
-        elif self._model == "openloop_pose_net":
-            grasp_flags = observation["grasp_flags_openloop"]
-            object_labels = observation["object_labels_openloop"]
-            object_poses = observation["object_poses_openloop"]
-            kwargs = dict(
-                grasp_pose=observation["grasp_pose"],
-                past_grasped_object_poses=observation[
-                    "past_grasped_object_poses"
-                ].reshape(
-                    observation["past_grasped_object_poses"].shape[0], -1
-                ),
-            )
         else:
             raise ValueError
 
@@ -64,7 +34,6 @@ class DqnModel(torch.nn.Module):
             grasp_flags=grasp_flags,
             object_labels=object_labels,
             object_poses=object_poses,
-            **kwargs,
         )
 
 
@@ -101,9 +70,7 @@ class DqnAgent(Agent):
         if deterministic:
             for a in actions_select:
                 act_result = ActResult(action=a)
-                j = env.validate_action(act_result)
-                if j is not None:
-                    act_result.j = j
+                if env.validate_action(act_result):
                     break
             else:
                 act_result = ActResult(actions_select[0])
@@ -112,16 +79,12 @@ class DqnAgent(Agent):
             if np.random.random() < epsilon:
                 for a in np.random.permutation(q.shape[1]):
                     act_result = ActResult(action=a)
-                    j = env.validate_action(act_result)
-                    if j is not None:
-                        act_result.j = j
+                    if env.validate_action(act_result):
                         break
             else:
                 for a in actions_select:
                     act_result = ActResult(action=a)
-                    j = env.validate_action(act_result)
-                    if j is not None:
-                        act_result.j = j
+                    if env.validate_action(act_result):
                         break
                 else:
                     act_result = ActResult(actions_select[0])
@@ -203,7 +166,7 @@ class DqnAgent(Agent):
         self.optimizer.step()
 
         self._losses.append(loss.item())
-        self._priority = torch.sqrt(q_delta + 1e-10).detach()
+        self._priority = torch.sqrt(q_delta + 1e-12).detach()
 
     def update_summaries(self):
         return [
