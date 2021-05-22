@@ -23,20 +23,18 @@ def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("export_file", type=path.Path, help="export file")
     parser.add_argument(
         "--weight-dir", type=path.Path, help="weight dir", required=True
     )
-    parser.add_argument("--pose-noise", action="store_true", help="pose noise")
     parser.add_argument("--seed", type=int, default=0, help="random seed")
     parser.add_argument("--nogui", action="store_true", help="no gui")
     parser.add_argument("--mp4", help="mp4")
     args = parser.parse_args()
 
     log_dir = args.weight_dir.parent.parent
-    scene_id = args.export_file.stem
 
     if args.nogui:
+        scene_id = args.export_file.stem
         json_file = (
             log_dir
             / f"eval-pose_noise_{args.pose_noise}/{scene_id}/{args.seed}.json"
@@ -51,28 +49,15 @@ def main():
 
     pprint.pprint(hparams)
 
-    env = PickFromPileEnv(
-        gui=not args.nogui,
-        retime=10,
-        planner="RRTConnect",
-        pose_noise=args.pose_noise,
-        suction_max_force=hparams["suction_max_force"],
-        reward=hparams["reward"],
-        mp4=args.mp4,
-    )
+    env = PickFromPileEnv(gui=not args.nogui, mp4=args.mp4)
     env.eval = True
     obs = env.reset(
         random_state=np.random.RandomState(args.seed),
-        pile_file=args.export_file,
     )
 
     agent = DqnAgent(env=env, model=hparams["model"])
     agent.build(training=False)
     agent.load_weights(args.weight_dir)
-
-    ri = env.ri
-    object_ids = env.object_ids
-    target_object_id = env.target_object_id
 
     while True:
         for key in obs:
@@ -90,38 +75,26 @@ def main():
         else:
             obs = transition.observation
 
-    translations = env._translations
-    max_velocities = env._max_velocities
+    translations = env.translations
 
-    success = ri.gripper.check_grasp()
-    if success:
-        logger.success("Task is complete")
-    else:
-        logger.error("Task is failed")
-
-    for object_id in object_ids:
-        if object_id == target_object_id:
+    for object_id in env.object_ids:
+        if object_id == env.target_object_id:
             continue
         class_id = common_utils.get_class_id(object_id)
         class_name = mercury.datasets.ycb.class_names[class_id]
         logger.info(
-            f"[{object_id}] {class_name:20s}: "
+            f"[{object_id:2d}] {class_name:20s}: "
             f"translation={translations[object_id]:.2f}, "
-            f"max_velocity={max_velocities[object_id]:.2f}"
         )
     logger.info(f"sum_of_translations: {sum(translations.values()):.2f}")
-    logger.info(f"sum_of_max_velocities: {sum(max_velocities.values()):.2f}")
 
     if args.nogui:
         data = dict(
             planner="Learned",
             scene_id=scene_id,
             seed=args.seed,
-            success=success,
             translations=dict(translations),
             sum_of_translations=sum(translations.values()),
-            max_velocities=dict(max_velocities),
-            sum_of_max_velocities=sum(max_velocities.values()),
         )
 
         json_file.parent.makedirs_p()

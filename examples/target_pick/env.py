@@ -197,6 +197,8 @@ class PickFromPileEnv(Env):
         self.object_ids = object_ids
         self.target_object_id = object_ids[target_index]
 
+        self.translations = collections.defaultdict(float)
+
         return self.get_obs()
 
     def get_object_state(self, object_ids, target_object_id):
@@ -271,7 +273,7 @@ class PickFromPileEnv(Env):
             if object_id == self.target_object_id:
                 continue
             poses[object_id] = pp.get_pose(object_id)
-        translations = collections.defaultdict(int)
+        translations = collections.defaultdict(float)
 
         num_paused = {
             object_id: 0
@@ -317,6 +319,9 @@ class PickFromPileEnv(Env):
 
             if all(n > 10 for n in num_paused.values()):
                 break
+
+        for object_id, translation in translations.items():
+            self.translations[object_id] += translation
 
         mercury.pybullet.duplicate(
             self.target_object_id,
