@@ -7,27 +7,21 @@ class PoseNet(torch.nn.Module):
 
         # object_labels: 7, object_poses: 7, grasp_flags: 1
         self.fc_encoder = torch.nn.Sequential(
-            torch.nn.Linear(7 + 7 + 1, 64),
-            torch.nn.ReLU(),
-            torch.nn.Linear(64, 128),
-            torch.nn.ReLU(),
-            torch.nn.Linear(128, 256),
-            torch.nn.ReLU(),
-            torch.nn.Linear(256, 512),
+            torch.nn.Linear(7 + 7 + 1, 32),
             torch.nn.ReLU(),
         )
 
         encoder_layer = torch.nn.TransformerEncoderLayer(
-            d_model=512,
+            d_model=32,
             nhead=4,
-            dim_feedforward=1024,
+            dim_feedforward=64,
         )
         self.transformer_encoder = torch.nn.TransformerEncoder(
             encoder_layer=encoder_layer, num_layers=4, norm=None
         )
 
         self.fc_output = torch.nn.Sequential(
-            torch.nn.Linear(512, n_action),
+            torch.nn.Linear(32, n_action),
         )
 
     def forward(
@@ -39,34 +33,18 @@ class PoseNet(torch.nn.Module):
     ):
         B, O = grasp_flags.shape
 
-        is_valid = (object_labels > 0).any(dim=2)
-
         h = torch.cat(
             [object_labels, object_poses, grasp_flags[:, :, None]], dim=2
         )
 
-        batch_indices = torch.where(is_valid.sum(dim=1))[0]
-
-        h = h[batch_indices]
-        h = h.reshape(batch_indices.shape[0] * O, h.shape[2])
+        h = h.reshape(B * O, h.shape[2])
         h = self.fc_encoder(h)
-        h = h.reshape(batch_indices.shape[0], O, h.shape[1])  # BOE
+        h = h.reshape(B, O, h.shape[1])  # BOE
 
         h = h.permute(1, 0, 2)  # BOE -> OBE
-        h = self.transformer_encoder(h, src_key_padding_mask=~is_valid)
+        h = self.transformer_encoder(h)
         h = h.permute(1, 0, 2)  # OBE -> BOE
 
-        # mean
-        is_valid = is_valid[:, :, None].float()
-        assert not torch.isnan(is_valid).any().item()
-
-        h = (is_valid * h).sum(dim=1) / is_valid.sum(dim=1)
-        assert not torch.isnan(h).any().item()
-
-        output = torch.zeros((B, h.shape[1]), dtype=h.dtype, device=h.device)
-        output[batch_indices] = h
-        assert not torch.isnan(h).any().item()
-
-        output = self.fc_output(output)
+        output = self.fc_output(h.mean(dim=1))
 
         return output
