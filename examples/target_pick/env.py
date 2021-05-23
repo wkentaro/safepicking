@@ -11,6 +11,7 @@ import path
 import pybullet as p
 import pybullet_planning as pp
 
+from yarr.agents.agent import ActResult
 from yarr.envs.env import Env
 from yarr.utils.observation_type import ObservationElement
 from yarr.utils.transition import Transition
@@ -32,11 +33,13 @@ class PickFromPileEnv(Env):
 
     Z_TARGET = 0.2
 
+    DP = 0.05
+    DR = np.deg2rad(22.5)
+
     def __init__(
         self,
         gui=True,
         mp4=None,
-        action="m0pdz",
     ):
         super().__init__()
 
@@ -46,20 +49,14 @@ class PickFromPileEnv(Env):
         self.plane = None
         self.ri = None
 
-        dxs = np.linspace(-0.05, 0.05, 3)
-        dys = np.linspace(-0.05, 0.05, 3)
-        if action == "m0pdz":
-            dzs = np.linspace(-0.05, 0.05, 3)
-        elif action == "0pdz":
-            dzs = [0, 0.05]
-        elif action == "pdz":
-            dzs = [0.05]
-        else:
-            raise ValueError
-        das = np.linspace(np.deg2rad(-22.5), np.deg2rad(22.5), 3)
-        dbs = np.linspace(np.deg2rad(-22.5), np.deg2rad(22.5), 3)
-        dgs = np.linspace(np.deg2rad(-22.5), np.deg2rad(22.5), 3)
+        dxs = [-self.DP, 0, self.DP]
+        dys = [-self.DP, 0, self.DP]
+        dzs = [-self.DP, 0, self.DP]
+        das = np.linspace(-self.DR, self.DR, 3)
+        dbs = np.linspace(-self.DR, self.DR, 3)
+        dgs = np.linspace(-self.DR, self.DR, 3)
         self.actions = list(itertools.product(dxs, dys, dzs, das, dbs, dgs))
+        self.actions.remove((0, 0, 0, 0, 0, 0))
 
         grasp_flags = gym.spaces.Box(low=0, high=1, shape=(8,), dtype=np.uint8)
         object_labels = gym.spaces.Box(
@@ -177,7 +174,8 @@ class PickFromPileEnv(Env):
 
             with pp.LockRenderer():
                 object_id = mercury.pybullet.create_mesh_body(
-                    visual_file=visual_file,
+                    # visual_file=visual_file,
+                    visual_file=collision_file,
                     collision_file=collision_file,
                     mass=mercury.datasets.ycb.masses[class_id],
                     position=position,
@@ -252,6 +250,50 @@ class PickFromPileEnv(Env):
 
         return obs
 
+    def get_demo_action(self):
+        pose = mercury.pybullet.get_pose(self.target_object_id)
+
+        min_distances = {}
+        for action_index, action in enumerate(self.actions):
+            dx, dy, dz, da, db, dg = action
+
+            c = mercury.geometry.Coordinate(*pose)
+            c.translate([dx, dy, dz], wrt="world")
+            c.rotate([da, db, dg], wrt="world")
+
+            MAX_DISTANCE = 0.1
+
+            min_distance = MAX_DISTANCE
+            with pp.LockRenderer(), pp.WorldSaver():
+                pp.set_pose(self.target_object_id, c.pose)
+
+                z_min = pp.get_aabb(self.target_object_id)[0][2]
+                if not (z_min >= (self._z_min_init - 0.01)):
+                    continue
+
+                for object_id in [self.plane] + self.object_ids:
+                    if object_id == self.target_object_id:
+                        continue
+                    for point in pp.body_collision_info(
+                        self.target_object_id,
+                        object_id,
+                        max_distance=MAX_DISTANCE,
+                    ):
+                        min_distance = min(min_distance, point[8])
+            min_distances[action_index] = min_distance
+
+        action_pz = self.actions.index((0, 0, self.DP, 0, 0, 0))
+        if min_distances[action_pz] >= 0:
+            action = action_pz
+        else:
+            i = np.array(list(min_distances.keys()))
+            p = np.array(list(min_distances.values()))
+            p = (p - p.min()) / (p.max() - p.min())
+            p = p / p.sum()
+            action = np.random.choice(i, p=p)
+
+        return ActResult(action=action)
+
     def validate_action(self, act_result):
         dx, dy, dz, da, db, dg = self.actions[act_result.action]
 
@@ -263,10 +305,13 @@ class PickFromPileEnv(Env):
 
         with pp.LockRenderer(), pp.WorldSaver():
             pp.set_pose(self.target_object_id, c.pose)
-            aabb_min, aabb_max = pp.get_aabb(self.target_object_id)
-            return aabb_min[2] >= (self._z_min_init - 0.01)
+            z_min = pp.get_aabb(self.target_object_id)[0][2]
+            return z_min >= (self._z_min_init - 0.01)
 
     def step(self, act_result):
+        if not self.validate_action(act_result):
+            raise RuntimeError
+
         dx, dy, dz, da, db, dg = action = self.actions[act_result.action]
 
         with np.printoptions(precision=2):
@@ -287,12 +332,6 @@ class PickFromPileEnv(Env):
             poses[object_id] = pp.get_pose(object_id)
         translations = collections.defaultdict(float)
 
-        num_paused = {
-            object_id: 0
-            for object_id in self.object_ids
-            if object_id != self.target_object_id
-        }
-
         def step_callback():
             for object_id in self.object_ids:
                 if object_id == self.target_object_id:
@@ -300,14 +339,9 @@ class PickFromPileEnv(Env):
 
                 pose = pp.get_pose(object_id)
 
-                d_translation = np.linalg.norm(
+                translations[object_id] += np.linalg.norm(
                     np.array(poses[object_id][0]) - np.array(pose[0])
                 )
-                translations[object_id] += d_translation
-                if d_translation < 0.0001:
-                    num_paused[object_id] += 1
-                else:
-                    num_paused[object_id] = 0
 
                 poses[object_id] = pose
 
@@ -321,16 +355,13 @@ class PickFromPileEnv(Env):
             if self._gui:
                 time.sleep(pp.get_time_step())
 
-        for _ in range(int(round(10 / pp.get_time_step()))):
+        for _ in range(int(round(1 / pp.get_time_step()))):
             pp.set_pose(self.target_object_id, pose)
             pp.step_simulation()
             pp.set_pose(self.target_object_id, pose)
             step_callback()
             if self._gui:
                 time.sleep(pp.get_time_step())
-
-            if all(n > 10 for n in num_paused.values()):
-                break
 
         for object_id, translation in translations.items():
             self.translations[object_id] += translation

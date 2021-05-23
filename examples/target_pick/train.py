@@ -49,12 +49,6 @@ def main():
         "--epsilon-max-step", type=int, default=5000, help="epsilon max step"
     )
     parser.add_argument("--device", default="cuda:0", help="device")
-    parser.add_argument(
-        "--action",
-        choices=["m0pdz", "0pdz", "pdz"],
-        default="m0pdz",
-        help="action",
-    )
     args = parser.parse_args()
 
     hparams = args.__dict__.copy()
@@ -88,7 +82,7 @@ def main():
     # Setup env
     ###################
 
-    env = PickFromPileEnv(gui=False, action=hparams["action"])
+    env = PickFromPileEnv(gui=False)
 
     # Setup replay buffer
     #####################

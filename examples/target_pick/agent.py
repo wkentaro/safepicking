@@ -77,10 +77,11 @@ class DqnAgent(Agent):
         else:
             self._epsilon = epsilon = self._get_epsilon(step)
             if np.random.random() < epsilon:
-                for a in np.random.permutation(q.shape[1]):
-                    act_result = ActResult(action=a)
-                    if env.validate_action(act_result):
-                        break
+                act_result = env.get_demo_action()
+                # for a in np.random.permutation(q.shape[1]):
+                #     act_result = ActResult(action=a)
+                #     if env.validate_action(act_result):
+                #         break
             else:
                 for a in actions_select:
                     act_result = ActResult(action=a)

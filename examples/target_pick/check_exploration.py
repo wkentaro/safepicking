@@ -43,10 +43,13 @@ def main():
         for key in obs:
             obs[key] = obs[key][None, None, :]
         if agent is None:
-            for action in np.random.permutation(len(env.actions)):
-                act_result = ActResult(action)
-                if env.validate_action(act_result):
-                    break
+            if 1:
+                act_result = env.get_demo_action()
+            else:
+                for action in np.random.permutation(len(env.actions)):
+                    act_result = ActResult(action)
+                    if env.validate_action(act_result):
+                        break
         else:
             act_result = agent.act(
                 step=-1, observation=obs, deterministic=False, env=env
