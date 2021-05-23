@@ -77,11 +77,10 @@ class DqnAgent(Agent):
         else:
             self._epsilon = epsilon = self._get_epsilon(step)
             if np.random.random() < epsilon:
-                act_result = env.get_demo_action()
-                # for a in np.random.permutation(q.shape[1]):
-                #     act_result = ActResult(action=a)
-                #     if env.validate_action(act_result):
-                #         break
+                for a in np.random.permutation(q.shape[1]):
+                    act_result = ActResult(action=a)
+                    if env.validate_action(act_result):
+                        break
             else:
                 for a in actions_select:
                     act_result = ActResult(action=a)
@@ -121,7 +120,10 @@ class DqnAgent(Agent):
         action = replay_sample["action"].long()
         reward = replay_sample["reward"]
 
-        terminal = replay_sample["terminal"].float()
+        terminal = (
+            replay_sample["terminal"].float()
+            - replay_sample["timeout"].float()
+        )
 
         def stack_timesteps(x):
             return torch.cat(torch.split(x, 1, dim=1), -1).squeeze(1)
