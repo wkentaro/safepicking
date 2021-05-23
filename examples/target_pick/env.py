@@ -26,13 +26,17 @@ home = path.Path("~").expanduser()
 class PickFromPileEnv(Env):
 
     PILES_DIR = home / "data/mercury/pile_generation"
-    CLASS_IDS = [2, 3, 5, 11, 12, 15, 16]
     PILE_CENTER = (0.5, 0, 0)
+
+    CLASS_IDS = [2, 3, 5, 11, 12, 15, 16]
+
+    Z_TARGET = 0.2
 
     def __init__(
         self,
         gui=True,
         mp4=None,
+        action="-0+dz",
     ):
         super().__init__()
 
@@ -44,8 +48,14 @@ class PickFromPileEnv(Env):
 
         dxs = np.linspace(-0.05, 0.05, 3)
         dys = np.linspace(-0.05, 0.05, 3)
-        # dzs = np.linspace(-0.05, 0.05, 3)
-        dzs = [0.05]
+        if action == "-0+dz":
+            dzs = np.linspace(-0.05, 0.05, 3)
+        elif action == "0+dz":
+            dzs = [0, 0.05]
+        elif action == "+dz":
+            dzs = [0.05]
+        else:
+            raise ValueError
         das = np.linspace(np.deg2rad(-22.5), np.deg2rad(22.5), 3)
         dbs = np.linspace(np.deg2rad(-22.5), np.deg2rad(22.5), 3)
         dgs = np.linspace(np.deg2rad(-22.5), np.deg2rad(22.5), 3)
@@ -197,6 +207,8 @@ class PickFromPileEnv(Env):
         self.object_ids = object_ids
         self.target_object_id = object_ids[target_index]
 
+        self._z_min_init = pp.get_aabb(self.target_object_id)[0][2]
+        self._z_min_prev = self._z_min_init
         self.translations = collections.defaultdict(float)
 
         return self.get_obs()
@@ -333,10 +345,14 @@ class PickFromPileEnv(Env):
             mesh_scale=(1.05, 1.05, 1.05),
         )
 
-        aabb_min, aabb_max = pp.get_aabb(self.target_object_id)
+        z_min = pp.get_aabb(self.target_object_id)[0][2]
+        reward = (z_min - self._z_min_prev) / (
+            self.Z_TARGET - self._z_min_init
+        )
+        self._z_min_prev = z_min
 
-        reward = -sum(translations.values())
-        terminal = aabb_min[2] > 0.2
+        reward = reward - sum(translations.values())
+        terminal = z_min > self.Z_TARGET
 
         logger.info(f"Reward={reward:.2f}, Terminal={terminal}")
 
