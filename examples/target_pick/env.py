@@ -264,7 +264,7 @@ class PickFromPileEnv(Env):
         with pp.LockRenderer(), pp.WorldSaver():
             pp.set_pose(self.target_object_id, c.pose)
             aabb_min, aabb_max = pp.get_aabb(self.target_object_id)
-            return aabb_min[2] >= 0
+            return aabb_min[2] >= (self._z_min_init - 0.01)
 
     def step(self, act_result):
         dx, dy, dz, da, db, dg = action = self.actions[act_result.action]
