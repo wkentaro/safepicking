@@ -377,12 +377,9 @@ class PickFromPileEnv(Env):
         )
 
         z_min = pp.get_aabb(self.target_object_id)[0][2]
-        reward = (z_min - self._z_min_prev) / (
-            self.Z_TARGET - self._z_min_init
-        )
         self._z_min_prev = z_min
 
-        reward = reward - sum(translations.values())
+        reward = -sum(translations.values())
 
         terminal = z_min > self.Z_TARGET
         if terminal:
