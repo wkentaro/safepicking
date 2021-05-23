@@ -383,7 +383,10 @@ class PickFromPileEnv(Env):
         self._z_min_prev = z_min
 
         reward = reward - sum(translations.values())
+
         terminal = z_min > self.Z_TARGET
+        if terminal:
+            reward += 1
 
         logger.info(f"Reward={reward:.2f}, Terminal={terminal}")
 
