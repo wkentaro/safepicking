@@ -46,6 +46,9 @@ def main():
         "--train-envs", type=int, default=5, help="number of train envs"
     )
     parser.add_argument(
+        "--eval-envs", type=int, default=1, help="number of eval envs"
+    )
+    parser.add_argument(
         "--epsilon-max-step", type=int, default=5000, help="epsilon max step"
     )
     parser.add_argument("--device", default="cuda:0", help="device")
@@ -119,7 +122,7 @@ def main():
         agent=agent,
         replay_buffer=replay_buffer,
         train_envs=hparams["train_envs"],
-        eval_envs=hparams["train_envs"] // 10,
+        eval_envs=hparams["eval_envs"],
         episodes=999999,
         episode_length=env.episode_length,
         stat_accumulator=stat_accumulator,
