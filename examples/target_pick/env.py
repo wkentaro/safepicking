@@ -36,7 +36,7 @@ class PickFromPileEnv(Env):
         self,
         gui=True,
         mp4=None,
-        action="-0+dz",
+        action="m0pdz",
     ):
         super().__init__()
 
@@ -48,11 +48,11 @@ class PickFromPileEnv(Env):
 
         dxs = np.linspace(-0.05, 0.05, 3)
         dys = np.linspace(-0.05, 0.05, 3)
-        if action == "-0+dz":
+        if action == "m0pdz":
             dzs = np.linspace(-0.05, 0.05, 3)
-        elif action == "0+dz":
+        elif action == "0pdz":
             dzs = [0, 0.05]
-        elif action == "+dz":
+        elif action == "pdz":
             dzs = [0.05]
         else:
             raise ValueError

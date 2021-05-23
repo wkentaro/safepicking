@@ -51,8 +51,8 @@ def main():
     parser.add_argument("--device", default="cuda:0", help="device")
     parser.add_argument(
         "--action",
-        choices=["-0+dz", "0+dz", "+dz"],
-        default="-0+dz",
+        choices=["m0pdz", "0pdz", "pdz"],
+        default="m0pdz",
         help="action",
     )
     args = parser.parse_args()
