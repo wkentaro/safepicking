@@ -120,10 +120,7 @@ class DqnAgent(Agent):
         action = replay_sample["action"].long()
         reward = replay_sample["reward"]
 
-        terminal = (
-            replay_sample["terminal"].float()
-            - replay_sample["timeout"].float()
-        )
+        terminal = replay_sample["terminal"].float()
 
         def stack_timesteps(x):
             return torch.cat(torch.split(x, 1, dim=1), -1).squeeze(1)
