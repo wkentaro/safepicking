@@ -51,7 +51,7 @@ class PickFromPileEnv(Env):
 
         dxs = [-self.DP, 0, self.DP]
         dys = [-self.DP, 0, self.DP]
-        dzs = [0, self.DP]
+        dzs = [-self.DP, 0, self.DP]
         das = [0]
         dbs = [0]
         dgs = [0]
@@ -392,7 +392,10 @@ class PickFromPileEnv(Env):
             reward = 0
         else:
             terminal = False
-            reward = -0.1
+            reward = 0
+
+        if not self.eval:
+            reward += -0.1
 
         # if not self.eval:
         #     reward += (z_min - self._z_min_prev) / (
