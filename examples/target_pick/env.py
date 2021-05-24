@@ -52,9 +52,9 @@ class PickFromPileEnv(Env):
         dxs = [-self.DP, 0, self.DP]
         dys = [-self.DP, 0, self.DP]
         dzs = [-self.DP, 0, self.DP]
-        das = [0]
-        dbs = [0]
-        dgs = [0]
+        das = [-self.DR, 0, self.DR]
+        dbs = [-self.DR, 0, self.DR]
+        dgs = [-self.DR, 0, self.DR]
         self.actions = list(itertools.product(dxs, dys, dzs, das, dbs, dgs))
         self.actions.remove((0, 0, 0, 0, 0, 0))
 
