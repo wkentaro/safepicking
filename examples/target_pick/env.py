@@ -51,10 +51,10 @@ class PickFromPileEnv(Env):
 
         dxs = [-self.DP, 0, self.DP]
         dys = [-self.DP, 0, self.DP]
-        dzs = [-self.DP, 0, self.DP]
-        das = np.linspace(-self.DR, self.DR, 3)
-        dbs = np.linspace(-self.DR, self.DR, 3)
-        dgs = np.linspace(-self.DR, self.DR, 3)
+        dzs = [0, self.DP]
+        das = [0]
+        dbs = [0]
+        dgs = [0]
         self.actions = list(itertools.product(dxs, dys, dzs, das, dbs, dgs))
         self.actions.remove((0, 0, 0, 0, 0, 0))
 
@@ -205,6 +205,7 @@ class PickFromPileEnv(Env):
         self.object_ids = object_ids
         self.target_object_id = object_ids[target_index]
 
+        self._i = 0
         self._z_min_init = pp.get_aabb(self.target_object_id)[0][2]
         self._z_min_prev = self._z_min_init
         self.translations = collections.defaultdict(float)
@@ -363,9 +364,6 @@ class PickFromPileEnv(Env):
             if self._gui:
                 time.sleep(pp.get_time_step())
 
-        for object_id, translation in translations.items():
-            self.translations[object_id] += translation
-
         mercury.pybullet.duplicate(
             self.target_object_id,
             collision=False,
@@ -376,17 +374,31 @@ class PickFromPileEnv(Env):
             mesh_scale=(1.05, 1.05, 1.05),
         )
 
+        # ---------------------------------------------------------------------
+
+        self._i += 1
+
+        for object_id, translation in translations.items():
+            self.translations[object_id] += translation
+
         z_min = pp.get_aabb(self.target_object_id)[0][2]
         self._z_min_prev = z_min
 
-        # reward = -sum(translations.values())
-
-        terminal = z_min > self.Z_TARGET
-
-        if terminal:
+        if z_min >= self.Z_TARGET:
+            terminal = True
             reward = 1
-        else:
+        elif self._i == self.episode_length:
+            terminal = True
             reward = 0
+        else:
+            terminal = False
+            reward = -0.1
+
+        # if not self.eval:
+        #     reward += (z_min - self._z_min_prev) / (
+        #         self.Z_TARGET - self._z_min_init
+        #     )
+        # reward = -sum(translations.values())
 
         logger.info(f"Reward={reward:.2f}, Terminal={terminal}")
 
