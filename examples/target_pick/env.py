@@ -40,11 +40,17 @@ class PickFromPileEnv(Env):
         self,
         gui=True,
         mp4=None,
+        reward_time=0,
+        use_reward_translation=False,
+        use_reward_dz=False,
     ):
         super().__init__()
 
         self._gui = gui
         self._mp4 = mp4
+        self._reward_time = reward_time
+        self._use_reward_translation = use_reward_translation
+        self._use_reward_dz = use_reward_dz
 
         self.plane = None
         self.ri = None
@@ -382,8 +388,8 @@ class PickFromPileEnv(Env):
             self.translations[object_id] += translation
 
         z_min = pp.get_aabb(self.target_object_id)[0][2]
-        self._z_min_prev = z_min
 
+        # primary task
         if z_min >= self.Z_TARGET:
             terminal = True
             reward = 1
@@ -394,14 +400,19 @@ class PickFromPileEnv(Env):
             terminal = False
             reward = 0
 
+        # reward shaping
         if not self.eval:
-            reward += -0.1
+            reward += self._reward_time
 
-        # if not self.eval:
-        #     reward += (z_min - self._z_min_prev) / (
-        #         self.Z_TARGET - self._z_min_init
-        #     )
-        # reward = -sum(translations.values())
+            if self._use_reward_translation:
+                reward += -sum(translations.values())
+
+            if self._use_reward_dz:
+                reward += (z_min - self._z_min_prev) / (
+                    self.Z_TARGET - self._z_min_init
+                )
+
+        self._z_min_prev = z_min
 
         logger.info(f"Reward={reward:.2f}, Terminal={terminal}")
 

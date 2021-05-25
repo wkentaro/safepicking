@@ -38,7 +38,7 @@ def main():
     parser.add_argument("--name", required=True, help="name")
     parser.add_argument(
         "--model",
-        required=True,
+        default="closedloop_pose_net",
         choices=["closedloop_pose_net"],
         help="model",
     )
@@ -52,6 +52,23 @@ def main():
         "--epsilon-max-step", type=int, default=5000, help="epsilon max step"
     )
     parser.add_argument("--device", default="cuda:0", help="device")
+    parser.add_argument(
+        "--reward-time", type=float, default=0, help="reward time"
+    )
+    parser.add_argument(
+        "--use-reward-translation",
+        type=int,
+        default=0,
+        choices=[0, 1],
+        help="use reward translation",
+    )
+    parser.add_argument(
+        "--use-reward-dz",
+        type=int,
+        default=0,
+        choices=[0, 1],
+        help="use reward dz",
+    )
     args = parser.parse_args()
 
     hparams = args.__dict__.copy()
@@ -85,7 +102,12 @@ def main():
     # Setup env
     ###################
 
-    env = PickFromPileEnv(gui=False)
+    env = PickFromPileEnv(
+        gui=False,
+        reward_time=hparams["reward_time"],
+        use_reward_translation=hparams["use_reward_translation"],
+        use_reward_dz=hparams["use_reward_dz"],
+    )
 
     # Setup replay buffer
     #####################
