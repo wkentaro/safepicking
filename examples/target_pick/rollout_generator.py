@@ -71,6 +71,7 @@ class RolloutGenerator:
                 transition.terminal,
                 timeout,
                 summaries=transition.summaries,
+                info=transition.info,
             )
 
             if transition.terminal or timeout:

@@ -409,4 +409,5 @@ class PickFromPileEnv(Env):
             observation=self.get_obs(),
             reward=reward,
             terminal=terminal,
+            info=dict(translation=sum(translations.values())),
         )

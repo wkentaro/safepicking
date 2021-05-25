@@ -20,12 +20,12 @@ from yarr.replay_buffer.wrappers.pytorch_replay_buffer import (
 )
 from yarr.runners.env_runner import EnvRunner
 from yarr.runners.pytorch_train_runner import PyTorchTrainRunner
-from yarr.utils.stat_accumulator import SimpleAccumulator
 
 from agent import DqnAgent
 import common_utils
 from env import PickFromPileEnv
 from rollout_generator import RolloutGenerator
+from stat_accumulator import SimpleAccumulator
 
 
 here = path.Path(__file__).abspath().parent
