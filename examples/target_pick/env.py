@@ -115,10 +115,13 @@ class PickFromPileEnv(Env):
         raise_on_failure = pile_file is not None
 
         if random_state is None:
-            random_state = np.random.RandomState(0)
+            random_state = np.random.RandomState()
         if pile_file is None:
-            # i = np.random.choice([1002, 1013, 1094, 1195, 1048])
-            i = 1002
+            if self.eval:
+                i = random_state.randint(1000, 1200)
+            else:
+                i = random_state.randint(1000, 1200)
+                # i = random_state.randint(0, 1000)
             pile_file = self.PILES_DIR / f"{i:08d}.npz"
 
         if not pp.is_connected():
