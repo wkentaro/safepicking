@@ -120,8 +120,7 @@ class PickFromPileEnv(Env):
             if self.eval:
                 i = random_state.randint(1000, 1200)
             else:
-                i = random_state.randint(1000, 1200)
-                # i = random_state.randint(0, 1000)
+                i = random_state.randint(0, 1000)
             pile_file = self.PILES_DIR / f"{i:08d}.npz"
 
         if not pp.is_connected():
