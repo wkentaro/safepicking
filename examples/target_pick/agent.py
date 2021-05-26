@@ -41,8 +41,9 @@ class DqnModel(torch.nn.Module):
 
 
 class DqnAgent(Agent):
-    def __init__(self, epsilon_max_step=5000, **kwargs):
+    def __init__(self, epsilon_max_step=5000, gamma=0.99, **kwargs):
         self._epsilon_max_step = epsilon_max_step
+        self._gamma = gamma
         self._kwargs = kwargs
         self._epsilon = np.nan
         self._losses = queue.deque(maxlen=18)
@@ -148,7 +149,7 @@ class DqnAgent(Agent):
         with torch.no_grad():
             qs_target = self.q_target(obs_tp1)
             q_target = torch.max(qs_target, dim=1).values
-            q_target = reward + 0.99 * (1 - terminal) * q_target
+            q_target = reward + self._gamma * (1 - terminal) * q_target
 
         qs_pred = self.q(obs)
 

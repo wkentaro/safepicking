@@ -69,6 +69,12 @@ def main():
         choices=[0, 1],
         help="use reward dz",
     )
+    parser.add_argument(
+        "--gamma",
+        type=float,
+        default=0.99,
+        help="gamma",
+    )
     args = parser.parse_args()
 
     hparams = args.__dict__.copy()
@@ -113,10 +119,10 @@ def main():
     #####################
 
     replay_buffer = PrioritizedReplayBuffer(
-        batch_size=256,
+        batch_size=128,
         timesteps=1,
         replay_capacity=50000,
-        gamma=0.99,
+        gamma=hparams["gamma"],
         action_shape=env.action_shape,
         action_dtype=np.int32,
         reward_shape=(),
@@ -133,6 +139,7 @@ def main():
 
     agent = DqnAgent(
         epsilon_max_step=hparams["epsilon_max_step"],
+        gamma=hparams["gamma"],
         env=env,
         model=hparams["model"],
     )
