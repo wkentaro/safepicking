@@ -47,7 +47,9 @@ def main():
                     pose_actual = pp.get_pose(env.fg_object_id)
 
                 pcd = np.loadtxt(
-                    mercury.datasets.ycb.get_pcd_file(class_id=env.FG_CLASS_ID)
+                    mercury.datasets.ycb.get_pcd_file(
+                        class_id=common_utils.get_class_id(env.fg_object_id)
+                    )
                 )
                 reference = mercury.geometry.transform_points(
                     pcd,
@@ -64,17 +66,20 @@ def main():
             else:
                 auc = np.nan
 
+            object_fg_flags = []
             object_classes = []
             object_poses = []
             for object_id in env.object_ids:
+                object_fg_flags.append(object_id == env.fg_object_id)
                 object_classes.append(common_utils.get_class_id(object_id))
                 object_poses.append(np.hstack(pp.get_pose(object_id)))
 
-            npz_file = home / f"data/mercury/reorient/train/{i:08d}.npz"
+            npz_file = home / f"data/mercury/reorient/n_class_5/{i:08d}.npz"
             npz_file.parent.makedirs_p()
             np.savez_compressed(
                 npz_file,
                 **dict(
+                    object_fg_flags=object_fg_flags,
                     object_classes=object_classes,
                     object_poses=object_poses,
                     grasp_pose=np.hstack(result["c_grasp"].pose),

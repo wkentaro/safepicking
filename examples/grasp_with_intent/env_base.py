@@ -23,8 +23,6 @@ class EnvBase(Env):
     IMAGE_HEIGHT = 240
     IMAGE_WIDTH = 240
 
-    FG_CLASS_ID = 11
-
     PILES_DIR = home / "data/mercury/pile_generation"
     PILE_TRAIN_IDS = np.arange(0, 1000)
     PILE_EVAL_IDS = np.arange(1000, 1200)
@@ -67,8 +65,6 @@ class EnvBase(Env):
         pass
 
     def reset(self, pile_file=None):
-        raise_on_failure = pile_file is not None
-
         if pile_file is None:
             if self.eval:
                 i = self.random_state.choice(self.PILE_EVAL_IDS)
@@ -106,12 +102,6 @@ class EnvBase(Env):
         )
 
         data = dict(np.load(pile_file))
-
-        if self.FG_CLASS_ID not in data["class_id"]:
-            if raise_on_failure:
-                raise RuntimeError("fg_object_ids == []")
-            else:
-                return self.reset()
 
         num_instances = len(data["class_id"])
         object_ids = []
@@ -151,7 +141,7 @@ class EnvBase(Env):
                     length=0.2,
                 )
             object_ids.append(object_id)
-            if class_id == self.FG_CLASS_ID:
+            if class_id in [2, 3, 5, 11, 12]:
                 fg_object_ids.append(object_id)
         self.object_ids = object_ids
         self.fg_object_id = self.random_state.choice(fg_object_ids)
