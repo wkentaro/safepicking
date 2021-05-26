@@ -1,49 +1,94 @@
 #!/usr/bin/env python
 
-import time
+import pprint
 
+from loguru import logger
 import numpy as np
 import path
+import pybullet as p
 import pybullet_planning as pp
 
 import mercury
 
+import common_utils
 from pick_and_place_env import PickAndPlaceEnv
 
 
 home = path.Path("~").expanduser()
 
 
-def main():
-    env = PickAndPlaceEnv(gui=True)
-    env.random_state = np.random.RandomState(5)
-    env.reset(pile_file=env.PILES_DIR / "00001000.npz")
+def view_npz_file(npz_file):
+    pp.reset_simulation()
+    p.setGravity(0, 0, -9.8)
+    p.resetDebugVisualizerCamera(
+        cameraDistance=1.5,
+        cameraYaw=90,
+        cameraPitch=-60,
+        cameraTargetPosition=(0, 0, 0),
+    )
+    pp.load_pybullet("plane.urdf")
+    ri = mercury.pybullet.PandaRobotInterface()
 
-    root_dir = home / "data/mercury/reorient/00001000/seed5"
-    for npz_file in sorted(root_dir.listdir()):
-        result = np.load(npz_file)
+    bin = mercury.pybullet.create_bin(*PickAndPlaceEnv.BIN_EXTENTS)
+    pp.set_pose(bin, PickAndPlaceEnv.BIN_POSE)
 
-        grasp_pose = result["grasp_pose"]
-        reorient_pose = result["reorient_pose"]
-        js_place_length = result["js_place_length"]
+    data = dict(np.load(npz_file))
+    if np.isnan(data["js_place_length"]):
+        logger.error("\n" + pprint.pformat(data))
+    else:
+        logger.success("\n" + pprint.pformat(data))
 
-        print(npz_file, js_place_length)
-
-        j = env.ri.solve_ik((grasp_pose[:3], grasp_pose[3:]))
-        env.ri.setj(j)
-
-        obj_af = mercury.pybullet.duplicate(
-            env.fg_object_id,
-            collision=False,
-            texture=False,
-            rgba_color=(0, 1, 0, 0.5),
-            position=reorient_pose[:3],
-            quaternion=reorient_pose[3:],
+    object_ids = []
+    for fg_flag, class_id, pose in zip(
+        data["object_fg_flags"], data["object_classes"], data["object_poses"]
+    ):
+        visual_file = mercury.datasets.ycb.get_visual_file(class_id=class_id)
+        object_id = mercury.pybullet.create_mesh_body(
+            visual_file=visual_file,
+            collision_file=mercury.pybullet.get_collision_file(visual_file),
+            position=pose[:3],
+            quaternion=pose[3:],
+            mass=mercury.datasets.ycb.masses[class_id],
         )
+        object_ids.append(object_id)
+        if fg_flag:
+            pp.draw_aabb(pp.get_aabb(object_id), color=(1, 0, 0, 1), width=2)
 
-        time.sleep(1)
+            object_ids.append(
+                mercury.pybullet.duplicate(
+                    object_id,
+                    texture=True,
+                    collision=False,
+                    rgba_color=(0, 1, 0, 0.5),
+                    position=PickAndPlaceEnv.PLACE_POSE[0],
+                    quaternion=PickAndPlaceEnv.PLACE_POSE[1],
+                )
+            )
 
-        pp.remove_body(obj_af)
+            object_ids.append(
+                mercury.pybullet.duplicate(
+                    object_id,
+                    texture=True,
+                    collision=False,
+                    rgba_color=(0, 1, 0, 0.5),
+                    position=data["reorient_pose"][:3],
+                    quaternion=data["reorient_pose"][3:],
+                )
+            )
+
+    j = ri.solve_ik((data["grasp_pose"][:3], data["grasp_pose"][3:]))
+    ri.setj(j)
+
+    common_utils.pause(enabled=True)
+
+
+def main():
+    pp.connect(use_gui=True)
+    pp.add_data_path()
+
+    root_dir = path.Path("/home/wkentaro/data/mercury/reorient/n_class_5")
+    for npz_file in sorted(root_dir.listdir()):
+        view_npz_file(npz_file=npz_file)
 
 
 if __name__ == "__main__":
