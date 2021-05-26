@@ -6,8 +6,8 @@ class PoseNet(torch.nn.Module):
         super().__init__()
 
         # object_labels: 7, object_poses: 7, grasp_flags: 1
-        self.fc_object = torch.nn.Sequential(
-            torch.nn.Linear(7 + 7 + 1, 32),
+        self.fc_encoder = torch.nn.Sequential(
+            torch.nn.Linear(7 + 7 + 1 + 6, 32),
             torch.nn.ReLU(),
         )
         self.transformer_object = torch.nn.TransformerEncoder(
@@ -19,14 +19,8 @@ class PoseNet(torch.nn.Module):
             num_layers=4,
             norm=None,
         )
-
-        self.fc_action = torch.nn.Sequential(
-            torch.nn.Linear(6, 32),
-            torch.nn.ReLU(),
-        )
-
         self.fc_output = torch.nn.Sequential(
-            torch.nn.Linear(64, 1),
+            torch.nn.Linear(32, 1),
         )
 
     def forward(
@@ -42,27 +36,26 @@ class PoseNet(torch.nn.Module):
         h_object = torch.cat(
             [object_labels, object_poses, grasp_flags[:, :, None]], dim=2
         )
+        h_action = actions
 
-        h_object = h_object.reshape(B * O, h_object.shape[2])
-        h_object = self.fc_object(h_object)
-        h_object = h_object.reshape(B, O, h_object.shape[1])  # BOE
+        # B, A, O, C
+        h_object = h_object[:, None, :, :].repeat(1, A, 1, 1)
+        h_action = h_action[None, :, None, :].repeat(B, 1, O, 1)
 
-        h_object = h_object.permute(1, 0, 2)  # BOE -> OBE
-        h_object = self.transformer_object(h_object)
-        h_object = h_object.permute(1, 0, 2)  # OBE -> BOE
+        h = torch.cat([h_object, h_action], dim=3)
 
-        h_object = h_object.mean(dim=1)
+        h = h.reshape(B * A * O, h.shape[-1])  # B*A*O, C
+        h = self.fc_encoder(h)
+        h = h.reshape(B * A, O, h.shape[-1])  # B*A, O, C
 
-        h_action = self.fc_action(actions)
+        h = h.permute(1, 0, 2)  # B*A, O, C -> O, B*A, C
+        h = self.transformer_object(h)
+        h = h.permute(1, 0, 2)  # O, B*A, C -> B*A, O, C
 
-        h_object = h_object[:, None, :].repeat(1, A, 1)
-        h_action = h_action[None, :, :].repeat(B, 1, 1)
+        h = h.mean(dim=1)  # B*A, O, C -> B*A, C
 
-        h = torch.cat([h_object, h_action], dim=2)
+        h = self.fc_output(h)  # B*A, 1
 
-        h = h.reshape(B * A, -1)
-        h = self.fc_output(h)
-        assert h.shape[-1] == 1
-        h = h.reshape(B, -1)
+        h = h.reshape(B, A)
 
         return h
