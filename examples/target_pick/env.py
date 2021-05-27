@@ -439,7 +439,7 @@ class PickFromPileEnv(Env):
 
         info = {"translation": sum(translations.values())}
         if terminal:
-            info["max_velocity"] = max(self.max_velocities.values())
+            info["max_velocity"] = sum(self.max_velocities.values())
 
         return Transition(
             observation=self.get_obs(),
