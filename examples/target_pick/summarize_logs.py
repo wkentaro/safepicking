@@ -7,22 +7,19 @@ import path
 
 
 def summarize(eval_dir, valid_ids):
-    success = []
     sum_of_translations = []
     sum_of_max_velocities = []
     for id in valid_ids:
         result_file = eval_dir / id
         with open(result_file) as f:
             data = json.load(f)
-        success.append(data["success"])
         sum_of_translations.append(data["sum_of_translations"])
         sum_of_max_velocities.append(data["sum_of_max_velocities"])
-    success = np.array(success, dtype=bool)
     sum_of_translations = np.array(sum_of_translations, dtype=float)
     sum_of_max_velocities = np.array(sum_of_max_velocities, dtype=float)
 
     print(f"Eval dir: {eval_dir}")
-    print(f"Success: {success.mean():.1%} ({success.sum()} / {success.size})")
+    print(f"Support: {len(sum_of_translations)}")
     print(
         f"Translations: {sum_of_translations.mean():.2f} "
         f"(+-{sum_of_translations.std():.2f})"
@@ -43,7 +40,7 @@ def main():
             continue
 
         for eval_dir in log_dir.listdir():
-            if not eval_dir.stem.startswith("eval-"):
+            if not eval_dir.stem.startswith("eval"):
                 continue
 
             ids = []

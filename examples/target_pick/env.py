@@ -190,17 +190,7 @@ class PickFromPileEnv(Env):
                     mass=mercury.datasets.ycb.masses[class_id],
                     position=position,
                     quaternion=quaternion,
-                )
-
-            if i == target_index:
-                mercury.pybullet.duplicate(
-                    object_id,
-                    collision=False,
-                    texture=False,
-                    rgba_color=(0, 1, 0, 0.5),
-                    position=position,
-                    quaternion=quaternion,
-                    mesh_scale=(1.05, 1.05, 1.05),
+                    rgba_color=(0, 1, 0) if i == target_index else (1, 1, 1),
                 )
 
             object_ids.append(object_id)
@@ -380,16 +370,6 @@ class PickFromPileEnv(Env):
             step_callback()
             if self._gui:
                 time.sleep(pp.get_time_step())
-
-        mercury.pybullet.duplicate(
-            self.target_object_id,
-            collision=False,
-            texture=False,
-            rgba_color=(0, 1, 0, 0.5),
-            position=pose[0],
-            quaternion=pose[1],
-            mesh_scale=(1.05, 1.05, 1.05),
-        )
 
         # ---------------------------------------------------------------------
 

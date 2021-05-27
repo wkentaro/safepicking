@@ -23,6 +23,7 @@ def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+    parser.add_argument("pile_file", type=path.Path, help="pile file")
     parser.add_argument(
         "--weight-dir", type=path.Path, help="weight dir", required=True
     )
@@ -34,11 +35,8 @@ def main():
     log_dir = args.weight_dir.parent.parent
 
     if args.nogui:
-        scene_id = args.export_file.stem
-        json_file = (
-            log_dir
-            / f"eval-pose_noise_{args.pose_noise}/{scene_id}/{args.seed}.json"
-        )
+        scene_id = args.pile_file.stem
+        json_file = log_dir / f"eval/{scene_id}/{args.seed}.json"
         if json_file.exists():
             logger.info(f"Result file already exists: {json_file}")
             return
@@ -53,6 +51,7 @@ def main():
     env.eval = True
     obs = env.reset(
         random_state=np.random.RandomState(args.seed),
+        pile_file=args.pile_file,
     )
 
     agent = DqnAgent(env=env, model=hparams["model"])
@@ -76,6 +75,7 @@ def main():
             obs = transition.observation
 
     translations = env.translations
+    max_velocities = env.max_velocities
 
     for object_id in env.object_ids:
         if object_id == env.target_object_id:
@@ -95,6 +95,8 @@ def main():
             seed=args.seed,
             translations=dict(translations),
             sum_of_translations=sum(translations.values()),
+            max_velocities=dict(max_velocities),
+            sum_of_max_velocities=sum(max_velocities.values()),
         )
 
         json_file.parent.makedirs_p()

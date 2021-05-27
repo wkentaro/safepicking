@@ -24,58 +24,68 @@ def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("export_file", type=path.Path, help="export file")
+    parser.add_argument("pile_file", type=path.Path, help="pile file")
     parser.add_argument(
         "--planner",
         choices=["RRTConnect", "Naive"],
         required=True,
         help="planner",
     )
-    parser.add_argument("--pose-noise", action="store_true", help="pose noise")
     parser.add_argument("--seed", type=int, default=0, help="random seed")
     parser.add_argument("--nogui", action="store_true", help="no gui")
     parser.add_argument("--mp4", help="mp4")
     args = parser.parse_args()
 
     log_dir = here / f"logs/{args.planner}"
-    scene_id = args.export_file.stem
 
     if args.nogui:
-        json_file = (
-            log_dir
-            / f"eval-pose_noise_{args.pose_noise}/{scene_id}/{args.seed}.json"
-        )
+        scene_id = args.pile_file.stem
+        json_file = log_dir / f"eval/{scene_id}/{args.seed}.json"
         if json_file.exists():
             logger.info(f"Result file already exists: {json_file}")
             return
 
     env = PickFromPileEnv(
         gui=not args.nogui,
-        retime=10,
-        planner=args.planner,
-        pose_noise=args.pose_noise,
-        suction_max_force=None,
-        reward="max_velocities",
         mp4=args.mp4,
     )
     env.eval = True
     obs = env.reset(
         random_state=np.random.RandomState(args.seed),
-        pile_file=args.export_file,
+        pile_file=args.pile_file,
     )
+    del obs
 
     ri = env.ri
     plane = env.plane
     object_ids = env.object_ids
     target_object_id = env.target_object_id
 
+    c = mercury.geometry.Coordinate(*env.ri.get_pose("camera_link"))
+    c.position = pp.get_pose(target_object_id)[0]
+    c.position[2] += 0.5
+
+    j = ri.solve_ik(c.pose, move_target=env.ri.robot_model.camera_link)
+    ri.setj(j)
+
+    rgb, depth, segm = env.ri.get_camera_image()
+    for _ in env.ri.random_grasp(
+        depth,
+        segm,
+        mask=segm == target_object_id,
+        bg_object_ids=[plane],
+        object_ids=object_ids,
+        random_state=np.random.RandomState(args.seed),
+        noise=False,
+    ):
+        pp.step_simulation()
+        if not args.nogui:
+            time.sleep(pp.get_time_step())
+    assert env.ri.gripper.check_grasp()
+
+    ri.planner = args.planner
+
     with pp.LockRenderer(), pp.WorldSaver():
-        for i in range(len(object_ids)):
-            pose = (
-                obs["object_poses_openloop"][i, :3],
-                obs["object_poses_openloop"][i, 3:],
-            )
-            pp.set_pose(object_ids[i], pose)
         steps = ri.move_to_homej(
             bg_object_ids=[plane],
             object_ids=object_ids,
@@ -109,11 +119,9 @@ def main():
 
     for _ in steps:
         p.stepSimulation()
-        if env._suction_max_force is not None:
-            ri.step_simulation()
         step_callback()
         if not args.nogui:
-            time.sleep(pp.get_time_step() / env._retime)
+            time.sleep(pp.get_time_step())
 
     success = ri.gripper.check_grasp()
     if success:
