@@ -23,11 +23,19 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--gui", action="store_true", help="gui")
+    parser.add_argument(
+        "--process-id", type=str, required=True, help="process id (e.g., 2/5)"
+    )
+    parser.add_argument("--size", type=int, default=50000, help="dataset size")
     args = parser.parse_args()
+
+    process_index, process_num = args.process_id.split("/")
+    process_index = int(process_index)
+    process_num = int(process_num)
 
     env = PickAndPlaceEnv(gui=args.gui)
 
-    i = 0
+    i = process_index
     while True:
         env.reset()
 
@@ -74,27 +82,34 @@ def main():
                 object_classes.append(common_utils.get_class_id(object_id))
                 object_poses.append(np.hstack(pp.get_pose(object_id)))
 
-            npz_file = home / f"data/mercury/reorient/n_class_5/{i:08d}.npz"
-            npz_file.parent.makedirs_p()
-            np.savez_compressed(
-                npz_file,
-                **dict(
-                    object_fg_flags=object_fg_flags,
-                    object_classes=object_classes,
-                    object_poses=object_poses,
-                    grasp_pose=np.hstack(result["c_grasp"].pose),
-                    initial_pose=np.hstack(result["c_init"].pose),
-                    reorient_pose=np.hstack(result["c_reorient"].pose),
-                    js_place_length=result.get("js_place_length", np.nan),
-                    auc=auc,
-                ),
-            )
-            logger.info(f"Saved to: {npz_file}")
+            while True:
+                npz_file = (
+                    home / f"data/mercury/reorient/n_class_5/{i:08d}.npz"
+                )
 
-            i += 1
+                if not npz_file.exists():
+                    npz_file.parent.makedirs_p()
+                    np.savez_compressed(
+                        npz_file,
+                        **dict(
+                            object_fg_flags=object_fg_flags,
+                            object_classes=object_classes,
+                            object_poses=object_poses,
+                            grasp_pose=np.hstack(result["c_grasp"].pose),
+                            initial_pose=np.hstack(result["c_init"].pose),
+                            reorient_pose=np.hstack(result["c_reorient"].pose),
+                            js_place_length=result.get(
+                                "js_place_length", np.nan
+                            ),
+                            auc=auc,
+                        ),
+                    )
+                    logger.info(f"Saved to: {npz_file}")
+                    break
 
-            if i >= 10 ** 5:
-                return
+                i += process_num
+                if i >= args.size:
+                    return
 
 
 if __name__ == "__main__":
