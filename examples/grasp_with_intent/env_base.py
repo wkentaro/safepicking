@@ -65,6 +65,8 @@ class EnvBase(Env):
         pass
 
     def reset(self, pile_file=None):
+        raise_on_error = pile_file is not None
+
         if pile_file is None:
             if self.eval:
                 i = self.random_state.choice(self.PILE_EVAL_IDS)
@@ -143,6 +145,13 @@ class EnvBase(Env):
             object_ids.append(object_id)
             if class_id in [2, 3, 5, 11, 12]:
                 fg_object_ids.append(object_id)
+
+        if not fg_object_ids:
+            if raise_on_error:
+                raise RuntimeError
+            else:
+                return self.reset()
+
         self.object_ids = object_ids
         self.fg_object_id = self.random_state.choice(fg_object_ids)
 
