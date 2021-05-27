@@ -107,10 +107,10 @@ class Model(torch.nn.Module):
 
 class Dataset(torch.utils.data.Dataset):
 
-    ROOT_DIR = home / "data/mercury/reorient/train"
+    ROOT_DIR = home / "data/mercury/reorient/n_class_5"
 
-    TRAIN_SIZE = 40000
-    EVAL_SIZE = 7777
+    TRAIN_SIZE = 45000
+    EVAL_SIZE = 5000
 
     JS_PLACE_LENGTH_SCALING = 12
 
@@ -177,6 +177,7 @@ def main():
 
     writer = SummaryWriter(log_dir=log_dir)
 
+    eval_loss_min_epoch = -1
     eval_loss_min = np.inf
     with tqdm.trange(1000, ncols=100) as pbar:
         for epoch in pbar:
@@ -271,7 +272,11 @@ def main():
                 )
                 model_file.parent.makedirs_p()
                 torch.save(model.state_dict(), model_file)
+                eval_loss_min_epoch = epoch
                 eval_loss_min = eval_loss
+
+            if (epoch - eval_loss_min_epoch) > (epoch * 0.5):
+                break
 
 
 if __name__ == "__main__":
