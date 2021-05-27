@@ -18,24 +18,32 @@ class _SimpleAccumulator(StatAccumulator):
             "return": Metric(),
             "length": Metric(),
             "translation": Metric(),
+            "max_velocity": Metric(),
         }
 
     def _reset_data(self):
         with self._lock:
-            self._metrics["return"].reset()
-            self._metrics["length"].reset()
-            self._metrics["translation"].reset()
+            for metric in self._metrics.values():
+                metric.reset()
 
     def step(self, transition: ReplayTransition, eval: bool):
         with self._lock:
             self._transitions += 1
             self._metrics["return"].update(transition.reward)
             self._metrics["length"].update(1)
-            self._metrics["translation"].update(transition.info["translation"])
+            if "translation" in transition.info:
+                self._metrics["translation"].update(
+                    transition.info["translation"]
+                )
+            if "max_velocity" in transition.info:
+                self._metrics["max_velocity"].update(
+                    transition.info["max_velocity"]
+                )
             if transition.terminal:
                 self._metrics["return"].next()
                 self._metrics["length"].next()
                 self._metrics["translation"].next()
+                self._metrics["max_velocity"].next()
 
     def _get(self) -> List[Summary]:
         summaries = []

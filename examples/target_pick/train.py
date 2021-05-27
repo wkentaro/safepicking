@@ -70,6 +70,13 @@ def main():
         help="use reward dz",
     )
     parser.add_argument(
+        "--use-reward-max-velocity",
+        type=int,
+        default=0,
+        choices=[0, 1],
+        help="use reward max velocity",
+    )
+    parser.add_argument(
         "--gamma",
         type=float,
         default=0.99,
@@ -113,6 +120,7 @@ def main():
         reward_time=hparams["reward_time"],
         use_reward_translation=hparams["use_reward_translation"],
         use_reward_dz=hparams["use_reward_dz"],
+        use_reward_max_velocity=hparams["use_reward_max_velocity"],
     )
 
     # Setup replay buffer

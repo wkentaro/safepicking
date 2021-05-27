@@ -43,6 +43,7 @@ class PickFromPileEnv(Env):
         reward_time=0,
         use_reward_translation=False,
         use_reward_dz=False,
+        use_reward_max_velocity=False,
     ):
         super().__init__()
 
@@ -51,6 +52,7 @@ class PickFromPileEnv(Env):
         self._reward_time = reward_time
         self._use_reward_translation = use_reward_translation
         self._use_reward_dz = use_reward_dz
+        self._use_reward_max_velocity = use_reward_max_velocity
 
         self.plane = None
         self.ri = None
@@ -217,6 +219,7 @@ class PickFromPileEnv(Env):
         self._z_min_init = pp.get_aabb(self.target_object_id)[0][2]
         self._z_min_prev = self._z_min_init
         self.translations = collections.defaultdict(float)
+        self.max_velocities = collections.defaultdict(float)
 
         return self.get_obs()
 
@@ -340,6 +343,7 @@ class PickFromPileEnv(Env):
                 continue
             poses[object_id] = pp.get_pose(object_id)
         translations = collections.defaultdict(float)
+        max_velocities = collections.defaultdict(float)
 
         def step_callback():
             for object_id in self.object_ids:
@@ -353,6 +357,11 @@ class PickFromPileEnv(Env):
                 )
 
                 poses[object_id] = pose
+
+                max_velocities[object_id] = max(
+                    max_velocities[object_id],
+                    np.linalg.norm(pp.get_velocity(object_id)[0]),
+                )
 
         for pose in pp.interpolate_poses(
             pose1, pose2, pos_step_size=0.001, ori_step_size=np.pi / 180
@@ -386,8 +395,15 @@ class PickFromPileEnv(Env):
 
         self._i += 1
 
-        for object_id, translation in translations.items():
-            self.translations[object_id] += translation
+        for object_id in self.object_ids:
+            if object_id == self.target_object_id:
+                continue
+            self.translations[object_id] = (
+                self.translations[object_id] + translations[object_id]
+            )
+            self.max_velocities[object_id] = max(
+                self.max_velocities[object_id], max_velocities[object_id]
+            )
 
         z_min = pp.get_aabb(self.target_object_id)[0][2]
 
@@ -414,13 +430,20 @@ class PickFromPileEnv(Env):
                     self.Z_TARGET - self._z_min_init
                 )
 
+            if self._use_reward_max_velocity:
+                reward += -sum(max_velocities.values())
+
         self._z_min_prev = z_min
 
         logger.info(f"Reward={reward:.2f}, Terminal={terminal}")
+
+        info = {"translation": sum(translations.values())}
+        if terminal:
+            info["max_velocity"] = max(self.max_velocities.values())
 
         return Transition(
             observation=self.get_obs(),
             reward=reward,
             terminal=terminal,
-            info=dict(translation=sum(translations.values())),
+            info=info,
         )
