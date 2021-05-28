@@ -339,7 +339,9 @@ class PickFromPileEnv(Env):
         with pp.LockRenderer(), pp.WorldSaver():
             with self.ri.enabling_attachments():
                 j = self.ri.solve_ik(
-                    c.pose, move_target=self.ri.robot_model.attachment_link0
+                    c.pose,
+                    move_target=self.ri.robot_model.attachment_link0,
+                    n_init=1,
                 )
             if j is None:
                 return
