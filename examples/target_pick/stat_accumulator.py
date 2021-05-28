@@ -27,7 +27,7 @@ class _SimpleAccumulator(StatAccumulator):
                 metric.reset()
 
     def step(self, transition: ReplayTransition, eval: bool):
-        if transition.info.get("is_invalid", False):
+        if transition.info.get("is_invalid", False) or transition.timeout:
             # invalid action
             return
 
