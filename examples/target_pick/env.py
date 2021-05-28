@@ -362,7 +362,11 @@ class PickFromPileEnv(Env):
         j = act_result.j
 
         if j is None:
-            raise RuntimeError
+            return Transition(
+                observation=self.get_obs(),
+                reward=0,
+                terminal=True,
+            )
 
         with np.printoptions(precision=2):
             action = self.actions[act_result.action]
