@@ -113,7 +113,6 @@ def plan_and_execute_reorient(env, model, nolearning, timeout, visualize=True):
             obj_af = mercury.pybullet.duplicate(
                 env.fg_object_id,
                 collision=False,
-                texture=False,
                 rgba_color=(0, 1, 0, 0.5),
                 position=c_reorient.position,
                 quaternion=c_reorient.quaternion,
@@ -152,7 +151,7 @@ def main():
     parser.add_argument("--seed", type=int, default=0, help="seed")
     parser.add_argument("--pause", action="store_true", help="pause")
     parser.add_argument("--nolearning", action="store_true", help="nolearning")
-    parser.add_argument("--timeout", type=int, default=1, help="num sample")
+    parser.add_argument("--timeout", type=int, default=3, help="timeout")
     parser.add_argument("--visualize", action="store_true", help="visualize")
     parser.add_argument("--mp4", help="mp4")
     args = parser.parse_args()
