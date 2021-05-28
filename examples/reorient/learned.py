@@ -53,6 +53,10 @@ def plan_and_execute_reorient(env, model, nolearning, timeout, visualize=True):
     object_classes = np.tile(object_classes[None], (B, 1, 1))
     object_poses = np.tile(object_poses[None], (B, 1, 1))
 
+    object_class = common_utils.get_class_id(env.fg_object_id)
+    object_class = np.eye(22)[object_class].astype(np.float32)
+    object_class = np.tile(object_class[None], (B, 1))
+
     if nolearning:
         success_pred = np.full(B, np.nan)
         length_pred = np.full(B, np.nan)
@@ -63,6 +67,7 @@ def plan_and_execute_reorient(env, model, nolearning, timeout, visualize=True):
             success_pred, length_pred, auc_pred = model(
                 object_classes=torch.as_tensor(object_classes),
                 object_poses=torch.as_tensor(object_poses),
+                object_class=torch.as_tensor(object_class),
                 grasp_pose=torch.as_tensor(grasp_pose),
                 initial_pose=torch.as_tensor(initial_pose),
                 reorient_pose=torch.as_tensor(reorient_pose),
