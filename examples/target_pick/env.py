@@ -364,10 +364,17 @@ class PickFromPileEnv(Env):
         j = act_result.j
 
         if j is None:
+            reward = 0
+            if not self.eval:
+                if self._use_reward_translation:
+                    reward += -1
+                if self._use_reward_max_velocity:
+                    reward += -3
             return Transition(
                 observation=self.get_obs(),
-                reward=0,
+                reward=reward,
                 terminal=True,
+                info=dict(needs_reset=False, is_invalid=True),
             )
 
         with np.printoptions(precision=2):
@@ -452,7 +459,11 @@ class PickFromPileEnv(Env):
 
         logger.info(f"Reward={reward:.2f}, Terminal={terminal}")
 
-        info = {"translation": sum(translations.values())}
+        info = {
+            "translation": sum(translations.values()),
+            "needs_reset": terminal,
+            "is_invalid": False,
+        }
         if terminal:
             info["max_velocity"] = sum(self.max_velocities.values())
 
