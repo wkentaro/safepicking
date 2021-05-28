@@ -75,9 +75,9 @@ class Model(torch.nn.Module):
             torch.nn.Sigmoid(),
         )
 
-        # grasp_pose: 7, initial_pose: 7, reorient_pose: 7
+        # object_class: 22, grasp_pose: 7, initial_pose: 7, reorient_pose: 7
         self.encoder_action = torch.nn.Sequential(
-            torch.nn.Linear(7 + 7 + 7, 32),
+            torch.nn.Linear(22 + 7 + 7 + 7, 32),
             torch.nn.ReLU(),
         )
         self.encoder_object_poses_and_action = torch.nn.Sequential(
@@ -99,6 +99,7 @@ class Model(torch.nn.Module):
         self,
         object_classes,
         object_poses,
+        object_class,
         grasp_pose,
         initial_pose,
         reorient_pose,
@@ -120,7 +121,9 @@ class Model(torch.nn.Module):
         fc_auc = self.fc_auc(h_object_poses_and_reorient_pose)[:, 0]
 
         # fc_success, fc_length
-        h_action = torch.cat([grasp_pose, initial_pose, reorient_pose], dim=1)
+        h_action = torch.cat(
+            [object_class, grasp_pose, initial_pose, reorient_pose], dim=1
+        )
         h_action = self.encoder_action(h_action)
 
         h_object_poses_and_action = torch.cat(
@@ -139,8 +142,8 @@ class Dataset(torch.utils.data.Dataset):
 
     ROOT_DIR = home / "data/mercury/reorient/n_class_5"
 
-    TRAIN_SIZE = 3000
-    EVAL_SIZE = 500
+    TRAIN_SIZE = 20000
+    EVAL_SIZE = 5000
 
     JS_PLACE_LENGTH_SCALING = 12
 
@@ -165,9 +168,11 @@ class Dataset(torch.utils.data.Dataset):
                 0 <= data["js_place_length"] <= self.JS_PLACE_LENGTH_SCALING
             ), data["js_place_length"]
         object_classes = np.eye(22)[data["object_classes"]]
+        object_class = object_classes[data["object_fg_flags"]][0]
         return dict(
             object_classes=object_classes,
             object_poses=data["object_poses"],
+            object_class=object_class,
             grasp_pose=data["grasp_pose"],
             initial_pose=data["initial_pose"],
             reorient_pose=data["reorient_pose"],
@@ -200,6 +205,7 @@ def epoch_loop(
         success_pred, length_pred, auc_pred = model(
             object_classes=batch["object_classes"].float().cuda(),
             object_poses=batch["object_poses"].float().cuda(),
+            object_class=batch["object_class"].float().cuda(),
             grasp_pose=batch["grasp_pose"].float().cuda(),
             initial_pose=batch["initial_pose"].float().cuda(),
             reorient_pose=batch["reorient_pose"].float().cuda(),
@@ -269,12 +275,14 @@ def main():
 
     writer = SummaryWriter(log_dir=log_dir)
 
+    eval_loss_init = None
     eval_loss_min_epoch = -1
     eval_loss_min = np.inf
     with tqdm.trange(1000, ncols=100) as pbar:
         for epoch in pbar:
             pbar.set_description(
-                f"Epoch loop (eval_loss_min={eval_loss_min:.3f})"
+                "Epoch loop "
+                f"(eval_loss_min={eval_loss_min:.3f} @{eval_loss_min_epoch})"
             )
             pbar.refresh()
 
@@ -306,6 +314,8 @@ def main():
                 )
 
             eval_loss = np.mean(losses["loss"])
+            if epoch == 0:
+                eval_loss_init = eval_loss
             if eval_loss < eval_loss_min:
                 model_file = (
                     log_dir / f"models/model_best-epoch_{epoch:04d}.pth"
@@ -315,7 +325,7 @@ def main():
                 eval_loss_min_epoch = epoch
                 eval_loss_min = eval_loss
 
-            if (epoch - eval_loss_min_epoch) > (epoch * 0.5):
+            if eval_loss > eval_loss_init:
                 break
 
 
