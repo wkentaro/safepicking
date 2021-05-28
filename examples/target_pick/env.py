@@ -354,10 +354,9 @@ class PickFromPileEnv(Env):
             return j
 
     def step(self, act_result):
-        if act_result.j is None:
-            j = self.validate_action(act_result)
-        else:
-            j = act_result.j
+        if not hasattr(act_result, "j"):
+            act_result.j = self.validate_action(act_result)
+        j = act_result.j
 
         if j is None:
             raise RuntimeError

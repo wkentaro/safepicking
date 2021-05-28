@@ -26,6 +26,7 @@ class DqnModel(torch.nn.Module):
 
     def forward(self, observation):
         if self._model == "closedloop_pose_net":
+            ee_pose = observation["ee_pose"]
             grasp_flags = observation["grasp_flags"]
             object_labels = observation["object_labels"]
             object_poses = observation["object_poses"]
@@ -33,6 +34,7 @@ class DqnModel(torch.nn.Module):
             raise ValueError
 
         return self.module(
+            ee_pose=ee_pose,
             grasp_flags=grasp_flags,
             object_labels=object_labels,
             object_poses=object_poses,
