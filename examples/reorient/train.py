@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
+import collections
 import datetime
 import time
 
@@ -55,30 +56,41 @@ class Model(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.pose_encoder = PoseEncoder()
+        # object_poses: (O, 7)
+        self.encoder_object_poses = PoseEncoder()
 
-        # grasp_pose: 7, initial_pose: 7, reorient_pose: 7
-        self.action_encoder = torch.nn.Sequential(
-            torch.nn.Linear(7 + 7 + 7, 32),
+        # reorient_pose: 7
+        self.encoder_reorient_pose = torch.nn.Sequential(
+            torch.nn.Linear(7, 32),
             torch.nn.ReLU(),
         )
-
-        self.encoder = torch.nn.Sequential(
+        self.encoder_object_poses_and_reorient_pose = torch.nn.Sequential(
             torch.nn.Linear(32 + 32, 32),
             torch.nn.ReLU(),
             torch.nn.Linear(32, 32),
             torch.nn.ReLU(),
         )
+        self.fc_auc = torch.nn.Sequential(
+            torch.nn.Linear(32, 1),
+            torch.nn.Sigmoid(),
+        )
 
+        # grasp_pose: 7, initial_pose: 7, reorient_pose: 7
+        self.encoder_action = torch.nn.Sequential(
+            torch.nn.Linear(7 + 7 + 7, 32),
+            torch.nn.ReLU(),
+        )
+        self.encoder_object_poses_and_action = torch.nn.Sequential(
+            torch.nn.Linear(32 + 32, 32),
+            torch.nn.ReLU(),
+            torch.nn.Linear(32, 32),
+            torch.nn.ReLU(),
+        )
         self.fc_success = torch.nn.Sequential(
             torch.nn.Linear(32, 1),
             torch.nn.Sigmoid(),
         )
         self.fc_length = torch.nn.Sequential(
-            torch.nn.Linear(32, 1),
-            torch.nn.Sigmoid(),
-        )
-        self.fc_auc = torch.nn.Sequential(
             torch.nn.Linear(32, 1),
             torch.nn.Sigmoid(),
         )
@@ -91,17 +103,35 @@ class Model(torch.nn.Module):
         initial_pose,
         reorient_pose,
     ):
-        h_pose = self.pose_encoder(object_classes, object_poses)
+        h_object_poses = self.encoder_object_poses(
+            object_classes, object_poses
+        )
 
+        # fc_auc
+        h_reorient_pose = self.encoder_reorient_pose(reorient_pose)
+        h_object_poses_and_reorient_pose = torch.cat(
+            [h_object_poses, h_reorient_pose], dim=1
+        )
+        h_object_poses_and_reorient_pose = (
+            self.encoder_object_poses_and_reorient_pose(
+                h_object_poses_and_reorient_pose
+            )
+        )
+        fc_auc = self.fc_auc(h_object_poses_and_reorient_pose)[:, 0]
+
+        # fc_success, fc_length
         h_action = torch.cat([grasp_pose, initial_pose, reorient_pose], dim=1)
-        h_action = self.action_encoder(h_action)
+        h_action = self.encoder_action(h_action)
 
-        h = torch.cat([h_pose, h_action], dim=1)
-        h = self.encoder(h)
+        h_object_poses_and_action = torch.cat(
+            [h_object_poses, h_action], dim=1
+        )
+        h_object_poses_and_action = self.encoder_object_poses_and_action(
+            h_object_poses_and_action
+        )
 
-        fc_success = self.fc_success(h)[:, 0]
-        fc_length = self.fc_length(h)[:, 0]
-        fc_auc = self.fc_auc(h)[:, 0]
+        fc_success = self.fc_success(h_object_poses_and_action)[:, 0]
+        fc_length = self.fc_length(h_object_poses_and_action)[:, 0]
         return fc_success, fc_length, fc_auc
 
 
@@ -109,8 +139,8 @@ class Dataset(torch.utils.data.Dataset):
 
     ROOT_DIR = home / "data/mercury/reorient/n_class_5"
 
-    TRAIN_SIZE = 45000
-    EVAL_SIZE = 5000
+    TRAIN_SIZE = 3000
+    EVAL_SIZE = 500
 
     JS_PLACE_LENGTH_SCALING = 12
 
@@ -146,6 +176,68 @@ class Dataset(torch.utils.data.Dataset):
             auc=data["auc"],
             success=success,
         )
+
+
+def epoch_loop(
+    epoch, is_training, model, data_loader, summary_writer, optimizer=None
+):
+    if is_training:
+        assert optimizer is not None
+
+    train_or_val = "train" if is_training else "val"
+
+    model.train(is_training)
+
+    losses = collections.defaultdict(list)
+    for iteration, batch in enumerate(
+        tqdm.tqdm(
+            data_loader,
+            desc=f"{train_or_val.capitalize()} loop",
+            leave=False,
+            ncols=100,
+        )
+    ):
+        success_pred, length_pred, auc_pred = model(
+            object_classes=batch["object_classes"].float().cuda(),
+            object_poses=batch["object_poses"].float().cuda(),
+            grasp_pose=batch["grasp_pose"].float().cuda(),
+            initial_pose=batch["initial_pose"].float().cuda(),
+            reorient_pose=batch["reorient_pose"].float().cuda(),
+        )
+        length_true = batch["js_place_length"].float().cuda()
+        success_true = batch["success"].cuda()
+        auc_true = batch["auc"].float().cuda()
+
+        if is_training:
+            optimizer.zero_grad()
+
+        loss_auc = torch.nn.functional.smooth_l1_loss(auc_pred, auc_true)
+        loss_success = torch.nn.functional.binary_cross_entropy(
+            success_pred, success_true.float()
+        )
+        loss_length = torch.nn.functional.smooth_l1_loss(
+            length_pred[success_true], length_true[success_true]
+        )
+        loss = loss_success + loss_length + loss_auc
+
+        losses["loss_auc"].append(loss_auc.item())
+        losses["loss_success"].append(loss_success.item())
+        losses["loss_length"].append(loss_length.item())
+        losses["loss"].append(loss.item())
+
+        if is_training:
+            loss.backward()
+            optimizer.step()
+
+            for key, values in losses.items():
+                summary_writer.add_scalar(
+                    f"train/{key}",
+                    values[-1],
+                    global_step=len(data_loader) * epoch + iteration,
+                    walltime=time.time(),
+                )
+
+    return losses
 
 
 def main():
@@ -186,86 +278,34 @@ def main():
             )
             pbar.refresh()
 
-            model.train()
+            epoch_loop(
+                epoch=epoch,
+                is_training=True,
+                model=model,
+                data_loader=loader_train,
+                summary_writer=writer,
+                optimizer=optimizer,
+            )
 
-            for iteration, batch in enumerate(
-                tqdm.tqdm(
-                    loader_train, desc="Train loop", leave=False, ncols=100
+            with torch.no_grad():
+                losses = epoch_loop(
+                    epoch=epoch,
+                    is_training=False,
+                    model=model,
+                    data_loader=loader_val,
+                    summary_writer=writer,
+                    optimizer=optimizer,
                 )
-            ):
-                success_pred, length_pred, auc_pred = model(
-                    object_classes=batch["object_classes"].float().cuda(),
-                    object_poses=batch["object_poses"].float().cuda(),
-                    grasp_pose=batch["grasp_pose"].float().cuda(),
-                    initial_pose=batch["initial_pose"].float().cuda(),
-                    reorient_pose=batch["reorient_pose"].float().cuda(),
-                )
-                length_true = batch["js_place_length"].float().cuda()
-                success_true = batch["success"].cuda()
-                auc_true = batch["auc"].float().cuda()
 
-                optimizer.zero_grad()
-
-                loss_success = torch.nn.functional.binary_cross_entropy(
-                    success_pred, success_true.float()
-                )
-                loss_length = torch.nn.functional.smooth_l1_loss(
-                    length_pred[success_true], length_true[success_true]
-                )
-                loss_auc = torch.nn.functional.smooth_l1_loss(
-                    auc_pred[success_true], auc_true[success_true]
-                )
-                loss = loss_success + loss_length + loss_auc
-                loss.backward()
-
-                optimizer.step()
-
+            for key, values in losses.items():
                 writer.add_scalar(
-                    "train/loss",
-                    loss.item(),
-                    global_step=len(loader_train) * epoch + iteration,
+                    f"val/{key}",
+                    np.mean(values),
+                    global_step=len(loader_train) * (epoch + 1),
                     walltime=time.time(),
                 )
 
-            model.eval()
-
-            losses = []
-            with torch.no_grad():
-                for batch in tqdm.tqdm(
-                    loader_val, desc="Val loop", leave=False, ncols=100
-                ):
-                    success_pred, length_pred, auc_pred = model(
-                        object_classes=batch["object_classes"].float().cuda(),
-                        object_poses=batch["object_poses"].float().cuda(),
-                        grasp_pose=batch["grasp_pose"].float().cuda(),
-                        initial_pose=batch["initial_pose"].float().cuda(),
-                        reorient_pose=batch["reorient_pose"].float().cuda(),
-                    )
-                    length_true = batch["js_place_length"].float().cuda()
-                    success_true = batch["success"].cuda()
-                    auc_true = batch["auc"].float().cuda()
-
-                    loss_success = torch.nn.functional.binary_cross_entropy(
-                        success_pred, success_true.float()
-                    )
-                    loss_length = torch.nn.functional.smooth_l1_loss(
-                        length_pred[success_true], length_true[success_true]
-                    )
-                    loss_auc = torch.nn.functional.smooth_l1_loss(
-                        auc_pred[success_true], auc_true[success_true]
-                    )
-                    loss = loss_success + loss_length + loss_auc
-
-                    losses.append(loss.item())
-            eval_loss = np.mean(losses)
-
-            writer.add_scalar(
-                "val/loss",
-                eval_loss,
-                global_step=len(loader_train) * epoch + iteration,
-                walltime=time.time(),
-            )
-
+            eval_loss = np.mean(losses["loss"])
             if eval_loss < eval_loss_min:
                 model_file = (
                     log_dir / f"models/model_best-epoch_{epoch:04d}.pth"
