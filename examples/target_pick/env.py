@@ -344,6 +344,9 @@ class PickFromPileEnv(Env):
             if j is None:
                 return
 
+            if not self.ri.validatej(j, obstacles=[self.plane]):
+                return
+
             self.ri.setj(j)
             self.ri.attachments[0].assign()
 
