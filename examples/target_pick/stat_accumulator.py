@@ -27,7 +27,15 @@ class _SimpleAccumulator(StatAccumulator):
                 metric.reset()
 
     def step(self, transition: ReplayTransition, eval: bool):
-        if transition.info.get("is_invalid", False) or transition.timeout:
+        if transition.timeout:
+            # timeout by invalid actions
+            self._metrics["return"].reset()
+            self._metrics["length"].reset()
+            self._metrics["translation"].reset()
+            self._metrics["max_velocity"].reset()
+            return
+
+        if transition.info.get("is_invalid", False):
             # invalid action
             return
 
