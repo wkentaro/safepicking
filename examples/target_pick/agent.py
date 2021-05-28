@@ -74,7 +74,9 @@ class DqnAgent(Agent):
         if deterministic:
             for a in actions_select:
                 act_result = ActResult(action=a)
-                if env.validate_action(act_result):
+                j = env.validate_action(act_result)
+                if j is not None:
+                    act_result.j = j
                     break
             else:
                 act_result = ActResult(actions_select[0])
@@ -83,12 +85,16 @@ class DqnAgent(Agent):
             if np.random.random() < epsilon:
                 for a in np.random.permutation(q.shape[1]):
                     act_result = ActResult(action=a)
-                    if env.validate_action(act_result):
+                    j = env.validate_action(act_result)
+                    if j is not None:
+                        act_result.j = j
                         break
             else:
                 for a in actions_select:
                     act_result = ActResult(action=a)
-                    if env.validate_action(act_result):
+                    j = env.validate_action(act_result)
+                    if j is not None:
+                        act_result.j = j
                         break
                 else:
                     act_result = ActResult(actions_select[0])

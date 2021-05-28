@@ -11,7 +11,6 @@ import path
 import pybullet as p
 import pybullet_planning as pp
 
-from yarr.agents.agent import ActResult
 from yarr.envs.env import Env
 from yarr.utils.observation_type import ObservationElement
 from yarr.utils.transition import Transition
@@ -66,6 +65,12 @@ class PickFromPileEnv(Env):
         self.actions = list(itertools.product(dxs, dys, dzs, das, dbs, dgs))
         self.actions.remove((0, 0, 0, 0, 0, 0))
 
+        ee_pose = gym.spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=(7,),
+            dtype=np.float32,
+        )
         grasp_flags = gym.spaces.Box(low=0, high=1, shape=(8,), dtype=np.uint8)
         object_labels = gym.spaces.Box(
             low=0,
@@ -81,6 +86,7 @@ class PickFromPileEnv(Env):
         )
         self.observation_space = gym.spaces.Dict(
             dict(
+                ee_pose=ee_pose,
                 grasp_flags=grasp_flags,
                 object_labels=object_labels,
                 object_poses=object_poses,
@@ -202,6 +208,71 @@ class PickFromPileEnv(Env):
                 else:
                     return self.reset()
 
+        # grasping
+
+        c = mercury.geometry.Coordinate(*self.ri.get_pose("camera_link"))
+        c.position = pp.get_pose(object_ids[target_index])[0]
+        c.position[2] += 0.5
+        for i in itertools.count():
+            if i == 3:
+                if raise_on_failure:
+                    raise RuntimeError("random grasping failed")
+                else:
+                    return self.reset()
+
+            j = self.ri.solve_ik(
+                c.pose, move_target=self.ri.robot_model.camera_link
+            )
+            if j is None:
+                continue
+
+            self.ri.setj(j)
+
+            rgb, depth, segm = self.ri.get_camera_image()
+            object_state = self.get_object_state(
+                object_ids=object_ids,
+                target_object_id=object_ids[target_index],
+            )
+
+            try:
+                for _ in self.ri.random_grasp(
+                    depth,
+                    segm,
+                    mask=segm == object_ids[target_index],
+                    bg_object_ids=[self.plane],
+                    object_ids=object_ids,
+                    random_state=random_state,
+                    noise=False,
+                ):
+                    pp.step_simulation()
+                    if self._gui:
+                        time.sleep(pp.get_time_step() / 10)
+            except RuntimeError:
+                if raise_on_failure:
+                    raise RuntimeError("random grasping failed")
+                else:
+                    return self.reset()
+
+            for _ in range(int(round(3 / pp.get_time_step()))):
+                pp.step_simulation()
+                if self._gui:
+                    time.sleep(pp.get_time_step() / 10)
+
+            if (
+                self.ri.gripper.check_grasp()
+                and self.ri.attachments[0].child == object_ids[target_index]
+            ):
+                break
+            else:
+                self.ri.ungrasp()
+
+        # ---------------------------------------------------------------------
+
+        self.grasp_pose = np.hstack(self.ri.get_pose("tipLink")).astype(
+            np.float32
+        )
+        self.object_state = object_state
+
         self.object_ids = object_ids
         self.target_object_id = object_ids[target_index]
 
@@ -229,10 +300,12 @@ class PickFromPileEnv(Env):
         return grasp_flags, object_labels, object_poses
 
     def get_obs(self):
+        ee_pose = np.hstack(self.ri.get_pose("tipLink")).astype(np.float32)
         grasp_flags, object_labels, object_poses = self.get_object_state(
             self.object_ids, self.target_object_id
         )
         obs = dict(
+            ee_pose=ee_pose,
             grasp_flags=grasp_flags,
             object_labels=object_labels,
             object_poses=object_poses,
@@ -252,52 +325,10 @@ class PickFromPileEnv(Env):
 
         return obs
 
-    def get_demo_action(self):
-        pose = mercury.pybullet.get_pose(self.target_object_id)
-
-        min_distances = {}
-        for action_index, action in enumerate(self.actions):
-            dx, dy, dz, da, db, dg = action
-
-            c = mercury.geometry.Coordinate(*pose)
-            c.translate([dx, dy, dz], wrt="world")
-            c.rotate([da, db, dg], wrt="world")
-
-            MAX_DISTANCE = 0.1
-
-            min_distance = MAX_DISTANCE
-            with pp.LockRenderer(), pp.WorldSaver():
-                pp.set_pose(self.target_object_id, c.pose)
-
-                z_min = pp.get_aabb(self.target_object_id)[0][2]
-                if not (z_min >= (self._z_min_init - 0.01)):
-                    continue
-
-                for object_id in [self.plane] + self.object_ids:
-                    if object_id == self.target_object_id:
-                        continue
-                    for point in pp.body_collision_info(
-                        self.target_object_id,
-                        object_id,
-                        max_distance=MAX_DISTANCE,
-                    ):
-                        min_distance = min(min_distance, point[8])
-            min_distances[action_index] = min_distance
-
-        action_pz = self.actions.index((0, 0, self.DP, 0, 0, 0))
-        if min_distances[action_pz] >= 0:
-            action = action_pz
-        else:
-            i = np.array(list(min_distances.keys()))
-            p = np.array(list(min_distances.values()))
-            p = (p - p.min()) / (p.max() - p.min())
-            p = p / p.sum()
-            action = np.random.choice(i, p=p)
-
-        return ActResult(action=action)
-
     def validate_action(self, act_result):
         dx, dy, dz, da, db, dg = self.actions[act_result.action]
+
+        assert self.target_object_id == self.ri.attachments[0].child
 
         c = mercury.geometry.Coordinate(
             *mercury.pybullet.get_pose(self.target_object_id)
@@ -306,26 +337,34 @@ class PickFromPileEnv(Env):
         c.rotate([da, db, dg], wrt="world")
 
         with pp.LockRenderer(), pp.WorldSaver():
-            pp.set_pose(self.target_object_id, c.pose)
+            with self.ri.enabling_attachments():
+                j = self.ri.solve_ik(
+                    c.pose, move_target=self.ri.robot_model.attachment_link0
+                )
+            if j is None:
+                return
+
+            self.ri.setj(j)
+            self.ri.attachments[0].assign()
+
             z_min = pp.get_aabb(self.target_object_id)[0][2]
-            return z_min >= (self._z_min_init - 0.01)
+            if not z_min >= (self._z_min_init - 0.01):
+                return
+
+            return j
 
     def step(self, act_result):
-        if not self.validate_action(act_result):
+        if act_result.j is None:
+            j = self.validate_action(act_result)
+        else:
+            j = act_result.j
+
+        if j is None:
             raise RuntimeError
 
-        dx, dy, dz, da, db, dg = action = self.actions[act_result.action]
-
         with np.printoptions(precision=2):
+            action = self.actions[act_result.action]
             logger.info(f"[{act_result.action}] {np.array(action)}")
-
-        pose1 = mercury.pybullet.get_pose(self.target_object_id)
-
-        c = mercury.geometry.Coordinate(*pose1)
-        c.translate([dx, dy, dz], wrt="world")
-        c.rotate([da, db, dg], wrt="world")
-
-        pose2 = c.pose
 
         poses = {}
         for object_id in self.object_ids:
@@ -353,23 +392,11 @@ class PickFromPileEnv(Env):
                     np.linalg.norm(pp.get_velocity(object_id)[0]),
                 )
 
-        for pose in pp.interpolate_poses(
-            pose1, pose2, pos_step_size=0.001, ori_step_size=np.pi / 180
-        ):
-            pp.set_pose(self.target_object_id, pose)
+        for _ in self.ri.movej(j, speed=0.001):
             pp.step_simulation()
-            pp.set_pose(self.target_object_id, pose)
             step_callback()
             if self._gui:
-                time.sleep(pp.get_time_step())
-
-        for _ in range(int(round(1 / pp.get_time_step()))):
-            pp.set_pose(self.target_object_id, pose)
-            pp.step_simulation()
-            pp.set_pose(self.target_object_id, pose)
-            step_callback()
-            if self._gui:
-                time.sleep(pp.get_time_step())
+                time.sleep(pp.get_time_step() / 10)
 
         # ---------------------------------------------------------------------
 

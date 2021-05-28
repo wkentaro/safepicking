@@ -61,28 +61,6 @@ def main():
     object_ids = env.object_ids
     target_object_id = env.target_object_id
 
-    c = mercury.geometry.Coordinate(*env.ri.get_pose("camera_link"))
-    c.position = pp.get_pose(target_object_id)[0]
-    c.position[2] += 0.5
-
-    j = ri.solve_ik(c.pose, move_target=env.ri.robot_model.camera_link)
-    ri.setj(j)
-
-    rgb, depth, segm = env.ri.get_camera_image()
-    for _ in env.ri.random_grasp(
-        depth,
-        segm,
-        mask=segm == target_object_id,
-        bg_object_ids=[plane],
-        object_ids=object_ids,
-        random_state=np.random.RandomState(args.seed),
-        noise=False,
-    ):
-        pp.step_simulation()
-        if not args.nogui:
-            time.sleep(pp.get_time_step())
-    assert env.ri.gripper.check_grasp()
-
     ri.planner = args.planner
 
     with pp.LockRenderer(), pp.WorldSaver():
