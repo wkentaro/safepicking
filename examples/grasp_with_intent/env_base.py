@@ -38,9 +38,12 @@ class EnvBase(Env):
     PRE_PLACE_POSE = BIN_POSE[0] + (0, -0.3, 0), (0, 0, 0, 1)
     PLACE_POSE = BIN_POSE[0], PRE_PLACE_POSE[1]
 
-    def __init__(self, gui=True, retime=1, step_callback=None, mp4=None):
+    def __init__(
+        self, class_ids, gui=True, retime=1, step_callback=None, mp4=None
+    ):
         super().__init__()
 
+        self._class_ids = class_ids
         self._gui = gui
         self._retime = retime
         self._step_callback = step_callback
@@ -137,7 +140,7 @@ class EnvBase(Env):
                     quaternion=quaternion,
                 )
             object_ids.append(object_id)
-            if class_id in [2, 3, 5, 11, 12] and visibility > 0.9:
+            if class_id in self._class_ids and visibility > 0.9:
                 fg_object_ids.append(object_id)
 
         if not fg_object_ids:

@@ -27,13 +27,16 @@ def main():
         "--process-id", type=str, required=True, help="process id (e.g., 2/5)"
     )
     parser.add_argument("--size", type=int, default=50000, help="dataset size")
+    parser.add_argument("--class-ids", type=int, nargs="+", help="class ids")
     args = parser.parse_args()
+
+    args.class_ids = sorted(args.class_ids)
 
     process_index, process_num = args.process_id.split("/")
     process_index = int(process_index)
     process_num = int(process_num)
 
-    env = PickAndPlaceEnv(gui=args.gui)
+    env = PickAndPlaceEnv(class_ids=args.class_ids, gui=args.gui)
 
     i = process_index
     while True:
@@ -79,10 +82,10 @@ def main():
                 object_classes.append(common_utils.get_class_id(object_id))
                 object_poses.append(np.hstack(pp.get_pose(object_id)))
 
+            name = f"class_{'_'.join(str(c) for c in args.class_ids)}"
+
             while True:
-                npz_file = (
-                    home / f"data/mercury/reorient/n_class_5/{i:08d}.npz"
-                )
+                npz_file = home / f"data/mercury/reorient/{name}/{i:08d}.npz"
                 if not npz_file.exists():
                     break
                 i += process_num
