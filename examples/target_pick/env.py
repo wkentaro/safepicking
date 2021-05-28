@@ -394,7 +394,7 @@ class PickFromPileEnv(Env):
                     np.linalg.norm(pp.get_velocity(object_id)[0]),
                 )
 
-        for _ in self.ri.movej(j, speed=0.001):
+        for _ in self.ri.movej(j, speed=0.01):
             pp.step_simulation()
             step_callback()
             if self._gui:
