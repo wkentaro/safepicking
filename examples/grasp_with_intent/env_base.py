@@ -136,14 +136,8 @@ class EnvBase(Env):
                     position=position,
                     quaternion=quaternion,
                 )
-                pp.draw_pose(
-                    ([0, 0, 0], [0, 0, 0, 1]),
-                    parent=object_id,
-                    width=2,
-                    length=0.2,
-                )
             object_ids.append(object_id)
-            if class_id in [2, 3, 5, 11, 12]:
+            if class_id in [2, 3, 5, 11, 12] and visibility > 0.9:
                 fg_object_ids.append(object_id)
 
         if not fg_object_ids:
@@ -163,9 +157,8 @@ class EnvBase(Env):
 
         mercury.pybullet.duplicate(
             self.fg_object_id,
-            texture=False,
-            rgba_color=(0, 1, 0, 0.5),
             collision=False,
+            rgba_color=(0, 1, 0, 0.5),
             position=self.PLACE_POSE[0],
             quaternion=self.PLACE_POSE[1],
         )
