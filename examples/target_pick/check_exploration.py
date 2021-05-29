@@ -45,7 +45,9 @@ def main():
         if agent is None:
             for action in np.random.permutation(len(env.actions)):
                 act_result = ActResult(action)
-                if env.validate_action(act_result):
+                j = env.validate_action(act_result)
+                if j is not None:
+                    act_result.j = j
                     break
         else:
             act_result = agent.act(

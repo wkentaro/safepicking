@@ -200,6 +200,7 @@ class PickFromPileEnv(Env):
                 )
 
             object_ids.append(object_id)
+        target_object_id = object_ids[target_index]
 
         for object_id in object_ids:
             if mercury.pybullet.is_colliding(object_id, ids2=[self.ri.robot]):
@@ -211,70 +212,89 @@ class PickFromPileEnv(Env):
         # grasping
 
         c = mercury.geometry.Coordinate(*self.ri.get_pose("camera_link"))
-        c.position = pp.get_pose(object_ids[target_index])[0]
+        c.position = pp.get_pose(target_object_id)[0]
         c.position[2] += 0.5
-        for i in itertools.count():
-            if i == 3:
-                if raise_on_failure:
-                    raise RuntimeError("random grasping failed")
-                else:
-                    return self.reset()
 
-            j = self.ri.solve_ik(
-                c.pose, move_target=self.ri.robot_model.camera_link
+        j = self.ri.solve_ik(
+            c.pose, move_target=self.ri.robot_model.camera_link
+        )
+        if j is None:
+            if raise_on_failure:
+                raise RuntimeError("IK failed to capture object")
+            else:
+                return self.reset()
+
+        self.ri.setj(j)
+
+        rgb, depth, segm = self.ri.get_camera_image()
+
+        K = self.ri.get_opengl_intrinsic_matrix()
+
+        pcd_in_camera = mercury.geometry.pointcloud_from_depth(
+            depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
+        )
+
+        camera_to_world = self.ri.get_pose("camera_link")
+        ee_to_world = self.ri.get_pose("tipLink")
+        camera_to_ee = pp.multiply(pp.invert(ee_to_world), camera_to_world)
+        pcd_in_ee = mercury.geometry.transform_points(
+            pcd_in_camera,
+            mercury.geometry.transformation_matrix(*camera_to_ee),
+        )
+
+        normals = mercury.geometry.normals_from_pointcloud(pcd_in_ee)
+
+        yx = np.argwhere(segm == target_object_id)
+
+        for y, x in yx[np.random.permutation(len(yx))]:
+            position = pcd_in_ee[y, x]
+            quaternion = mercury.geometry.quaternion_from_vec2vec(
+                [0, 0, 1], normals[y, x]
             )
+            ee_to_ee_af = (position, quaternion)
+            ee_af_to_world = pp.multiply(ee_to_world, ee_to_ee_af)
+
+            ee_af_to_world = pp.multiply(
+                ee_af_to_world, ([0, 0, -0.02], [0, 0, 0, 1])
+            )
+
+            j = self.ri.solve_ik(ee_af_to_world)
             if j is None:
                 continue
 
+            if not self.ri.validatej(j, obstacles=[self.plane] + object_ids):
+                continue
+
             self.ri.setj(j)
-
-            rgb, depth, segm = self.ri.get_camera_image()
-            object_state = self.get_object_state(
-                object_ids=object_ids,
-                target_object_id=object_ids[target_index],
-            )
-
-            try:
-                for _ in self.ri.random_grasp(
-                    depth,
-                    segm,
-                    mask=segm == object_ids[target_index],
-                    bg_object_ids=[self.plane],
-                    object_ids=object_ids,
-                    random_state=random_state,
-                    noise=False,
-                ):
-                    pp.step_simulation()
-                    if self._gui:
-                        time.sleep(pp.get_time_step() / 10)
-            except RuntimeError:
-                if raise_on_failure:
-                    raise RuntimeError("random grasping failed")
-                else:
-                    return self.reset()
-
-            for _ in range(int(round(3 / pp.get_time_step()))):
-                pp.step_simulation()
-                if self._gui:
-                    time.sleep(pp.get_time_step() / 10)
-
-            if (
-                self.ri.gripper.check_grasp()
-                and self.ri.attachments[0].child == object_ids[target_index]
-            ):
-                break
+            break
+        else:
+            if raise_on_failure:
+                raise RuntimeError("Unable to grasp the target object")
             else:
-                self.ri.ungrasp()
+                return self.reset()
+
+        for _ in self.ri.movej(j):
+            pp.step_simulation()
+            time.sleep(pp.get_time_step())
+
+        for _ in self.ri.grasp(rotation_axis=True):
+            pp.step_simulation()
+            time.sleep(pp.get_time_step())
+
+        obj_to_world = pp.get_pose(target_object_id)
+        ee_to_world = self.ri.get_pose("tipLink")
+        obj_to_ee = pp.multiply(pp.invert(ee_to_world), obj_to_world)
+
+        self.ri.attachments = [
+            pp.Attachment(
+                self.ri.robot, self.ri.ee, obj_to_ee, target_object_id
+            )
+        ]
 
         # ---------------------------------------------------------------------
 
-        self.grasp_pose = np.hstack(self.ri.get_pose("tipLink")).astype(
-            np.float32
-        )
-        self.object_state = object_state
-
         self.object_ids = object_ids
-        self.target_object_id = object_ids[target_index]
+        self.target_object_id = target_object_id
 
         self._i = 0
         self._z_min_init = pp.get_aabb(self.target_object_id)[0][2]
@@ -411,7 +431,7 @@ class PickFromPileEnv(Env):
             pp.step_simulation()
             step_callback()
             if self._gui:
-                time.sleep(pp.get_time_step() / 10)
+                time.sleep(pp.get_time_step())
 
         # ---------------------------------------------------------------------
 
