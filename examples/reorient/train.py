@@ -59,9 +59,9 @@ class Model(torch.nn.Module):
         # object_poses: (O, 7)
         self.encoder_object_poses = PoseEncoder()
 
-        # reorient_pose: 7
+        # object_class: 22, reorient_pose: 7
         self.encoder_reorient_pose = torch.nn.Sequential(
-            torch.nn.Linear(7, 32),
+            torch.nn.Linear(22 + 7, 32),
             torch.nn.ReLU(),
         )
         self.encoder_object_poses_and_reorient_pose = torch.nn.Sequential(
@@ -109,7 +109,8 @@ class Model(torch.nn.Module):
         )
 
         # fc_auc
-        h_reorient_pose = self.encoder_reorient_pose(reorient_pose)
+        h_reorient_pose = torch.cat([object_class, reorient_pose], dim=1)
+        h_reorient_pose = self.encoder_reorient_pose(h_reorient_pose)
         h_object_poses_and_reorient_pose = torch.cat(
             [h_object_poses, h_reorient_pose], dim=1
         )
@@ -140,15 +141,16 @@ class Model(torch.nn.Module):
 
 class Dataset(torch.utils.data.Dataset):
 
-    ROOT_DIR = home / "data/mercury/reorient/n_class_5"
+    ROOT_DIR = home / "data/mercury/reorient"
 
-    TRAIN_SIZE = 20000
-    EVAL_SIZE = 5000
+    TRAIN_SIZE = 40000
+    EVAL_SIZE = 10000
 
     JS_PLACE_LENGTH_SCALING = 12
 
-    def __init__(self, split):
+    def __init__(self, split, dataset):
         self._split = split
+        self._dataset = dataset
 
     def __len__(self):
         if self._split == "train":
@@ -161,7 +163,7 @@ class Dataset(torch.utils.data.Dataset):
     def __getitem__(self, i):
         if self._split == "val":
             i += self.TRAIN_SIZE
-        data = np.load(self.ROOT_DIR / f"{i:08d}.npz")
+        data = np.load(self.ROOT_DIR / self._dataset / f"{i:08d}.npz")
         success = ~np.isnan(data["js_place_length"])
         if success:
             assert (
@@ -251,13 +253,19 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--name", required=True, help="name")
+    parser.add_argument(
+        "--dataset",
+        default="class_11",
+        choices=["class_11", "class_2_3_5_11_12"],
+        help="dataset",
+    )
     args = parser.parse_args()
 
-    data_train = Dataset(split="train")
+    data_train = Dataset(split="train", dataset=args.dataset)
     loader_train = torch.utils.data.DataLoader(
         data_train, batch_size=256, shuffle=True, drop_last=True
     )
-    data_val = Dataset(split="val")
+    data_val = Dataset(split="val", dataset=args.dataset)
     loader_val = torch.utils.data.DataLoader(
         data_val, batch_size=256, shuffle=False
     )

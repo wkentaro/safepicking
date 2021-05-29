@@ -153,6 +153,7 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("log_dir", type=path.Path, help="log dir")
+    parser.add_argument("--class-ids", type=int, nargs="+", help="class ids")
     parser.add_argument("--seed", type=int, default=0, help="seed")
     parser.add_argument("--pause", action="store_true", help="pause")
     parser.add_argument("--nolearning", action="store_true", help="nolearning")
@@ -161,7 +162,7 @@ def main():
     parser.add_argument("--mp4", help="mp4")
     args = parser.parse_args()
 
-    env = PickAndPlaceEnv(mp4=args.mp4)
+    env = PickAndPlaceEnv(class_ids=args.class_ids, mp4=args.mp4)
     env.eval = True
     env.random_state = np.random.RandomState(args.seed)
     env.reset()
