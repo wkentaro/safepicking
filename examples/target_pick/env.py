@@ -277,9 +277,15 @@ class PickFromPileEnv(Env):
             pp.step_simulation()
             time.sleep(pp.get_time_step())
 
-        for _ in self.ri.grasp(rotation_axis=True):
-            pp.step_simulation()
-            time.sleep(pp.get_time_step())
+        try:
+            for _ in self.ri.grasp(rotation_axis=True):
+                pp.step_simulation()
+                time.sleep(pp.get_time_step())
+        except RuntimeError:
+            if raise_on_failure:
+                raise
+            else:
+                return self.reset()
 
         obj_to_world = pp.get_pose(target_object_id)
         ee_to_world = self.ri.get_pose("tipLink")
