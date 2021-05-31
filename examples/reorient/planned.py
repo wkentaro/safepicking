@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import argparse
 import itertools
 import time
 
@@ -388,8 +389,18 @@ def plan_and_execute_place(env, num_sample=5):
 
 
 def main():
-    env = PickAndPlaceEnv()
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--class-ids", type=int, nargs="+", help="class ids", required=True
+    )
+    parser.add_argument("--mp4", help="mp4")
+    args = parser.parse_args()
+
+    env = PickAndPlaceEnv(class_ids=args.class_ids, mp4=args.mp4)
     env.random_state = np.random.RandomState(0)
+    env.eval = True
     env.reset()
 
     results = itertools.islice(rollout_plan_reorient(env), 10)
