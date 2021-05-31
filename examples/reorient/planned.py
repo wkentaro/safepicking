@@ -73,11 +73,6 @@ def get_reorient_poses(
         query_ocs_normal_ends, T_obj_to_world
     )
 
-    bounds = (
-        env.PILE_POSITION + (-0.2, -0.2, 0),
-        env.PILE_POSITION + (0.2, 0.2, 0.4),
-    )
-
     if centroid:
         assert num_sample == 1
         query_ocs_centroid = query_ocs.mean(axis=0)
@@ -121,9 +116,6 @@ def get_reorient_poses(
             c = mercury.geometry.Coordinate.from_matrix(T_obj_af_to_world)
             c.translate([dx, dy, dz], wrt="world")
             c.rotate([0, 0, dg], wrt="world")
-
-            if not ((c.position > bounds[0]) & (c.position < bounds[1])).all():
-                continue
 
             with pp.LockRenderer(), pp.WorldSaver():
                 pp.set_pose(env.fg_object_id, c.pose)
@@ -333,7 +325,6 @@ def rollout_plan_reorient(
             obj_af = mercury.pybullet.duplicate(
                 env.fg_object_id,
                 collision=False,
-                texture=False,
                 rgba_color=(0, 1, 0, 0.5),
                 position=c_reorient.position,
                 quaternion=c_reorient.quaternion,
