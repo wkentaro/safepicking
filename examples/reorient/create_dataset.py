@@ -27,7 +27,9 @@ def main():
         "--process-id", type=str, required=True, help="process id (e.g., 2/5)"
     )
     parser.add_argument("--size", type=int, default=50000, help="dataset size")
-    parser.add_argument("--class-ids", type=int, nargs="+", help="class ids")
+    parser.add_argument(
+        "--class-ids", type=int, nargs="+", help="class ids", required=True
+    )
     args = parser.parse_args()
 
     args.class_ids = sorted(args.class_ids)
