@@ -3,6 +3,7 @@
 import argparse
 import collections
 import datetime
+import json
 import time
 
 import numpy as np
@@ -12,31 +13,35 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 import tqdm
 
+import common_utils
+
 
 home = path.Path("~").expanduser()
 here = path.Path(__file__).abspath().parent
 
 
 class PoseEncoder(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, out_channels, nhead, num_layers):
         super().__init__()
-        # object_classes: 22, object_poses: 7
+        # object_fg_flags: 1, object_classes: 22, object_poses: 7
         self.fc_encoder = torch.nn.Sequential(
-            torch.nn.Linear(22 + 7, 32),
+            torch.nn.Linear(1 + 22 + 7, out_channels),
             torch.nn.ReLU(),
         )
         self.transformer_encoder = torch.nn.TransformerEncoder(
             encoder_layer=torch.nn.TransformerEncoderLayer(
-                d_model=32,
-                nhead=4,
-                dim_feedforward=64,
+                d_model=out_channels,
+                nhead=nhead,
+                dim_feedforward=out_channels * 2,
             ),
-            num_layers=2,
+            num_layers=num_layers,
             norm=None,
         )
 
-    def forward(self, object_classes, object_poses):
-        h = torch.cat([object_classes, object_poses], dim=2)
+    def forward(self, object_fg_flags, object_classes, object_poses):
+        h = torch.cat(
+            [object_fg_flags[:, :, None], object_classes, object_poses], dim=2
+        )
 
         B, O, _ = h.shape
         h = h.reshape(B * O, -1)
@@ -56,132 +61,70 @@ class Model(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
-        # object_poses: (O, 7)
-        self.encoder_object_poses = PoseEncoder()
-
-        # object_class: 22, reorient_pose: 7
-        self.encoder_reorient_pose = torch.nn.Sequential(
-            torch.nn.Linear(22 + 7, 32),
-            torch.nn.ReLU(),
+        out_channels = 32
+        self.encoder_object_poses = PoseEncoder(
+            out_channels, nhead=4, num_layers=4
         )
-        self.encoder_object_poses_and_reorient_pose = torch.nn.Sequential(
-            torch.nn.Linear(32 + 32, 32),
-            torch.nn.ReLU(),
-            torch.nn.Linear(32, 32),
-            torch.nn.ReLU(),
-        )
-        self.fc_auc = torch.nn.Sequential(
-            torch.nn.Linear(32, 1),
-            torch.nn.Sigmoid(),
-        )
-
-        # object_class: 22, grasp_pose: 7, initial_pose: 7, reorient_pose: 7
-        self.encoder_action = torch.nn.Sequential(
-            torch.nn.Linear(22 + 7 + 7 + 7, 32),
-            torch.nn.ReLU(),
-        )
-        self.encoder_object_poses_and_action = torch.nn.Sequential(
-            torch.nn.Linear(32 + 32, 32),
-            torch.nn.ReLU(),
-            torch.nn.Linear(32, 32),
-            torch.nn.ReLU(),
-        )
-        self.fc_success = torch.nn.Sequential(
-            torch.nn.Linear(32, 1),
-            torch.nn.Sigmoid(),
-        )
-        self.fc_length = torch.nn.Sequential(
-            torch.nn.Linear(32, 1),
+        self.fc_stable = torch.nn.Sequential(
+            torch.nn.Linear(out_channels, 1),
             torch.nn.Sigmoid(),
         )
 
     def forward(
         self,
+        object_fg_flags,
         object_classes,
         object_poses,
-        object_class,
-        grasp_pose,
-        initial_pose,
-        reorient_pose,
     ):
-        h_object_poses = self.encoder_object_poses(
-            object_classes, object_poses
+        h = self.encoder_object_poses(
+            object_fg_flags, object_classes, object_poses
         )
+        fc_stable = self.fc_stable(h)[:, 0]
 
-        # fc_auc
-        h_reorient_pose = torch.cat([object_class, reorient_pose], dim=1)
-        h_reorient_pose = self.encoder_reorient_pose(h_reorient_pose)
-        h_object_poses_and_reorient_pose = torch.cat(
-            [h_object_poses, h_reorient_pose], dim=1
-        )
-        h_object_poses_and_reorient_pose = (
-            self.encoder_object_poses_and_reorient_pose(
-                h_object_poses_and_reorient_pose
-            )
-        )
-        fc_auc = self.fc_auc(h_object_poses_and_reorient_pose)[:, 0]
-
-        # fc_success, fc_length
-        h_action = torch.cat(
-            [object_class, grasp_pose, initial_pose, reorient_pose], dim=1
-        )
-        h_action = self.encoder_action(h_action)
-
-        h_object_poses_and_action = torch.cat(
-            [h_object_poses, h_action], dim=1
-        )
-        h_object_poses_and_action = self.encoder_object_poses_and_action(
-            h_object_poses_and_action
-        )
-
-        fc_success = self.fc_success(h_object_poses_and_action)[:, 0]
-        fc_length = self.fc_length(h_object_poses_and_action)[:, 0]
-        return fc_success, fc_length, fc_auc
+        return fc_stable
 
 
 class Dataset(torch.utils.data.Dataset):
 
     ROOT_DIR = home / "data/mercury/reorient"
 
-    TRAIN_SIZE = 40000
-    EVAL_SIZE = 10000
-
-    JS_PLACE_LENGTH_SCALING = 12
-
     def __init__(self, split, dataset):
         self._split = split
         self._dataset = dataset
 
+        self._files = {"train": [], "val": []}
+        dataset_dir = self.ROOT_DIR / self._dataset
+        SIZE = 150000
+        for file in sorted(dataset_dir.listdir()):
+            if int(file.stem) < (SIZE - 10000):
+                self._files["train"].append(file)
+            elif (SIZE - 10000) <= int(file.stem) < SIZE:
+                self._files["val"].append(file)
+
+        for k, v in self._files.items():
+            print(k, len(v))
+
     def __len__(self):
-        if self._split == "train":
-            return self.TRAIN_SIZE
-        elif self._split == "val":
-            return self.EVAL_SIZE
-        else:
-            raise ValueError
+        return len(self._files[self._split])
 
     def __getitem__(self, i):
-        if self._split == "val":
-            i += self.TRAIN_SIZE
-        data = np.load(self.ROOT_DIR / self._dataset / f"{i:08d}.npz")
-        success = ~np.isnan(data["js_place_length"])
-        if success:
-            assert (
-                0 <= data["js_place_length"] <= self.JS_PLACE_LENGTH_SCALING
-            ), data["js_place_length"]
+        file = self._files[self._split][i]
+        data = np.load(file)
+
+        assert 0 <= data["auc"] <= 1
+        stable = data["auc"] > 0.8
+
+        object_fg_flags = data["object_fg_flags"]
+        object_classes = data["object_classes"]
+        object_poses = data["object_poses"]
         object_classes = np.eye(22)[data["object_classes"]]
-        object_class = object_classes[data["object_fg_flags"]][0]
+        object_poses[object_fg_flags] = data["reorient_pose"]
+
         return dict(
+            object_fg_flags=object_fg_flags,
             object_classes=object_classes,
-            object_poses=data["object_poses"],
-            object_class=object_class,
-            grasp_pose=data["grasp_pose"],
-            initial_pose=data["initial_pose"],
-            reorient_pose=data["reorient_pose"],
-            js_place_length=data["js_place_length"]
-            / self.JS_PLACE_LENGTH_SCALING,
-            auc=data["auc"],
-            success=success,
+            object_poses=object_poses,
+            stable=stable,
         )
 
 
@@ -204,33 +147,20 @@ def epoch_loop(
             ncols=100,
         )
     ):
-        success_pred, length_pred, auc_pred = model(
+        stable_pred = model(
+            object_fg_flags=batch["object_fg_flags"].float().cuda(),
             object_classes=batch["object_classes"].float().cuda(),
             object_poses=batch["object_poses"].float().cuda(),
-            object_class=batch["object_class"].float().cuda(),
-            grasp_pose=batch["grasp_pose"].float().cuda(),
-            initial_pose=batch["initial_pose"].float().cuda(),
-            reorient_pose=batch["reorient_pose"].float().cuda(),
         )
-        length_true = batch["js_place_length"].float().cuda()
-        success_true = batch["success"].cuda()
-        auc_true = batch["auc"].float().cuda()
+        stable_true = batch["stable"].float().cuda()
 
         if is_training:
             optimizer.zero_grad()
 
-        loss_auc = torch.nn.functional.smooth_l1_loss(auc_pred, auc_true)
-        loss_success = torch.nn.functional.binary_cross_entropy(
-            success_pred, success_true.float()
+        loss = torch.nn.functional.binary_cross_entropy(
+            stable_pred, stable_true
         )
-        loss_length = torch.nn.functional.smooth_l1_loss(
-            length_pred[success_true], length_true[success_true]
-        )
-        loss = loss_success + loss_length + loss_auc
 
-        losses["loss_auc"].append(loss_auc.item())
-        losses["loss_success"].append(loss_success.item())
-        losses["loss_length"].append(loss_length.item())
         losses["loss"].append(loss.item())
 
         if is_training:
@@ -256,7 +186,6 @@ def main():
     parser.add_argument(
         "--dataset",
         default="class_11",
-        choices=["class_11", "class_2_3_5_11_12"],
         help="dataset",
     )
     args = parser.parse_args()
@@ -281,12 +210,16 @@ def main():
     )
     log_dir.makedirs_p()
 
+    git_hash = common_utils.git_hash(cwd=here, log_dir=log_dir)
+    with open(log_dir / "params.json", "w") as f:
+        json.dump({"git_hash": git_hash}, f)
+
     writer = SummaryWriter(log_dir=log_dir)
 
     eval_loss_init = None
     eval_loss_min_epoch = -1
     eval_loss_min = np.inf
-    with tqdm.trange(1000, ncols=100) as pbar:
+    with tqdm.trange(-1, 1000, ncols=100) as pbar:
         for epoch in pbar:
             pbar.set_description(
                 "Epoch loop "
@@ -294,15 +227,18 @@ def main():
             )
             pbar.refresh()
 
-            epoch_loop(
-                epoch=epoch,
-                is_training=True,
-                model=model,
-                data_loader=loader_train,
-                summary_writer=writer,
-                optimizer=optimizer,
-            )
+            # train epoch
+            if epoch >= 0:
+                epoch_loop(
+                    epoch=epoch,
+                    is_training=True,
+                    model=model,
+                    data_loader=loader_train,
+                    summary_writer=writer,
+                    optimizer=optimizer,
+                )
 
+            # val epoch
             with torch.no_grad():
                 losses = epoch_loop(
                     epoch=epoch,
@@ -312,7 +248,6 @@ def main():
                     summary_writer=writer,
                     optimizer=optimizer,
                 )
-
             for key, values in losses.items():
                 writer.add_scalar(
                     f"val/{key}",
@@ -320,9 +255,8 @@ def main():
                     global_step=len(loader_train) * (epoch + 1),
                     walltime=time.time(),
                 )
-
             eval_loss = np.mean(losses["loss"])
-            if epoch == 0:
+            if eval_loss_init is None:
                 eval_loss_init = eval_loss
             if eval_loss < eval_loss_min:
                 model_file = (
@@ -332,7 +266,6 @@ def main():
                 torch.save(model.state_dict(), model_file)
                 eval_loss_min_epoch = epoch
                 eval_loss_min = eval_loss
-
             if eval_loss > eval_loss_init:
                 break
 
