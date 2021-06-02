@@ -82,6 +82,7 @@ class PickAndPlaceEnv(EnvBase):
             ocs=ocs.transpose(2, 0, 1).astype(np.float32),
             fg_mask=fg_mask.astype(np.uint8),
             segm=segm,
+            camera_to_world=np.hstack(c_camera_to_world.pose),
         )
 
     def validate_action(self, act_result):
@@ -120,7 +121,10 @@ class PickAndPlaceEnv(EnvBase):
             self.obs["depth"], fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
         )
 
-        camera_to_world = self.ri.get_pose("camera_link")
+        camera_to_world = (
+            self.obs["camera_to_world"][:3],
+            self.obs["camera_to_world"][3:],
+        )
         ee_to_world = self.ri.get_pose("tipLink")
         camera_to_ee = pp.multiply(pp.invert(ee_to_world), camera_to_world)
         pcd_in_ee = mercury.geometry.transform_points(
@@ -223,6 +227,7 @@ class PickAndPlaceEnv(EnvBase):
         result["js_pre_place"] = js
 
         self.ri.setj(j)
+        self.ri.attachments[0].assign()
 
         js = []
         with self.ri.enabling_attachments():

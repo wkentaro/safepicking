@@ -208,6 +208,8 @@ def plan_reorient(env, c_grasp, c_reorient):
         j = env.ri.solve_ik(
             mercury.geometry.pose_from_matrix(T_obj_af_to_world),
             move_target=env.ri.robot_model.attachment_link0,
+            thre=0.01,
+            rthre=np.deg2rad(10),
         )
     if j is None:
         logger.warning("j_place is not found")
@@ -362,28 +364,48 @@ def plan_and_execute_place(env, num_sample=5):
     )
     target = point
 
-    normal = -(point_normal_end - point)  # flip
-    for normal in np.linspace(normal, [0, 0, 1], num=10):
-        eye = point + 0.5 * normal
-        # pp.add_line(eye, target)
-        cam_to_world = mercury.geometry.pose_from_matrix(
-            mercury.geometry.look_at(eye, target)
-        )
-        # pp.draw_pose(cam_to_world)
-        j = env.ri.solve_ik(
-            cam_to_world,
-            move_target=env.ri.robot_model.camera_link,
-            rotation_axis="z",
-        )
-        if j is not None:
-            env.ri.setj(j)
-            break
-    else:
-        env.setj_to_camera_pose()
-    env.update_obs()
+    obs = env.obs
 
-    ocs = env.obs["ocs"].transpose(1, 2, 0)
-    fg_mask = env.obs["fg_mask"]
+    normal = -(point_normal_end - point)  # flip
+    eye = point + 0.5 * normal
+
+    T_cam_to_world = mercury.geometry.look_at(eye, target)
+    fovy = np.deg2rad(60)
+    height = 240
+    width = 240
+    rgb, depth, segm = mercury.pybullet.get_camera_image(
+        T_cam_to_world,
+        fovy,
+        height,
+        width,
+    )
+
+    fg_mask = segm == env.fg_object_id
+    K = env.ri.get_opengl_intrinsic_matrix()
+    pcd_in_camera = mercury.geometry.pointcloud_from_depth(
+        depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
+    )
+    pcd_in_world = mercury.geometry.transform_points(
+        pcd_in_camera, T_cam_to_world
+    )
+    ocs = np.zeros_like(pcd_in_world)
+    for obj in env.object_ids:
+        world_to_obj = pp.invert(pp.get_pose(obj))
+        ocs[segm == obj] = mercury.geometry.transform_points(
+            pcd_in_world,
+            mercury.geometry.transformation_matrix(*world_to_obj),
+        )[segm == obj]
+
+    env.obs = dict(
+        rgb=rgb.transpose(2, 0, 1),
+        depth=depth,
+        ocs=ocs.transpose(2, 0, 1).astype(np.float32),
+        fg_mask=fg_mask.astype(np.uint8),
+        segm=segm,
+        camera_to_world=np.hstack(
+            mercury.geometry.pose_from_matrix(T_cam_to_world)
+        ),
+    )
 
     query_ocs, _ = get_query_ocs(env)
     kdtree = sklearn.neighbors.KDTree(ocs.reshape(-1, 3))
@@ -414,9 +436,11 @@ def plan_and_execute_place(env, num_sample=5):
             break
     else:
         logger.error("No valid actions")
+        env.obs = obs
         return False
 
     env.step(act_result)
+    env.obs = obs
     return True
 
 
@@ -429,8 +453,10 @@ def main():
     )
     parser.add_argument("--mp4", help="mp4")
     parser.add_argument("--seed", type=int, default=0, help="seed")
-    parser.add_argument("--timeout", type=float, default=3, help="timeout")
     parser.add_argument("--on-plane", action="store_true", help="on plane")
+    parser.add_argument(
+        "--threshold", type=float, default=10, help="threshold [deg]"
+    )
     args = parser.parse_args()
 
     env = PickAndPlaceEnv(class_ids=args.class_ids, mp4=args.mp4)
@@ -449,16 +475,20 @@ def main():
         env.object_ids = [env.fg_object_id]
         env.update_obs()
 
-    t_start = time.time()
-    results = []
-    for result in rollout_plan_reorient(env, return_failed=True):
-        if "js_place_length" in result:
-            results.append(result)
-        if (time.time() - t_start) > args.timeout:
+    while True:
+        if plan_and_execute_place(env):
             break
 
-    result = min(results, key=lambda x: x["js_place_length"])
-    execute_plan(env, result)
+        for result in rollout_plan_reorient(
+            env, return_failed=True, threshold=np.deg2rad(args.threshold)
+        ):
+            if "js_place_length" in result:
+                break
+        execute_plan(env, result)
+
+        for _ in env.ri.movej(env.ri.homej):
+            pp.step_simulation()
+            time.sleep(pp.get_time_step())
 
 
 if __name__ == "__main__":
