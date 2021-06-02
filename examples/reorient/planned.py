@@ -308,14 +308,22 @@ def rollout_plan_reorient(
     env,
     return_failed=False,
     grasp_num_sample=4,
+    threshold=np.deg2rad(95),
 ):
     from reorient_poses import get_reorient_poses2
 
-    for c_reorient in get_reorient_poses2(env)[0]:
+    i = 0
+    for c_reorient in get_reorient_poses2(env, threshold=threshold)[0]:
         c_reorient = mercury.geometry.Coordinate(*c_reorient)
         for c_grasp in itertools.islice(
             get_grasp_poses(env), grasp_num_sample
         ):
+            debug = pp.add_text(
+                f"plan {i:04d}",
+                position=c_reorient.position + [0, 0, 0.1],
+            )
+            i += 1
+
             obj_af = mercury.pybullet.duplicate(
                 env.fg_object_id,
                 collision=False,
@@ -328,6 +336,7 @@ def rollout_plan_reorient(
             success = "js_place_length" in result
 
             pp.remove_body(obj_af)
+            pp.remove_debug(debug)
 
             result["c_init"] = mercury.geometry.Coordinate(
                 *pp.get_pose(env.fg_object_id)
@@ -389,18 +398,37 @@ def main():
         "--class-ids", type=int, nargs="+", help="class ids", required=True
     )
     parser.add_argument("--mp4", help="mp4")
+    parser.add_argument("--seed", type=int, default=0, help="seed")
+    parser.add_argument("--timeout", type=float, default=3, help="timeout")
+    parser.add_argument("--on-plane", action="store_true", help="on plane")
     args = parser.parse_args()
 
     env = PickAndPlaceEnv(class_ids=args.class_ids, mp4=args.mp4)
-    env.random_state = np.random.RandomState(0)
+    env.random_state = np.random.RandomState(args.seed)
     env.eval = True
     env.reset()
 
-    results = itertools.islice(rollout_plan_reorient(env), 10)
+    if args.on_plane:
+        with pp.LockRenderer():
+            for object_id in env.object_ids:
+                if object_id != env.fg_object_id:
+                    pp.remove_body(object_id)
+
+            for _ in range(2400):
+                pp.step_simulation()
+        env.object_ids = [env.fg_object_id]
+        env.update_obs()
+
+    t_start = time.time()
+    results = []
+    for result in rollout_plan_reorient(env, return_failed=True):
+        if "js_place_length" in result:
+            results.append(result)
+        if (time.time() - t_start) > args.timeout:
+            break
+
     result = min(results, key=lambda x: x["js_place_length"])
     execute_plan(env, result)
-
-    plan_and_execute_place(env)
 
 
 if __name__ == "__main__":
