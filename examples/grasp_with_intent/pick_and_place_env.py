@@ -154,7 +154,7 @@ class PickAndPlaceEnv(EnvBase):
 
         obj_to_world = pp.get_pose(object_id)
 
-        j = self.ri.solve_ik(c.pose)
+        j = self.ri.solve_ik(c.pose, rotation_axis="z")
         if j is None:
             logger.error(
                 f"Failed to solve pre-grasping IK: {act_result.action}"
@@ -177,7 +177,7 @@ class PickAndPlaceEnv(EnvBase):
         self.ri.setj(j)
 
         c.translate([0, 0, 0.1])
-        j = self.ri.solve_ik(c.pose)
+        j = self.ri.solve_ik(c.pose, rotation_axis="z")
         if j is None:
             logger.error(f"Failed to solve grasping IK: {act_result.action}")
             before_return()
@@ -233,6 +233,8 @@ class PickAndPlaceEnv(EnvBase):
                     pose,
                     move_target=self.ri.robot_model.attachment_link0,
                     n_init=1,
+                    thre=0.01,
+                    rthre=np.deg2rad(10),
                 )
                 if j is None:
                     logger.error(
@@ -280,11 +282,12 @@ class PickAndPlaceEnv(EnvBase):
         object_id = validation_result["object_id"]
         obj_to_world = pp.get_pose(object_id)
 
-        for _ in self.ri.grasp(
-            min_dz=0.08, max_dz=0.12, speed=0.001, rotation_axis=True
-        ):
+        for _ in self.ri.movej(validation_result["j_grasp"], speed=0.001):
             pp.step_simulation()
             time.sleep(pp.get_time_step())
+            if self.ri.gripper.detect_contact():
+                break
+        self.ri.gripper.activate()
 
         ee_to_world = self.ri.get_pose("tipLink")
         obj_to_ee = pp.multiply(pp.invert(ee_to_world), obj_to_world)
