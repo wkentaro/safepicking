@@ -307,19 +307,12 @@ def execute_plan(env, result):
 def rollout_plan_reorient(
     env,
     return_failed=False,
-    reorient_num_delta=4,
-    reorient_num_sample=4,
-    reorient_centroid=False,
-    reorient_discretize=True,
     grasp_num_sample=4,
 ):
-    for c_reorient in get_reorient_poses(
-        env,
-        num_delta=reorient_num_delta,
-        num_sample=reorient_num_sample,
-        centroid=reorient_centroid,
-        discretize=reorient_discretize,
-    ):
+    from reorient_poses import get_reorient_poses2
+
+    for c_reorient in get_reorient_poses2(env)[0]:
+        c_reorient = mercury.geometry.Coordinate(*c_reorient)
         for c_grasp in itertools.islice(
             get_grasp_poses(env), grasp_num_sample
         ):
