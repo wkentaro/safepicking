@@ -34,6 +34,7 @@ def create_mesh_body(
     mass=0,
     rgba_color=None,
     texture=True,
+    mesh_scale=(1, 1, 1),
 ):
     if rgba_color is not None and len(rgba_color) == 3:
         rgba_color = [rgba_color[0], rgba_color[1], rgba_color[2], 1]
@@ -42,7 +43,7 @@ def create_mesh_body(
             shapeType=pybullet.GEOM_MESH,
             fileName=visual_file,
             visualFramePosition=[0, 0, 0],
-            meshScale=[1, 1, 1],
+            meshScale=mesh_scale,
             rgbaColor=rgba_color,
         )
     else:
@@ -52,7 +53,7 @@ def create_mesh_body(
             shapeType=pybullet.GEOM_MESH,
             fileName=collision_file,
             collisionFramePosition=[0, 0, 0],
-            meshScale=[1, 1, 1],
+            meshScale=mesh_scale,
         )
     else:
         collision_shape_id = -1
