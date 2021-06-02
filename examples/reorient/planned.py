@@ -349,7 +349,37 @@ def rollout_plan_reorient(
 
 
 def plan_and_execute_place(env, num_sample=5):
-    env.setj_to_camera_pose()
+    query_ocs, query_ocs_normal_ends = get_query_ocs(env)
+
+    i = np.argmin(np.linalg.norm(query_ocs - query_ocs.mean(axis=0), axis=1))
+    point = query_ocs[i]
+    point_normal_end = query_ocs_normal_ends[i]
+
+    obj_to_world = pp.get_pose(env.fg_object_id)
+    point, point_normal_end = mercury.geometry.transform_points(
+        [point, point_normal_end],
+        mercury.geometry.transformation_matrix(*obj_to_world),
+    )
+    target = point
+
+    normal = -(point_normal_end - point)  # flip
+    for normal in np.linspace(normal, [0, 0, 1], num=10):
+        eye = point + 0.5 * normal
+        # pp.add_line(eye, target)
+        cam_to_world = mercury.geometry.pose_from_matrix(
+            mercury.geometry.look_at(eye, target)
+        )
+        # pp.draw_pose(cam_to_world)
+        j = env.ri.solve_ik(
+            cam_to_world,
+            move_target=env.ri.robot_model.camera_link,
+            rotation_axis="z",
+        )
+        if j is not None:
+            env.ri.setj(j)
+            break
+    else:
+        env.setj_to_camera_pose()
     env.update_obs()
 
     ocs = env.obs["ocs"].transpose(1, 2, 0)
