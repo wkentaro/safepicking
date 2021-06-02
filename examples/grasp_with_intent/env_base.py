@@ -161,9 +161,10 @@ class EnvBase(Env):
         mercury.pybullet.duplicate(
             self.fg_object_id,
             collision=False,
-            rgba_color=(0, 1, 0, 0.5),
+            rgba_color=(1, 1, 1, 0.5),
             position=self.PLACE_POSE[0],
             quaternion=self.PLACE_POSE[1],
+            mesh_scale=(0.95, 0.95, 0.95),
         )
 
         self.bin = mercury.pybullet.create_bin(*self.BIN_EXTENTS)
