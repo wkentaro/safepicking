@@ -76,14 +76,19 @@ def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+    parser.add_argument(
+        "--class-ids", type=int, nargs="+", required=True, help="class ids"
+    )
     parser.add_argument("--mp4", help="mp4")
+    parser.add_argument("--seed", type=int, default=0, help="seed")
     parser.add_argument("--on-plane", action="store_true", help="on plane")
     parser.add_argument("--simulate", action="store_true", help="simulate")
     parser.add_argument("--all", action="store_true", help="all")
     args = parser.parse_args()
 
-    env = PickAndPlaceEnv(class_ids=[5], mp4=args.mp4)
-    env.random_state = np.random.RandomState(1)
+    env = PickAndPlaceEnv(class_ids=args.class_ids, mp4=args.mp4)
+    env.random_state = np.random.RandomState(args.seed)
+    env.eval = True
     env.reset()
 
     if args.on_plane:
