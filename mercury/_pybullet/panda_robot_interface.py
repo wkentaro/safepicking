@@ -545,25 +545,31 @@ class PandaRobotInterface:
         if self.attachments and self.attachments[0].child in obstacles:
             obstacles.remove(self.attachments[0].child)
 
+        class MinDistances:
+            def __init__(self, value):
+                self._value = value
+
+            def get(self, key, default=None):
+                return self._value
+
         js = None
         min_distance = 0
         while True:
-            min_distances = {}
-            for link in pybullet_planning.get_links(self.robot):
-                min_distances[(self.robot, link)] = min_distance
-            for attachment in self.attachments:
-                min_distances[(attachment.child, -1)] = min_distance
+            min_distances = MinDistances(min_distance)
 
             js = self.planj(
                 self.homej,
                 obstacles=obstacles,
                 min_distances=min_distances,
             )
-            if js is None:
-                logger.warning(f"js is None w/ min_distance={min_distance}")
-                min_distance -= 0.01
-            else:
+            if js is not None:
                 break
+
+            if min_distance <= -0.05:
+                js = [self.homej]
+                break
+            logger.warning(f"js is None w/ min_distance={min_distance}")
+            min_distance -= 0.01
         for j in js:
             for _ in self.movej(j, **kwargs):
                 yield

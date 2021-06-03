@@ -301,7 +301,10 @@ def execute_plan(env, result):
 
     env.ri.ungrasp()
 
-    for _ in range(int(3 / pp.get_time_step())):
+    for _ in env.ri.move_to_homej(
+        bg_object_ids=[env.plane, env.bin],
+        object_ids=env.object_ids,
+    ):
         pp.step_simulation()
         time.sleep(pp.get_time_step())
 
@@ -462,7 +465,10 @@ def main():
     env = PickAndPlaceEnv(class_ids=args.class_ids, mp4=args.mp4)
     env.random_state = np.random.RandomState(args.seed)
     env.eval = True
-    env.reset()
+    env.launch()
+
+    with pp.LockRenderer():
+        env.reset()
 
     if args.on_plane:
         with pp.LockRenderer():
@@ -479,16 +485,15 @@ def main():
         if plan_and_execute_place(env):
             break
 
+        env.setj_to_camera_pose()
+        env.update_obs()
+
         for result in rollout_plan_reorient(
             env, return_failed=True, threshold=np.deg2rad(args.threshold)
         ):
             if "js_place_length" in result:
                 break
         execute_plan(env, result)
-
-        for _ in env.ri.movej(env.ri.homej):
-            pp.step_simulation()
-            time.sleep(pp.get_time_step())
 
 
 if __name__ == "__main__":

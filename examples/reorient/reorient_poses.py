@@ -4,6 +4,7 @@ import argparse
 import itertools
 import time
 
+from loguru import logger
 import numpy as np
 import pybullet_planning as pp
 
@@ -22,46 +23,54 @@ def get_reorient_poses2(env, threshold=np.deg2rad(95)):
     query_ocs_normal_end = query_ocs_normal_ends[index]
 
     pose_init = pp.get_pose(env.fg_object_id)
-    z_min_init = pp.get_aabb(env.fg_object_id)[0][2]
 
+    world_saver = pp.WorldSaver()
+    lock_renderer = pp.LockRenderer()
+
+    # XYZ validation
+    sphere = pp.create_sphere(radius=0.075)
+    XYZ = []
+    for dx, dy, z in itertools.product(
+        np.linspace(-0.15, 0.15, num=5),
+        np.linspace(-0.15, 0.15, num=5),
+        np.linspace(0.075, 0.15, num=3),
+    ):
+        c = mercury.geometry.Coordinate(
+            position=(pose_init[0][0] + dx, pose_init[0][1] + dy, z)
+        )
+        pp.set_pose(sphere, c.pose)
+
+        if not mercury.pybullet.is_colliding(sphere):
+            pp.draw_pose(c.pose)
+            XYZ.append(c.position)
+    pp.remove_body(sphere)
+
+    # XYZ, ABG validation
     ABG = itertools.product(
         np.linspace(-np.pi, np.pi, num=9, endpoint=False),
         np.linspace(-np.pi, np.pi, num=9, endpoint=False),
         np.linspace(-np.pi, np.pi, num=9, endpoint=False),
     )
-
-    world_saver = pp.WorldSaver()
-    lock_renderer = pp.LockRenderer()
-
     poses = []
-    for a, b, g in ABG:
-        c = mercury.geometry.Coordinate(
-            position=(pose_init[0][0], pose_init[0][1], 0)
-        )
-        c.quaternion = mercury.geometry.quaternion_from_euler([a, b, g])
+    for (x, y, z), (a, b, g) in itertools.product(XYZ, ABG):
+        c = mercury.geometry.Coordinate(position=(x, y, z))
+        c.quaternion = mercury.geometry.quaternion_from_euler((a, b, g))
+
         pp.set_pose(env.fg_object_id, c.pose)
-
-        z_min = pp.get_aabb(env.fg_object_id)[0][2]
-
-        c.translate([0, 0, -z_min + z_min_init + 0.02], wrt="world")
-        pp.set_pose(env.fg_object_id, c.pose)
-
-        if mercury.pybullet.is_colliding(env.fg_object_id, distance=-0.01):
+        if mercury.pybullet.is_colliding(env.fg_object_id):
             continue
 
         ocs, ocs_normal_end = mercury.geometry.transform_points(
             [query_ocs, query_ocs_normal_end],
             mercury.geometry.transformation_matrix(*c.pose),
         )
-
-        # flip normal
-        normal = -(ocs_normal_end - ocs)
+        normal = -(ocs_normal_end - ocs)  # flip normal
         normal /= np.linalg.norm(normal)
-
         angle = np.arccos(np.dot([0, 0, 1], normal))
+        if threshold is not None and angle >= threshold:
+            continue
 
-        if threshold is not None and angle < threshold:
-            poses.append(c.pose)
+        poses.append(c.pose)
 
     poses = np.array(poses, dtype=object)
     np.random.shuffle(poses)
@@ -83,7 +92,9 @@ def main():
     parser.add_argument("--seed", type=int, default=0, help="seed")
     parser.add_argument("--on-plane", action="store_true", help="on plane")
     parser.add_argument("--simulate", action="store_true", help="simulate")
-    parser.add_argument("--all", action="store_true", help="all")
+    parser.add_argument(
+        "--threshold", type=float, default=10, help="threshold [deg]"
+    )
     args = parser.parse_args()
 
     env = PickAndPlaceEnv(class_ids=args.class_ids, mp4=args.mp4)
@@ -101,8 +112,10 @@ def main():
                 pp.step_simulation()
 
     poses, query_ocs, query_ocs_normal_end = get_reorient_poses2(
-        env, threshold=None if args.all else np.deg2rad(95)
+        env, threshold=np.deg2rad(args.threshold)
     )
+
+    logger.info(f"Generated reorient poses: {len(poses)}")
 
     while True:
         for pose in poses:

@@ -65,7 +65,8 @@ class EnvBase(Env):
         pp.disconnect()
 
     def launch(self):
-        pass
+        pp.connect(use_gui=self._gui, mp4=self._mp4)
+        pp.add_data_path()
 
     def reset(self, pile_file=None):
         raise_on_error = pile_file is not None
@@ -78,8 +79,7 @@ class EnvBase(Env):
             pile_file = self.PILES_DIR / f"{i:08d}.npz"
 
         if not pp.is_connected():
-            pp.connect(use_gui=self._gui, mp4=self._mp4)
-            pp.add_data_path()
+            self.launch()
 
         p.resetSimulation()
         p.setGravity(0, 0, -9.8)
