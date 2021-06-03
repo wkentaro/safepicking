@@ -44,10 +44,13 @@ class pbValidityChecker(ob.StateValidityChecker):
             self.ri.setj(state)
 
             j = self.ri.getj()
-            if self.start is not None and np.allclose(j, self.start):
-                min_distances = self.min_distances_start_goal
-            elif self.goal is not None and np.allclose(j, self.goal):
-                min_distances = self.min_distances_start_goal
+            if self.min_distances_start_goal:
+                if self.start is not None and np.allclose(j, self.start):
+                    min_distances = self.min_distances_start_goal
+                elif self.goal is not None and np.allclose(j, self.goal):
+                    min_distances = self.min_distances_start_goal
+                else:
+                    min_distances = self.min_distances
             else:
                 min_distances = self.min_distances
 
@@ -219,7 +222,8 @@ class PbPlanner:
             ob.PathLengthOptimizationObjective(self.si)
         )
         optimizingPlanner = getattr(og, self.planner)(self.si)
-        optimizingPlanner.setRange(0.1)
+        if self.planner == "RRTConnect":
+            optimizingPlanner.setRange(0.1)
         optimizingPlanner.setProblemDefinition(pdef)
         optimizingPlanner.setup()
         solved = optimizingPlanner.solve(solveTime=1)
