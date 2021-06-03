@@ -136,7 +136,7 @@ class PickAndPlaceEnv(EnvBase):
 
         position = pcd_in_ee[y, x]
         quaternion = mercury.geometry.quaternion_from_vec2vec(
-            [0, 0, 1], normals[y, x]
+            [0, 0, 1], normals[y, x], flip=False
         )
 
         T_ee_to_ee_af_in_ee = mercury.geometry.transformation_matrix(
@@ -154,11 +154,14 @@ class PickAndPlaceEnv(EnvBase):
             *mercury.geometry.pose_from_matrix(T_ee_af_to_world)
         )
         c.translate([0, 0, -0.1])
-        c.rotate([0, 0, self.random_state.uniform(-np.pi, np.pi)])
 
         obj_to_world = pp.get_pose(object_id)
 
         j = self.ri.solve_ik(c.pose, rotation_axis="z")
+        if j is not None and not self.ri.validatej(
+            j, obstacles=[self.plane, self.bin] + self.object_ids
+        ):
+            j = None
         if j is None:
             logger.error(
                 f"Failed to solve pre-grasping IK: {act_result.action}"
@@ -180,8 +183,9 @@ class PickAndPlaceEnv(EnvBase):
 
         self.ri.setj(j)
 
+        c = mercury.geometry.Coordinate(*self.ri.get_pose("tipLink"))
         c.translate([0, 0, 0.1])
-        j = self.ri.solve_ik(c.pose, rotation_axis="z")
+        j = self.ri.solve_ik(c.pose, rotation_axis=True)
         if j is None:
             logger.error(f"Failed to solve grasping IK: {act_result.action}")
             before_return()
@@ -287,7 +291,7 @@ class PickAndPlaceEnv(EnvBase):
         object_id = validation_result["object_id"]
         obj_to_world = pp.get_pose(object_id)
 
-        for _ in self.ri.movej(validation_result["j_grasp"], speed=0.001):
+        for _ in self.ri.grasp(min_dz=0.1, max_dz=0.15, speed=0.001):
             pp.step_simulation()
             time.sleep(pp.get_time_step())
             if self.ri.gripper.detect_contact():
