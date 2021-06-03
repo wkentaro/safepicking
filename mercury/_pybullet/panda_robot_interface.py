@@ -1,3 +1,4 @@
+import collections
 import contextlib
 import itertools
 
@@ -545,22 +546,13 @@ class PandaRobotInterface:
         if self.attachments and self.attachments[0].child in obstacles:
             obstacles.remove(self.attachments[0].child)
 
-        class MinDistances:
-            def __init__(self, value):
-                self._value = value
-
-            def get(self, key, default=None):
-                return self._value
-
         js = None
         min_distance = 0
         while True:
-            min_distances = MinDistances(min_distance)
-
             js = self.planj(
                 self.homej,
                 obstacles=obstacles,
-                min_distances=min_distances,
+                min_distances=collections.defaultdict(lambda: min_distance),
             )
             if js is not None:
                 break
