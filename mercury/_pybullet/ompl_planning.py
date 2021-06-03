@@ -15,15 +15,26 @@ from ompl import util as ou  # NOQA
 
 
 class pbValidityChecker(ob.StateValidityChecker):
-    def __init__(self, si, ri, obstacles=None, min_distances=None):
+    def __init__(
+        self,
+        si,
+        ri,
+        obstacles=None,
+        min_distances=None,
+        min_distances_start_goal=None,
+    ):
         super().__init__(si)
         self.ri = ri
         self.ndof = len(self.ri.joints)
         self.obstacles = obstacles or []
         self.min_distances = min_distances or {}
+        self.min_distances_start_goal = min_distances_start_goal or {}
         self.lower, self.upper = ri.get_bounds()
         self.lower = np.asarray(self.lower)
         self.upper = np.asarray(self.upper)
+
+        self.start = None
+        self.goal = None
 
     def isValid(self, state):
         if not self.check_joint_limits(state):
@@ -31,13 +42,26 @@ class pbValidityChecker(ob.StateValidityChecker):
 
         with pp.LockRenderer(), pp.WorldSaver():
             self.ri.setj(state)
+
+            j = self.ri.getj()
+            if self.start is not None and np.allclose(j, self.start):
+                min_distances = self.min_distances_start_goal
+            elif self.goal is not None and np.allclose(j, self.goal):
+                min_distances = self.min_distances_start_goal
+            else:
+                min_distances = self.min_distances
+
             for attachment in self.ri.attachments:
                 attachment.assign()
-            return self.check_self_collision() and self.check_collision(
-                self.obstacles
+            return self.check_self_collision(
+                min_distances=min_distances
+            ) and self.check_collision(
+                self.obstacles, min_distances=min_distances
             )
 
-    def check_self_collision(self):
+    def check_self_collision(self, min_distances=None):
+        min_distances = min_distances or {}
+
         is_colliding = False
 
         links = pp.get_links(self.ri.robot)
@@ -62,7 +86,7 @@ class pbValidityChecker(ob.StateValidityChecker):
 
         for attachment in self.ri.attachments:
             assert attachment.parent == self.ri.robot
-            min_distance = self.min_distances.get((attachment.child, -1), 0)
+            min_distance = min_distances.get((attachment.child, -1), 0)
             for link in links:
                 if link == attachment.parent_link:
                     continue
@@ -81,14 +105,16 @@ class pbValidityChecker(ob.StateValidityChecker):
 
         return not is_colliding
 
-    def check_collision(self, ids_to_check):
+    def check_collision(self, ids_to_check, min_distances=None):
+        min_distances = min_distances or {}
+
         if len(ids_to_check) == 0:
             return True
 
         is_colliding = False
 
         for link in pp.get_links(self.ri.robot):
-            min_distance = self.min_distances.get((self.ri.robot, link), 0)
+            min_distance = min_distances.get((self.ri.robot, link), 0)
             is_colliding |= (
                 len(
                     p.getClosestPoints(
@@ -103,7 +129,7 @@ class pbValidityChecker(ob.StateValidityChecker):
             )
 
         for attachment in self.ri.attachments:
-            min_distance = self.min_distances.get((attachment.child, -1), 0)
+            min_distance = min_distances.get((attachment.child, -1), 0)
             is_colliding |= (
                 len(
                     p.getClosestPoints(
@@ -118,7 +144,9 @@ class pbValidityChecker(ob.StateValidityChecker):
         if is_colliding:
             return False
         else:
-            return self.check_collision(ids_to_check[0:-1])
+            return self.check_collision(
+                ids_to_check[0:-1], min_distances=min_distances
+            )
 
     def check_joint_limits(self, state):
         for i in range(self.ndof):
@@ -139,7 +167,12 @@ class pbValidityChecker(ob.StateValidityChecker):
 
 class PbPlanner:
     def __init__(
-        self, ri, obstacles=None, min_distances=None, planner="RRTConnect"
+        self,
+        ri,
+        obstacles=None,
+        min_distances=None,
+        min_distances_start_goal=None,
+        planner="RRTConnect",
     ):
         ndof = len(ri.joints)
 
@@ -155,7 +188,11 @@ class PbPlanner:
         self.si = ob.SpaceInformation(self.space)
 
         self.validityChecker = pbValidityChecker(
-            self.si, ri=ri, obstacles=obstacles, min_distances=min_distances
+            self.si,
+            ri=ri,
+            obstacles=obstacles,
+            min_distances=min_distances,
+            min_distances_start_goal=min_distances_start_goal,
         )
         self.si.setStateValidityChecker(self.validityChecker)
         self.si.setup()
@@ -182,6 +219,7 @@ class PbPlanner:
             ob.PathLengthOptimizationObjective(self.si)
         )
         optimizingPlanner = getattr(og, self.planner)(self.si)
+        optimizingPlanner.setRange(0.1)
         optimizingPlanner.setProblemDefinition(pdef)
         optimizingPlanner.setup()
         solved = optimizingPlanner.solve(solveTime=1)

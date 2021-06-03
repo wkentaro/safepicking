@@ -232,7 +232,13 @@ class PandaRobotInterface:
         )
         return planner.validityChecker.isValid(j)
 
-    def planj(self, j, obstacles=None, min_distances=None):
+    def planj(
+        self,
+        j,
+        obstacles=None,
+        min_distances=None,
+        min_distances_start_goal=None,
+    ):
         if self.planner == "Naive":
             return [j]
 
@@ -240,8 +246,12 @@ class PandaRobotInterface:
             self,
             obstacles=obstacles,
             min_distances=min_distances,
+            min_distances_start_goal=min_distances_start_goal,
             planner=self.planner,
         )
+
+        planner.validityChecker.start = self.getj()
+        planner.validityChecker.goal = j
 
         if not planner.validityChecker.isValid(self.getj()):
             # logger.warning("Start state is invalid")
