@@ -217,9 +217,12 @@ class PickAndPlaceEnv(EnvBase):
             return False, result
         result["j_pre_place"] = j
 
+        obstacles = [self.plane, self.bin] + self.object_ids
+        obstacles.remove(self.fg_object_id)
+        assert self.ri.attachments[0].child == self.fg_object_id
         js = self.ri.planj(
             j,
-            obstacles=[self.plane, self.bin],
+            obstacles=obstacles,
             min_distances={(self.ri.attachments[0].child, -1): -0.01},
         )
         if js is None:

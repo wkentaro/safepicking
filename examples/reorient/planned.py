@@ -301,6 +301,10 @@ def execute_plan(env, result):
 
     env.ri.ungrasp()
 
+    for _ in range(int(1 / pp.get_time_step())):
+        pp.step_simulation()
+        time.sleep(pp.get_time_step())
+
     for _ in env.ri.move_to_homej(
         bg_object_ids=[env.plane, env.bin],
         object_ids=env.object_ids,
@@ -313,12 +317,15 @@ def rollout_plan_reorient(
     env,
     return_failed=False,
     grasp_num_sample=4,
-    threshold=np.deg2rad(95),
+    min_angle=np.deg2rad(0),
+    max_angle=np.deg2rad(10),
 ):
     from reorient_poses import get_reorient_poses2
 
     i = 0
-    for c_reorient in get_reorient_poses2(env, threshold=threshold)[0]:
+    for c_reorient in get_reorient_poses2(
+        env, min_angle=min_angle, max_angle=max_angle
+    )[0]:
         c_reorient = mercury.geometry.Coordinate(*c_reorient)
         for c_grasp in itertools.islice(
             get_grasp_poses(env), grasp_num_sample
@@ -457,9 +464,7 @@ def main():
     parser.add_argument("--mp4", help="mp4")
     parser.add_argument("--seed", type=int, default=0, help="seed")
     parser.add_argument("--on-plane", action="store_true", help="on plane")
-    parser.add_argument(
-        "--threshold", type=float, default=10, help="threshold [deg]"
-    )
+    parser.add_argument("--timeout", type=float, default=9, help="timeout")
     args = parser.parse_args()
 
     env = PickAndPlaceEnv(class_ids=args.class_ids, mp4=args.mp4)
@@ -488,9 +493,20 @@ def main():
         env.setj_to_camera_pose()
         env.update_obs()
 
-        for result in rollout_plan_reorient(
-            env, return_failed=True, threshold=np.deg2rad(args.threshold)
-        ):
+        result = {}
+        for min_angle, max_angle in [(0, 10), (10, 80), (85, 95)]:
+            print(min_angle, max_angle)
+            t_start = time.time()
+            for result in rollout_plan_reorient(
+                env,
+                return_failed=True,
+                min_angle=np.deg2rad(min_angle),
+                max_angle=np.deg2rad(max_angle),
+            ):
+                if "js_place_length" in result:
+                    break
+                if (time.time() - t_start) > (args.timeout / 3):
+                    break
             if "js_place_length" in result:
                 break
         execute_plan(env, result)

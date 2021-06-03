@@ -14,7 +14,12 @@ from pick_and_place_env import PickAndPlaceEnv
 from planned import get_query_ocs
 
 
-def get_reorient_poses2(env, threshold=np.deg2rad(95)):
+def get_reorient_poses2(
+    env, min_angle=np.deg2rad(0), max_angle=np.deg2rad(10)
+):
+    assert min_angle >= 0
+    assert max_angle >= min_angle
+
     query_ocs, query_ocs_normal_ends = get_query_ocs(env)
     index = np.argmin(
         np.linalg.norm(query_ocs - query_ocs.mean(axis=0), axis=1)
@@ -27,23 +32,35 @@ def get_reorient_poses2(env, threshold=np.deg2rad(95)):
     world_saver = pp.WorldSaver()
     lock_renderer = pp.LockRenderer()
 
-    # XYZ validation
+    # XY validation
     sphere = pp.create_sphere(radius=0.075)
-    XYZ = []
-    for dx, dy, z in itertools.product(
-        np.linspace(-0.15, 0.15, num=5),
-        np.linspace(-0.15, 0.15, num=5),
-        np.linspace(0.075, 0.15, num=3),
+    XY = []
+    for dx, dy in itertools.product(
+        np.linspace(-0.2, 0.2, num=7),
+        np.linspace(-0.2, 0.2, num=7),
     ):
         c = mercury.geometry.Coordinate(
-            position=(pose_init[0][0] + dx, pose_init[0][1] + dy, z)
+            position=(pose_init[0][0] + dx, pose_init[0][1] + dy, 0.1)
         )
         pp.set_pose(sphere, c.pose)
 
-        if not mercury.pybullet.is_colliding(sphere):
-            pp.draw_pose(c.pose)
-            XYZ.append(c.position)
+        if not mercury.pybullet.is_colliding(sphere, env.object_ids):
+            XY.append(c.position[:2])
     pp.remove_body(sphere)
+
+    logger.info(f"XY: {len(XY)}")
+
+    Z = np.linspace(0.05, 0.15, num=5)
+
+    XYZ = []
+    for (x, y), z in itertools.product(XY, Z):
+        XYZ.append((x, y, z))
+    XYZ = np.array(XYZ)
+
+    XYZ = XYZ[np.random.permutation(len(XYZ))][:10]
+
+    for x, y, z in XYZ:
+        pp.draw_point([x, y, z])
 
     # XYZ, ABG validation
     ABG = itertools.product(
@@ -67,10 +84,13 @@ def get_reorient_poses2(env, threshold=np.deg2rad(95)):
         normal = -(ocs_normal_end - ocs)  # flip normal
         normal /= np.linalg.norm(normal)
         angle = np.arccos(np.dot([0, 0, 1], normal))
-        if threshold is not None and angle >= threshold:
+        assert angle >= 0
+        if not (min_angle <= angle < max_angle):
             continue
 
         poses.append(c.pose)
+
+    logger.info(f"poses: {len(poses)}")
 
     poses = np.array(poses, dtype=object)
     np.random.shuffle(poses)
@@ -93,7 +113,10 @@ def main():
     parser.add_argument("--on-plane", action="store_true", help="on plane")
     parser.add_argument("--simulate", action="store_true", help="simulate")
     parser.add_argument(
-        "--threshold", type=float, default=10, help="threshold [deg]"
+        "--min-angle", type=float, default=0, help="threshold [deg]"
+    )
+    parser.add_argument(
+        "--max-angle", type=float, default=10, help="threshold [deg]"
     )
     args = parser.parse_args()
 
@@ -112,7 +135,9 @@ def main():
                 pp.step_simulation()
 
     poses, query_ocs, query_ocs_normal_end = get_reorient_poses2(
-        env, threshold=np.deg2rad(args.threshold)
+        env,
+        min_angle=np.deg2rad(args.min_angle),
+        max_angle=np.deg2rad(args.max_angle),
     )
 
     logger.info(f"Generated reorient poses: {len(poses)}")
@@ -133,7 +158,7 @@ def main():
                         pp.step_simulation()
                         time.sleep(pp.get_time_step() / 10)
                 else:
-                    time.sleep(0.1)
+                    time.sleep(0.2)
                 pp.remove_debug(debug)
 
 
