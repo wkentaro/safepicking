@@ -108,6 +108,12 @@ class EnvBase(Env):
 
         data = dict(np.load(pile_file))
 
+        PILE_AABB = (
+            self.PILE_POSITION + [-0.25, -0.25, -0.05],
+            self.PILE_POSITION + [0.25, 0.25, 0.5],
+        )
+        pp.draw_aabb(PILE_AABB)
+
         num_instances = len(data["class_id"])
         object_ids = []
         fg_object_ids = []
@@ -140,7 +146,12 @@ class EnvBase(Env):
                     quaternion=quaternion,
                 )
             object_ids.append(object_id)
-            if class_id in self._class_ids and visibility > 0.9:
+
+            contained = pp.aabb_contains_aabb(
+                pp.get_aabb(object_id), PILE_AABB
+            )
+
+            if class_id in self._class_ids and visibility > 0.95 and contained:
                 fg_object_ids.append(object_id)
 
         if not fg_object_ids:
