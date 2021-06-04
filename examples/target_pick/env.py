@@ -64,10 +64,7 @@ class PickFromPileEnv(Env):
         das = [-self.DR, 0, self.DR]
         dbs = [-self.DR, 0, self.DR]
         dgs = [-self.DR, 0, self.DR]
-        terminates = [0, 1]
-        self.actions = list(
-            itertools.product(dxs, dys, dzs, das, dbs, dgs, terminates)
-        )
+        self.actions = list(itertools.product(dxs, dys, dzs, das, dbs, dgs))
 
         ee_pose = gym.spaces.Box(
             low=-np.inf,
@@ -103,7 +100,7 @@ class PickFromPileEnv(Env):
 
     @property
     def action_shape(self):
-        return ()
+        return (2,)
 
     def env(self):
         return
@@ -306,7 +303,7 @@ class PickFromPileEnv(Env):
         self.target_object_class = data["class_id"][target_index]
         self.target_object_visibility = data["visibility"][target_index]
 
-        self._i = 0
+        self.i = 0
         self.translations = collections.defaultdict(float)
         self.max_velocities = collections.defaultdict(float)
 
@@ -354,7 +351,7 @@ class PickFromPileEnv(Env):
         return obs
 
     def validate_action(self, act_result):
-        dx, dy, dz, da, db, dg, _ = self.actions[act_result.action]
+        dx, dy, dz, da, db, dg = self.actions[act_result.action[0]]
 
         assert self.target_object_id == self.ri.attachments[0].child
 
@@ -383,7 +380,7 @@ class PickFromPileEnv(Env):
         if not hasattr(act_result, "j"):
             act_result.j = self.validate_action(act_result)
         j = act_result.j
-        terminate = self.actions[act_result.action][-1]
+        terminate = act_result.action[1]
 
         if j is None:
             reward = 0
@@ -400,8 +397,11 @@ class PickFromPileEnv(Env):
             )
 
         with np.printoptions(precision=2):
-            action = self.actions[act_result.action]
-            logger.info(f"[{act_result.action}] {np.array(action)}")
+            logger.info(
+                f"[{act_result.action}] "
+                f"{np.array(self.actions[act_result.action[0]])}"
+                f"{act_result.action[1]}"
+            )
 
         poses = {}
         for object_id in self.object_ids:
@@ -444,7 +444,7 @@ class PickFromPileEnv(Env):
 
         # ---------------------------------------------------------------------
 
-        self._i += 1
+        self.i += 1
 
         for object_id in self.object_ids:
             if object_id == self.target_object_id:
@@ -460,7 +460,7 @@ class PickFromPileEnv(Env):
         if terminate:
             terminal = True
             reward = 1
-        elif self._i == self.episode_length:
+        elif self.i == self.episode_length:
             terminal = True
             reward = 0
         else:

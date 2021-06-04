@@ -67,39 +67,74 @@ class DqnAgent(Agent):
             obs[key] = torch.as_tensor(observation[key][:, 0])
             assert obs[key].shape[0] == 1
 
+        A = len(env.actions)
+
         with torch.no_grad():
             q = self.q(obs)
             q = q.numpy()
         assert q.shape[0] == 1
-        actions_select = np.argsort(q[0])[::-1]
+        assert q.shape[1] == A
+        actions_select = np.argsort(q[0].reshape(A * 2))[::-1]
 
         if deterministic:
-            for a in actions_select:
-                act_result = ActResult(action=a)
+            for action in actions_select:
+                a = action // 2
+                if env.i == env.episode_length - 1:
+                    t = 1
+                else:
+                    t = action % 2
+                act_result = ActResult(action=(a, t))
                 j = env.validate_action(act_result)
                 if j is not None:
                     act_result.j = j
                     break
             else:
-                act_result = ActResult(actions_select[0])
+                action = actions_select[0]
+                a = action // 2
+                if env.i == env.episode_length - 1:
+                    t = 1
+                else:
+                    t = action % 2
+                act_result = ActResult(action=(a, t))
         else:
             self._epsilon = epsilon = self._get_epsilon(step)
             if np.random.random() < epsilon:
-                for a in np.random.permutation(q.shape[1]):
-                    act_result = ActResult(action=a)
+                if env.i == env.episode_length - 1:
+                    t = 1
+                else:
+                    t = np.random.choice(
+                        [0, 1],
+                        p=[
+                            1 - 1 / env.episode_length,
+                            1 / env.episode_length,
+                        ],
+                    )
+                for a in np.random.permutation(A):
+                    act_result = ActResult(action=(a, t))
                     j = env.validate_action(act_result)
                     if j is not None:
                         act_result.j = j
                         break
             else:
-                for a in actions_select:
-                    act_result = ActResult(action=a)
+                for action in actions_select:
+                    a = action // 2
+                    if env.i == env.episode_length - 1:
+                        t = 1
+                    else:
+                        t = action % 2
+                    act_result = ActResult(action=(a, t))
                     j = env.validate_action(act_result)
                     if j is not None:
                         act_result.j = j
                         break
                 else:
-                    act_result = ActResult(actions_select[0])
+                    action = actions_select[0]
+                    a = action // 2
+                    if env.i == env.episode_length - 1:
+                        t = 1
+                    else:
+                        t = action % 2
+                    act_result = ActResult(action=(a, t))
         return act_result
 
     def _get_epsilon(self, step):
@@ -129,7 +164,7 @@ class DqnAgent(Agent):
         return dict(priority=self._priority)
 
     def _update_q(self, replay_sample):
-        action = replay_sample["action"].long()
+        action = replay_sample["action"]
         reward = replay_sample["reward"]
 
         terminal = replay_sample["terminal"].float()
@@ -156,12 +191,17 @@ class DqnAgent(Agent):
 
         with torch.no_grad():
             qs_target = self.q_target(obs_tp1)
+            qs_target = qs_target.reshape(qs_target.shape[0], -1)
             q_target = torch.max(qs_target, dim=1).values
             q_target = reward + self._gamma * (1 - terminal) * q_target
 
         qs_pred = self.q(obs)
 
-        q_pred = qs_pred[torch.arange(qs_pred.shape[0]), action]
+        q_pred = qs_pred[
+            torch.arange(qs_pred.shape[0]),
+            action[:, 0].long(),
+            action[:, 1].long(),
+        ]
 
         self.optimizer.zero_grad()
 
