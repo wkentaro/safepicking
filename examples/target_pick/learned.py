@@ -47,7 +47,7 @@ def main():
 
     pprint.pprint(hparams)
 
-    env = PickFromPileEnv(gui=not args.nogui, mp4=args.mp4)
+    env = PickFromPileEnv(gui=not args.nogui, mp4=args.mp4, speed=0.001)
     env.eval = True
     obs = env.reset(
         random_state=np.random.RandomState(args.seed),

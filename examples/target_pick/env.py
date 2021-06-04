@@ -43,6 +43,7 @@ class PickFromPileEnv(Env):
         use_reward_translation=False,
         use_reward_dz=False,
         use_reward_max_velocity=False,
+        speed=0.01,
     ):
         super().__init__()
 
@@ -52,6 +53,7 @@ class PickFromPileEnv(Env):
         self._use_reward_translation = use_reward_translation
         self._use_reward_dz = use_reward_dz
         self._use_reward_max_velocity = use_reward_max_velocity
+        self._speed = speed
 
         self.plane = None
         self.ri = None
@@ -433,7 +435,7 @@ class PickFromPileEnv(Env):
                     np.linalg.norm(pp.get_velocity(object_id)[0]),
                 )
 
-        for _ in self.ri.movej(j, speed=0.01):
+        for _ in self.ri.movej(j, speed=self._speed):
             pp.step_simulation()
             step_callback()
             if self._gui:
