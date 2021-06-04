@@ -25,7 +25,9 @@ def main():
     parser.add_argument(
         "--process-id", type=str, required=True, help="process id (e.g., 2/5)"
     )
-    parser.add_argument("--size", type=int, default=50000, help="dataset size")
+    parser.add_argument(
+        "--size", type=int, default=150000, help="dataset size"
+    )
     parser.add_argument(
         "--class-ids", type=int, nargs="+", help="class ids", required=True
     )
@@ -62,7 +64,7 @@ def main():
                 object_poses.append(np.hstack(pp.get_pose(object_id)))
             object_fg_flags = np.array(object_fg_flags, dtype=bool)
             object_classes = np.array(object_classes, dtype=np.int32)
-            object_poses = np.array(object_classes, dtype=np.float32)
+            object_poses = np.array(object_poses, dtype=np.float32)
 
             keys = [
                 "j_grasp",
@@ -85,7 +87,6 @@ def main():
                 object_poses=object_poses,
                 grasp_pose=np.hstack(ee_to_world),  # in world
                 grasp_pose_wrt_obj=np.hstack(ee_to_obj),  # in obj
-                initial_pose=np.hstack(obj_to_world),
                 reorient_pose=np.hstack(obj_af_to_world),
                 solved=solved,
             )
