@@ -256,15 +256,13 @@ class PickFromPileEnv(Env):
             ee_to_ee_af = (position, quaternion)
             ee_af_to_world = pp.multiply(ee_to_world, ee_to_ee_af)
 
-            ee_af_to_world = pp.multiply(
-                ee_af_to_world, ([0, 0, -0.02], [0, 0, 0, 1])
-            )
-
-            j = self.ri.solve_ik(ee_af_to_world)
+            j = self.ri.solve_ik(ee_af_to_world, rotation_axis="z")
             if j is None:
                 continue
 
-            if not self.ri.validatej(j, obstacles=[self.plane] + object_ids):
+            obstacles = [self.plane] + object_ids
+            obstacles.remove(target_object_id)
+            if not self.ri.validatej(j, obstacles=obstacles):
                 continue
 
             self.ri.setj(j)
@@ -377,13 +375,6 @@ class PickFromPileEnv(Env):
                 return
 
             if not self.ri.validatej(j, obstacles=[self.plane]):
-                return
-
-            self.ri.setj(j)
-            self.ri.attachments[0].assign()
-
-            z_min = pp.get_aabb(self.target_object_id)[0][2]
-            if not z_min >= (self._z_min_init - 0.01):
                 return
 
             return j
