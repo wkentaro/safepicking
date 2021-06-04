@@ -101,12 +101,6 @@ def main():
         if not args.nogui:
             time.sleep(pp.get_time_step())
 
-    success = ri.gripper.check_grasp()
-    if success:
-        logger.success("Task is complete")
-    else:
-        logger.error("Task is failed")
-
     for object_id in object_ids:
         if object_id == target_object_id:
             continue
@@ -125,7 +119,8 @@ def main():
             planner=args.planner,
             scene_id=scene_id,
             seed=args.seed,
-            success=success,
+            target_object_class=int(env.target_object_class),
+            target_object_visibility=float(env.target_object_visibility),
             translations=dict(translations),
             sum_of_translations=sum(translations.values()),
             max_velocities=dict(max_velocities),

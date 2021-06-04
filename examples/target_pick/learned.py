@@ -93,6 +93,8 @@ def main():
             planner="Learned",
             scene_id=scene_id,
             seed=args.seed,
+            target_object_class=int(env.target_object_class),
+            target_object_visibility=float(env.target_object_visibility),
             translations=dict(translations),
             sum_of_translations=sum(translations.values()),
             max_velocities=dict(max_velocities),

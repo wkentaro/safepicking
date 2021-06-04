@@ -303,6 +303,8 @@ class PickFromPileEnv(Env):
 
         self.object_ids = object_ids
         self.target_object_id = target_object_id
+        self.target_object_class = data["class_id"][target_index]
+        self.target_object_visibility = data["visibility"][target_index]
 
         self._i = 0
         self._z_min_init = pp.get_aabb(self.target_object_id)[0][2]

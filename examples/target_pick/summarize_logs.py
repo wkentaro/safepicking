@@ -3,31 +3,56 @@
 import json
 
 import numpy as np
+import pandas
 import path
 
 
 def summarize(eval_dir, valid_ids):
-    sum_of_translations = []
-    sum_of_max_velocities = []
+    data = []
     for id in valid_ids:
         result_file = eval_dir / id
         with open(result_file) as f:
-            data = json.load(f)
-        sum_of_translations.append(data["sum_of_translations"])
-        sum_of_max_velocities.append(data["sum_of_max_velocities"])
-    sum_of_translations = np.array(sum_of_translations, dtype=float)
-    sum_of_max_velocities = np.array(sum_of_max_velocities, dtype=float)
+            result = json.load(f)
+        data.append(result)
+    df = pandas.DataFrame(data)
+
+    df = df[
+        [
+            "target_object_visibility",
+            "sum_of_translations",
+            "sum_of_max_velocities",
+        ]
+    ]
 
     print(f"Eval dir: {eval_dir}")
-    print(f"Support: {len(sum_of_translations)}")
-    print(
-        f"Translations: {sum_of_translations.mean():.2f} "
-        f"(+-{sum_of_translations.std():.2f})"
+    print(f"Support: {len(df)}")
+
+    bins = np.linspace(0.2, 0.9, num=8)
+    binned = np.digitize(df["target_object_visibility"], bins)
+
+    data = []
+
+    for i in np.arange(5):
+        mask = binned == i
+        data.append(
+            dict(
+                visibility=bins[i],
+                sum_of_translations=df[mask].mean()["sum_of_translations"],
+                sum_of_max_velocities=df[mask].mean()["sum_of_max_velocities"],
+            )
+        )
+
+    data.append(
+        dict(
+            visibility=-1,
+            sum_of_translations=df.mean()["sum_of_translations"],
+            sum_of_max_velocities=df.mean()["sum_of_max_velocities"],
+        )
     )
-    print(
-        f"Max velocities: {sum_of_max_velocities.mean():.2f} "
-        f"(+-{sum_of_max_velocities.std():.2f})"
-    )
+
+    df = pandas.DataFrame(data)
+    print(df.dropna())
+
     print()
 
 
