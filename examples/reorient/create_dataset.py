@@ -2,13 +2,12 @@
 
 import argparse
 import itertools
+import pickle
 
 from loguru import logger
 import numpy as np
 import path
 import pybullet_planning as pp
-
-import mercury
 
 import common_utils
 from pick_and_place_env import PickAndPlaceEnv
@@ -48,34 +47,12 @@ def main():
             rollout_plan_reorient(
                 env,
                 return_failed=True,
-                reorient_discretize=False,
+                grasp_num_sample=1,
+                min_angle=np.deg2rad(0),
+                max_angle=np.deg2rad(95),
             ),
             10,
         ):
-            with pp.WorldSaver():
-                pp.set_pose(env.fg_object_id, result["c_reorient"].pose)
-                for _ in range(int(1 / pp.get_time_step())):
-                    pp.step_simulation()
-                pose_actual = pp.get_pose(env.fg_object_id)
-
-            pcd = np.loadtxt(
-                mercury.datasets.ycb.get_pcd_file(
-                    class_id=common_utils.get_class_id(env.fg_object_id)
-                )
-            )
-            reference = mercury.geometry.transform_points(
-                pcd,
-                mercury.geometry.transformation_matrix(
-                    *result["c_reorient"].pose
-                ),
-            )
-            query = mercury.geometry.transform_points(
-                pcd, mercury.geometry.transformation_matrix(*pose_actual)
-            )
-            auc = mercury.geometry.average_distance_auc(
-                reference, query, max_threshold=0.2
-            )
-
             object_fg_flags = []
             object_classes = []
             object_poses = []
@@ -83,32 +60,50 @@ def main():
                 object_fg_flags.append(object_id == env.fg_object_id)
                 object_classes.append(common_utils.get_class_id(object_id))
                 object_poses.append(np.hstack(pp.get_pose(object_id)))
+            object_fg_flags = np.array(object_fg_flags, dtype=bool)
+            object_classes = np.array(object_classes, dtype=np.int32)
+            object_poses = np.array(object_classes, dtype=np.float32)
+
+            keys = [
+                "j_grasp",
+                "j_place",
+                "js_grasp",
+                "js_pre_grasp",
+                "js_place",
+            ]
+            solved = np.array([key in result for key in keys], dtype=bool)
+
+            ee_to_world = result["c_grasp"].pose
+            obj_to_world = result["c_init"].pose
+            ee_to_obj = pp.multiply(pp.invert(obj_to_world), ee_to_world)
+
+            obj_af_to_world = result["c_reorient"].pose
+
+            data = dict(
+                object_fg_flags=object_fg_flags,
+                object_classes=object_classes,
+                object_poses=object_poses,
+                grasp_pose=np.hstack(ee_to_world),  # in world
+                grasp_pose_wrt_obj=np.hstack(ee_to_obj),  # in obj
+                initial_pose=np.hstack(obj_to_world),
+                reorient_pose=np.hstack(obj_af_to_world),
+                solved=solved,
+            )
 
             name = f"class_{'_'.join(str(c) for c in args.class_ids)}"
 
             while True:
-                npz_file = home / f"data/mercury/reorient/{name}/{i:08d}.npz"
-                if not npz_file.exists():
+                pkl_file = home / f"data/mercury/reorient/{name}/{i:08d}.pkl"
+                if not pkl_file.exists():
                     break
                 i += process_num
                 if i >= args.size:
                     return
 
-            npz_file.parent.makedirs_p()
-            np.savez_compressed(
-                npz_file,
-                **dict(
-                    object_fg_flags=object_fg_flags,
-                    object_classes=object_classes,
-                    object_poses=object_poses,
-                    grasp_pose=np.hstack(result["c_grasp"].pose),
-                    initial_pose=np.hstack(result["c_init"].pose),
-                    reorient_pose=np.hstack(result["c_reorient"].pose),
-                    js_place_length=result.get("js_place_length", np.nan),
-                    auc=auc,
-                ),
-            )
-            logger.info(f"Saved to: {npz_file}")
+            pkl_file.parent.makedirs_p()
+            with open(pkl_file, "wb") as f:
+                pickle.dump(data, f)
+            logger.info(f"Saved to: {pkl_file}")
 
 
 if __name__ == "__main__":
