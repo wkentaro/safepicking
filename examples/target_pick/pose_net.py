@@ -9,9 +9,9 @@ class PoseNet(torch.nn.Module):
         # object_labels: 7
         # object_poses: 7
         # grasp_flags: 1
-        # actions: 6
+        # actions: 7
         self.fc_encoder = torch.nn.Sequential(
-            torch.nn.Linear(7 + 7 + 7 + 1 + 6, 32),
+            torch.nn.Linear(7 + 7 + 7 + 1 + 7, 32),
             torch.nn.ReLU(),
         )
         self.transformer_object = torch.nn.TransformerEncoder(

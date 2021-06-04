@@ -63,13 +63,6 @@ def main():
         help="use reward translation",
     )
     parser.add_argument(
-        "--use-reward-dz",
-        type=int,
-        default=0,
-        choices=[0, 1],
-        help="use reward dz",
-    )
-    parser.add_argument(
         "--use-reward-max-velocity",
         type=int,
         default=0,
@@ -119,7 +112,6 @@ def main():
         gui=False,
         reward_time=hparams["reward_time"],
         use_reward_translation=hparams["use_reward_translation"],
-        use_reward_dz=hparams["use_reward_dz"],
         use_reward_max_velocity=hparams["use_reward_max_velocity"],
     )
 

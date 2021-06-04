@@ -41,7 +41,6 @@ class PickFromPileEnv(Env):
         mp4=None,
         reward_time=0,
         use_reward_translation=False,
-        use_reward_dz=False,
         use_reward_max_velocity=False,
         speed=0.01,
     ):
@@ -51,7 +50,6 @@ class PickFromPileEnv(Env):
         self._mp4 = mp4
         self._reward_time = reward_time
         self._use_reward_translation = use_reward_translation
-        self._use_reward_dz = use_reward_dz
         self._use_reward_max_velocity = use_reward_max_velocity
         self._speed = speed
 
@@ -64,8 +62,10 @@ class PickFromPileEnv(Env):
         das = [-self.DR, 0, self.DR]
         dbs = [-self.DR, 0, self.DR]
         dgs = [-self.DR, 0, self.DR]
-        self.actions = list(itertools.product(dxs, dys, dzs, das, dbs, dgs))
-        self.actions.remove((0, 0, 0, 0, 0, 0))
+        terminates = [0, 1]
+        self.actions = list(
+            itertools.product(dxs, dys, dzs, das, dbs, dgs, terminates)
+        )
 
         ee_pose = gym.spaces.Box(
             low=-np.inf,
@@ -305,8 +305,6 @@ class PickFromPileEnv(Env):
         self.target_object_visibility = data["visibility"][target_index]
 
         self._i = 0
-        self._z_min_init = pp.get_aabb(self.target_object_id)[0][2]
-        self._z_min_prev = self._z_min_init
         self.translations = collections.defaultdict(float)
         self.max_velocities = collections.defaultdict(float)
 
@@ -354,7 +352,7 @@ class PickFromPileEnv(Env):
         return obs
 
     def validate_action(self, act_result):
-        dx, dy, dz, da, db, dg = self.actions[act_result.action]
+        dx, dy, dz, da, db, dg, _ = self.actions[act_result.action]
 
         assert self.target_object_id == self.ri.attachments[0].child
 
@@ -383,6 +381,7 @@ class PickFromPileEnv(Env):
         if not hasattr(act_result, "j"):
             act_result.j = self.validate_action(act_result)
         j = act_result.j
+        terminate = self.actions[act_result.action][-1]
 
         if j is None:
             reward = 0
@@ -434,6 +433,13 @@ class PickFromPileEnv(Env):
             if self._gui:
                 time.sleep(pp.get_time_step())
 
+        if terminate:
+            for _ in self.ri.movej(self.ri.homej, speed=self._speed):
+                pp.step_simulation()
+                step_callback()
+                if self._gui:
+                    time.sleep(pp.get_time_step())
+
         # ---------------------------------------------------------------------
 
         self._i += 1
@@ -448,10 +454,8 @@ class PickFromPileEnv(Env):
                 self.max_velocities[object_id], max_velocities[object_id]
             )
 
-        z_min = pp.get_aabb(self.target_object_id)[0][2]
-
         # primary task
-        if z_min >= self.Z_TARGET:
+        if terminate:
             terminal = True
             reward = 1
         elif self._i == self.episode_length:
@@ -468,15 +472,8 @@ class PickFromPileEnv(Env):
             if self._use_reward_translation:
                 reward += -sum(translations.values())
 
-            if self._use_reward_dz:
-                reward += (z_min - self._z_min_prev) / (
-                    self.Z_TARGET - self._z_min_init
-                )
-
             if self._use_reward_max_velocity:
                 reward += -sum(max_velocities.values())
-
-        self._z_min_prev = z_min
 
         logger.info(f"Reward={reward:.2f}, Terminal={terminal}")
 
