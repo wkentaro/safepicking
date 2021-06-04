@@ -58,22 +58,25 @@ def main():
     parser.add_argument(
         "--use-reward-translation",
         type=int,
-        default=0,
+        default=1,
         choices=[0, 1],
         help="use reward translation",
     )
     parser.add_argument(
         "--use-reward-max-velocity",
         type=int,
-        default=0,
+        default=1,
         choices=[0, 1],
         help="use reward max velocity",
     )
     parser.add_argument(
         "--gamma",
         type=float,
-        default=0.99,
+        default=0.9,
         help="gamma",
+    )
+    parser.add_argument(
+        "--episode-length", type=int, default=10, help="episode length"
     )
     args = parser.parse_args()
 
@@ -113,6 +116,7 @@ def main():
         reward_time=hparams["reward_time"],
         use_reward_translation=hparams["use_reward_translation"],
         use_reward_max_velocity=hparams["use_reward_max_velocity"],
+        episode_length=hparams["episode_length"],
     )
 
     # Setup replay buffer

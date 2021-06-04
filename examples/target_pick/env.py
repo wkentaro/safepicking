@@ -43,6 +43,7 @@ class PickFromPileEnv(Env):
         use_reward_translation=False,
         use_reward_max_velocity=False,
         speed=0.01,
+        episode_length=10,
     ):
         super().__init__()
 
@@ -52,6 +53,7 @@ class PickFromPileEnv(Env):
         self._use_reward_translation = use_reward_translation
         self._use_reward_max_velocity = use_reward_max_velocity
         self._speed = speed
+        self._episode_length = episode_length
 
         self.plane = None
         self.ri = None
@@ -97,7 +99,7 @@ class PickFromPileEnv(Env):
 
     @property
     def episode_length(self):
-        return 10
+        return self._episode_length
 
     @property
     def action_shape(self):
