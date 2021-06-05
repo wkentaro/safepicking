@@ -43,17 +43,12 @@ def get_reorient_poses2(env):
             XY.append(c.position[:2])
     pp.remove_body(sphere)
 
-    logger.info(f"XY: {len(XY)}")
-
     Z = np.linspace(0.05, 0.15, num=5)
-
     XYZ = []
     for (x, y), z in itertools.product(XY, Z):
         XYZ.append((x, y, z))
     XYZ = np.array(XYZ)
-
     XYZ = XYZ[np.random.permutation(len(XYZ))][:10]
-
     for x, y, z in XYZ:
         pp.draw_point([x, y, z])
 
@@ -70,6 +65,7 @@ def get_reorient_poses2(env):
         c.quaternion = mercury.geometry.quaternion_from_euler((a, b, g))
 
         pp.set_pose(env.fg_object_id, c.pose)
+
         if mercury.pybullet.is_colliding(env.fg_object_id):
             continue
 
@@ -87,10 +83,10 @@ def get_reorient_poses2(env):
     poses = np.array(poses)
     angles = np.array(angles)
 
-    logger.info(f"poses: {len(poses)}")
-
     world_saver.restore()
     lock_renderer.restore()
+
+    logger.info(f"poses: {poses.shape}")
 
     return poses, angles, query_ocs, query_ocs_normal_end
 

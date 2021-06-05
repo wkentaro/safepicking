@@ -223,7 +223,9 @@ class PickAndPlaceEnv(EnvBase):
         js = self.ri.planj(
             j,
             obstacles=obstacles,
-            min_distances={(self.ri.attachments[0].child, -1): -0.01},
+            min_distances_start_goal={
+                (self.ri.attachments[0].child, -1): -0.01
+            },
         )
         if js is None:
             logger.error(

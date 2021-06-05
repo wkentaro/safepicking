@@ -278,7 +278,9 @@ def execute_plan(env, result):
         pp.step_simulation()
         time.sleep(pp.get_time_step())
 
-    for _ in env.ri.grasp(min_dz=0.08, max_dz=0.12, rotation_axis=True):
+    for _ in env.ri.grasp(
+        min_dz=0.08, max_dz=0.12, rotation_axis=True, speed=0.001
+    ):
         pp.step_simulation()
         time.sleep(pp.get_time_step())
 

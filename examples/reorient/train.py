@@ -4,6 +4,7 @@ import argparse
 import collections
 import datetime
 import json
+import pickle
 import time
 
 import numpy as np
@@ -23,9 +24,13 @@ here = path.Path(__file__).abspath().parent
 class PoseEncoder(torch.nn.Module):
     def __init__(self, out_channels, nhead, num_layers):
         super().__init__()
-        # object_fg_flags: 1, object_classes: 22, object_poses: 7
+        # object_fg_flags: 1
+        # object_classes: 22
+        # object_poses: 7
+        # grasp_pose: 7
+        # reorient_pose: 7
         self.fc_encoder = torch.nn.Sequential(
-            torch.nn.Linear(1 + 22 + 7, out_channels),
+            torch.nn.Linear(1 + 22 + 7 + 7 + 7, out_channels),
             torch.nn.ReLU(),
         )
         self.transformer_encoder = torch.nn.TransformerEncoder(
@@ -38,12 +43,31 @@ class PoseEncoder(torch.nn.Module):
             norm=None,
         )
 
-    def forward(self, object_fg_flags, object_classes, object_poses):
+    def forward(
+        self,
+        object_fg_flags,
+        object_classes,
+        object_poses,
+        grasp_pose,
+        reorient_pose,
+    ):
+        B, O = object_fg_flags.shape
+
+        object_fg_flags = object_fg_flags[:, :, None]
+        grasp_pose = grasp_pose[:, None, :].repeat_interleave(O, dim=1)
+        reorient_pose = reorient_pose[:, None, :].repeat_interleave(O, dim=1)
+
         h = torch.cat(
-            [object_fg_flags[:, :, None], object_classes, object_poses], dim=2
+            [
+                object_fg_flags,
+                object_classes,
+                object_poses,
+                grasp_pose,
+                reorient_pose,
+            ],
+            dim=2,
         )
 
-        B, O, _ = h.shape
         h = h.reshape(B * O, -1)
         h = self.fc_encoder(h)
         h = h.reshape(B, O, -1)
@@ -65,8 +89,8 @@ class Model(torch.nn.Module):
         self.encoder_object_poses = PoseEncoder(
             out_channels, nhead=4, num_layers=4
         )
-        self.fc_stable = torch.nn.Sequential(
-            torch.nn.Linear(out_channels, 1),
+        self.fc_output = torch.nn.Sequential(
+            torch.nn.Linear(out_channels, 5),
             torch.nn.Sigmoid(),
         )
 
@@ -75,13 +99,19 @@ class Model(torch.nn.Module):
         object_fg_flags,
         object_classes,
         object_poses,
+        grasp_pose,
+        reorient_pose,
     ):
         h = self.encoder_object_poses(
-            object_fg_flags, object_classes, object_poses
+            object_fg_flags,
+            object_classes,
+            object_poses,
+            grasp_pose,
+            reorient_pose,
         )
-        fc_stable = self.fc_stable(h)[:, 0]
+        fc_output = self.fc_output(h)
 
-        return fc_stable
+        return fc_output
 
 
 class Dataset(torch.utils.data.Dataset):
@@ -109,22 +139,25 @@ class Dataset(torch.utils.data.Dataset):
 
     def __getitem__(self, i):
         file = self._files[self._split][i]
-        data = np.load(file)
-
-        assert 0 <= data["auc"] <= 1
-        stable = data["auc"] > 0.8
+        with open(file, "rb") as f:
+            data = pickle.load(f)
 
         object_fg_flags = data["object_fg_flags"]
-        object_classes = data["object_classes"]
-        object_poses = data["object_poses"]
         object_classes = np.eye(22)[data["object_classes"]]
-        object_poses[object_fg_flags] = data["reorient_pose"]
+        object_poses = data["object_poses"]
+
+        grasp_pose = data["grasp_pose_wrt_obj"]
+        reorient_pose = data["reorient_pose"]
+
+        solved = data["solved"]
 
         return dict(
             object_fg_flags=object_fg_flags,
             object_classes=object_classes,
             object_poses=object_poses,
-            stable=stable,
+            grasp_pose=grasp_pose,
+            reorient_pose=reorient_pose,
+            solved=solved,
         )
 
 
@@ -147,18 +180,20 @@ def epoch_loop(
             ncols=100,
         )
     ):
-        stable_pred = model(
+        solved_pred = model(
             object_fg_flags=batch["object_fg_flags"].float().cuda(),
             object_classes=batch["object_classes"].float().cuda(),
             object_poses=batch["object_poses"].float().cuda(),
+            grasp_pose=batch["grasp_pose"].float().cuda(),
+            reorient_pose=batch["reorient_pose"].float().cuda(),
         )
-        stable_true = batch["stable"].float().cuda()
+        solved_true = batch["solved"].float().cuda()
 
         if is_training:
             optimizer.zero_grad()
 
         loss = torch.nn.functional.binary_cross_entropy(
-            stable_pred, stable_true
+            solved_pred, solved_true
         )
 
         losses["loss"].append(loss.item())
