@@ -146,24 +146,16 @@ def get_grasp_poses(env):
     normals_in_ee = mercury.geometry.normals_from_pointcloud(pcd_in_ee)
 
     indices = np.argwhere(mask)
-    for y, x in indices[env.random_state.permutation(indices.shape[0])]:
+    env.random_state.shuffle(indices)
+
+    for y, x in indices:
         position = pcd_in_ee[y, x]
         quaternion = mercury.geometry.quaternion_from_vec2vec(
             [0, 0, 1], normals_in_ee[y, x]
         )
-        T_ee_to_ee_af_in_ee = mercury.geometry.transformation_matrix(
-            position, quaternion
-        )
-
-        T_ee_to_world = mercury.geometry.transformation_matrix(
-            *env.ri.get_pose("tipLink")
-        )
-        T_ee_to_ee = np.eye(4)
-        T_ee_af_to_ee = T_ee_to_ee_af_in_ee @ T_ee_to_ee
-        T_ee_af_to_world = T_ee_to_world @ T_ee_af_to_ee
-
-        c = mercury.geometry.Coordinate.from_matrix(T_ee_af_to_world)
-        yield c
+        ee_af_to_ee = position, quaternion
+        ee_af_to_world = pp.multiply(ee_to_world, ee_af_to_ee)
+        yield np.hstack(ee_af_to_world)
 
 
 def plan_reorient(env, c_grasp, c_reorient):
@@ -322,14 +314,22 @@ def rollout_plan_reorient(
 ):
     from reorient_poses import get_reorient_poses2
 
+    reorient_poses, angles, _, _ = get_reorient_poses2(env)
+    keep = (min_angle <= angles) & (angles < max_angle)
+    reorient_poses = reorient_poses[keep]
+
     i = 0
-    for c_reorient in get_reorient_poses2(
-        env, min_angle=min_angle, max_angle=max_angle
-    )[0]:
-        c_reorient = mercury.geometry.Coordinate(*c_reorient)
-        for c_grasp in itertools.islice(
+    for reorient_pose in reorient_poses:
+        c_reorient = mercury.geometry.Coordinate(
+            reorient_pose[:3], reorient_pose[3:]
+        )
+        for grasp_pose in itertools.islice(
             get_grasp_poses(env), grasp_num_sample
         ):
+            c_grasp = mercury.geometry.Coordinate(
+                grasp_pose[:3], grasp_pose[3:]
+            )
+
             debug = pp.add_text(
                 f"plan {i:04d}",
                 position=c_reorient.position + [0, 0, 0.1],

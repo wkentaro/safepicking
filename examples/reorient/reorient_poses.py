@@ -14,12 +14,7 @@ from pick_and_place_env import PickAndPlaceEnv
 from planned import get_query_ocs
 
 
-def get_reorient_poses2(
-    env, min_angle=np.deg2rad(0), max_angle=np.deg2rad(10)
-):
-    assert min_angle >= 0
-    assert max_angle >= min_angle
-
+def get_reorient_poses2(env):
     query_ocs, query_ocs_normal_ends = get_query_ocs(env)
     index = np.argmin(
         np.linalg.norm(query_ocs - query_ocs.mean(axis=0), axis=1)
@@ -69,6 +64,7 @@ def get_reorient_poses2(
         np.linspace(-np.pi, np.pi, num=9, endpoint=False),
     )
     poses = []
+    angles = []
     for (x, y, z), (a, b, g) in itertools.product(XYZ, ABG):
         c = mercury.geometry.Coordinate(position=(x, y, z))
         c.quaternion = mercury.geometry.quaternion_from_euler((a, b, g))
@@ -85,20 +81,18 @@ def get_reorient_poses2(
         normal /= np.linalg.norm(normal)
         angle = np.arccos(np.dot([0, 0, 1], normal))
         assert angle >= 0
-        if not (min_angle <= angle < max_angle):
-            continue
 
-        poses.append(c.pose)
+        poses.append(np.hstack(c.pose))
+        angles.append(angle)
+    poses = np.array(poses)
+    angles = np.array(angles)
 
     logger.info(f"poses: {len(poses)}")
-
-    poses = np.array(poses, dtype=object)
-    np.random.shuffle(poses)
 
     world_saver.restore()
     lock_renderer.restore()
 
-    return poses, query_ocs, query_ocs_normal_end
+    return poses, angles, query_ocs, query_ocs_normal_end
 
 
 def main():
@@ -113,10 +107,16 @@ def main():
     parser.add_argument("--on-plane", action="store_true", help="on plane")
     parser.add_argument("--simulate", action="store_true", help="simulate")
     parser.add_argument(
-        "--min-angle", type=float, default=0, help="threshold [deg]"
+        "--min-angle",
+        type=lambda x: np.deg2rad(float(x)),
+        default=0,
+        help="threshold [deg]",
     )
     parser.add_argument(
-        "--max-angle", type=float, default=10, help="threshold [deg]"
+        "--max-angle",
+        type=lambda x: np.deg2rad(float(x)),
+        default=np.deg2rad(10),
+        help="threshold [deg]",
     )
     args = parser.parse_args()
 
@@ -134,18 +134,17 @@ def main():
             for _ in range(2400):
                 pp.step_simulation()
 
-    poses, query_ocs, query_ocs_normal_end = get_reorient_poses2(
-        env,
-        min_angle=np.deg2rad(args.min_angle),
-        max_angle=np.deg2rad(args.max_angle),
-    )
+    poses, angles, query_ocs, query_ocs_normal_end = get_reorient_poses2(env)
+
+    keep = (args.min_angle <= angles) & (angles < args.max_angle)
+    poses = poses[keep]
 
     logger.info(f"Generated reorient poses: {len(poses)}")
 
     while True:
         for pose in poses:
             with pp.WorldSaver():
-                pp.set_pose(env.fg_object_id, pose)
+                pp.set_pose(env.fg_object_id, (pose[:3], pose[3:]))
 
                 debug = pp.add_line(
                     query_ocs,
