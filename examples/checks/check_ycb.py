@@ -48,7 +48,7 @@ def main():
             height=230,
             width=250,
         )
-        text = f"{class_id:02d}: {class_names[class_id - 1]}"
+        text = f"{class_id:02d}: {class_names[class_id]}"
         rgb = imgviz.draw.text_in_rectangle(
             rgb,
             text=text,
@@ -61,14 +61,14 @@ def main():
 
         p.removeBody(obj)
 
+    pybullet_planning.disconnect()
+
     tiled = imgviz.tile(
         tiled, shape=(-1, 4), cval=(255, 255, 255), border=(0, 0, 0)
     )
-    out_file = "logs/ycb.jpg"
+    out_file = "/tmp/ycb.jpg"
     imgviz.io.imsave(out_file, tiled)
     print(f"==> Saved to {out_file}")
-
-    pybullet_planning.disconnect()
 
 
 if __name__ == "__main__":
