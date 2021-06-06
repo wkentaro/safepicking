@@ -30,17 +30,22 @@ def get_reorient_poses2(env):
     # XY validation
     sphere = pp.create_sphere(radius=0.075)
     XY = []
-    for dx, dy in itertools.product(
-        np.linspace(-0.2, 0.2, num=7),
-        np.linspace(-0.2, 0.2, num=7),
-    ):
-        c = mercury.geometry.Coordinate(
-            position=(pose_init[0][0] + dx, pose_init[0][1] + dy, 0.1)
-        )
-        pp.set_pose(sphere, c.pose)
+    for size in [0.2, 0.3, 0.4]:
+        for dx, dy in itertools.product(
+            np.linspace(-size, size, num=7),
+            np.linspace(-size, size, num=7),
+        ):
+            c = mercury.geometry.Coordinate(
+                position=(pose_init[0][0] + dx, pose_init[0][1] + dy, 0.1)
+            )
+            pp.set_pose(sphere, c.pose)
 
-        if not mercury.pybullet.is_colliding(sphere, env.object_ids):
-            XY.append(c.position[:2])
+            if not mercury.pybullet.is_colliding(sphere, env.object_ids):
+                XY.append(c.position[:2])
+            if len(XY) >= 10:
+                break
+        if len(XY) >= 10:
+            break
     pp.remove_body(sphere)
 
     Z = np.linspace(0.05, 0.15, num=5)
