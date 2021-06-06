@@ -39,7 +39,6 @@ class PickFromPileEnv(Env):
         self,
         gui=True,
         mp4=None,
-        reward_time=0,
         use_reward_translation=False,
         use_reward_max_velocity=False,
         speed=0.01,
@@ -49,7 +48,6 @@ class PickFromPileEnv(Env):
 
         self._gui = gui
         self._mp4 = mp4
-        self._reward_time = reward_time
         self._use_reward_translation = use_reward_translation
         self._use_reward_max_velocity = use_reward_max_velocity
         self._speed = speed
@@ -467,15 +465,11 @@ class PickFromPileEnv(Env):
             terminal = False
             reward = 0
 
-        # reward shaping
-        if not self.eval:
-            reward += self._reward_time
-
-            if self._use_reward_translation:
-                reward += -sum(translations.values())
-
-            if self._use_reward_max_velocity:
-                reward += -sum(max_velocities.values())
+        # secondary tasks
+        if self._use_reward_translation:
+            reward += -sum(translations.values())
+        if self._use_reward_max_velocity and terminal:
+            reward += -sum(self.max_velocities.values())
 
         logger.info(f"Reward={reward:.2f}, Terminal={terminal}")
 

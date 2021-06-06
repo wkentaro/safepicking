@@ -53,9 +53,6 @@ def main():
     )
     parser.add_argument("--device", default="cuda:0", help="device")
     parser.add_argument(
-        "--reward-time", type=float, default=0, help="reward time"
-    )
-    parser.add_argument(
         "--use-reward-translation",
         type=int,
         default=1,
@@ -113,7 +110,6 @@ def main():
 
     env = PickFromPileEnv(
         gui=False,
-        reward_time=hparams["reward_time"],
         use_reward_translation=hparams["use_reward_translation"],
         use_reward_max_velocity=hparams["use_reward_max_velocity"],
         episode_length=hparams["episode_length"],
