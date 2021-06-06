@@ -247,7 +247,8 @@ def plan_reorient(env, c_grasp, c_reorient):
     js = env.ri.planj(
         result["j_place"],
         obstacles=obstacles,
-        min_distances_start_goal={(env.ri.attachments[0].child, -1): -0.01},
+        min_distances={(env.ri.attachments[0].child, -1): -0.01},
+        min_distances_start_goal={(env.ri.attachments[0].child, -1): -0.02},
     )
     if js is None:
         logger.warning("js_place is not found")
