@@ -75,6 +75,8 @@ def main():
             ]
             solved = np.array([key in result for key in keys], dtype=bool)
 
+            length = result.get("js_place_length", np.nan)
+
             ee_to_world = result["c_grasp"].pose
             obj_to_world = result["c_init"].pose
             ee_to_obj = pp.multiply(pp.invert(obj_to_world), ee_to_world)
@@ -89,6 +91,7 @@ def main():
                 grasp_pose_wrt_obj=np.hstack(ee_to_obj),  # in obj
                 reorient_pose=np.hstack(obj_af_to_world),
                 solved=solved,
+                length=length,
             )
 
             name = f"class_{'_'.join(str(c) for c in args.class_ids)}"
