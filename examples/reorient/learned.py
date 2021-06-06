@@ -70,11 +70,11 @@ def plan_and_execute_reorient(env, model, timeout, visualize=True):
 
     with torch.no_grad():
         solved_pred = model(
-            object_fg_flags=torch.as_tensor(object_fg_flags),
-            object_classes=torch.as_tensor(object_classes),
-            object_poses=torch.as_tensor(object_poses),
-            grasp_pose=torch.as_tensor(grasp_poses),
-            reorient_pose=torch.as_tensor(reorient_poses),
+            object_fg_flags=torch.as_tensor(object_fg_flags).cuda(),
+            object_classes=torch.as_tensor(object_classes).cuda(),
+            object_poses=torch.as_tensor(object_poses).cuda(),
+            grasp_pose=torch.as_tensor(grasp_poses).cuda(),
+            reorient_pose=torch.as_tensor(reorient_poses).cuda(),
         )
     solved_pred = solved_pred.cpu().numpy()
     solved_pred = solved_pred.sum(axis=1) / solved_pred.shape[1]
@@ -164,6 +164,7 @@ def main():
     logger.info(f"Loading {model_file}")
     model.load_state_dict(torch.load(model_file, map_location="cpu"))
     model.eval()
+    model.cuda()
 
     while True:
         if plan_and_execute_place(env):
