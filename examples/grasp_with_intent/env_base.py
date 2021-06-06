@@ -145,6 +145,7 @@ class EnvBase(Env):
                     position=position,
                     quaternion=quaternion,
                 )
+            pp.set_dynamics(object_id, lateralFriction=0.7)
             object_ids.append(object_id)
 
             contained = pp.aabb_contains_aabb(
