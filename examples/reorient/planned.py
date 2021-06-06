@@ -148,6 +148,9 @@ def get_grasp_poses(env):
     indices = np.argwhere(mask)
     env.random_state.shuffle(indices)
 
+    obstacles = [env.plane, env.bin] + env.object_ids
+    obstacles.remove(env.fg_object_id)
+
     for y, x in indices:
         position = pcd_in_ee[y, x]
         quaternion = mercury.geometry.quaternion_from_vec2vec(
@@ -155,7 +158,10 @@ def get_grasp_poses(env):
         )
         ee_af_to_ee = position, quaternion
         ee_af_to_world = pp.multiply(ee_to_world, ee_af_to_ee)
-        yield np.hstack(ee_af_to_world)
+
+        j = env.ri.solve_ik(ee_af_to_world)
+        if j is not None and env.ri.validatej(j, obstacles=obstacles):
+            yield np.hstack(ee_af_to_world)
 
 
 def plan_reorient(env, c_grasp, c_reorient):
@@ -174,6 +180,9 @@ def plan_reorient(env, c_grasp, c_reorient):
 
     result["j_init"] = env.ri.getj()
 
+    bg_object_ids = [env.plane, env.bin] + env.object_ids
+    bg_object_ids.remove(env.fg_object_id)
+
     # solve j_grasp
     c = mercury.geometry.Coordinate(
         *mercury.geometry.pose_from_matrix(T_ee_af_to_world)
@@ -181,6 +190,10 @@ def plan_reorient(env, c_grasp, c_reorient):
     j = env.ri.solve_ik(c.pose)
     if j is None:
         logger.warning("j_grasp is not found")
+        before_return()
+        return result
+    if not env.ri.validatej(j, obstacles=bg_object_ids):
+        logger.warning("j_grasp is invalid")
         before_return()
         return result
     result["j_grasp"] = j
@@ -207,6 +220,14 @@ def plan_reorient(env, c_grasp, c_reorient):
         logger.warning("j_place is not found")
         before_return()
         return result
+    if not env.ri.validatej(
+        j,
+        obstacles=bg_object_ids,
+        min_distances={(env.ri.attachments[0].child, -1): -0.02},
+    ):
+        logger.warning("j_place is invalid")
+        before_return()
+        return result
     result["j_place"] = j
     env.ri.attachments = []
 
@@ -214,7 +235,7 @@ def plan_reorient(env, c_grasp, c_reorient):
     js = []
     for _ in range(10):
         c.translate([0, 0, -0.01])
-        j = env.ri.solve_ik(c.pose)
+        j = env.ri.solve_ik(c.pose, n_init=1)
         if j is None:
             break
         js.append(j)
@@ -224,6 +245,13 @@ def plan_reorient(env, c_grasp, c_reorient):
         before_return()
         return result
     result["js_grasp"] = js
+
+    if not env.ri.validatej(
+        js[0], obstacles=bg_object_ids + [env.fg_object_id]
+    ):
+        logger.warning("j_pre_grasp is invalid")
+        before_return()
+        return result
     result["j_pre_grasp"] = js[0]
 
     # solve js_pre_grasp
