@@ -73,7 +73,7 @@ def main():
         help="gamma",
     )
     parser.add_argument(
-        "--episode-length", type=int, default=10, help="episode length"
+        "--episode-length", type=int, default=5, help="episode length"
     )
     args = parser.parse_args()
 

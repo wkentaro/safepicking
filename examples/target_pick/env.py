@@ -42,7 +42,7 @@ class PickFromPileEnv(Env):
         use_reward_translation=False,
         use_reward_max_velocity=False,
         speed=0.01,
-        episode_length=10,
+        episode_length=5,
     ):
         super().__init__()
 
@@ -451,8 +451,8 @@ class PickFromPileEnv(Env):
         with np.printoptions(precision=2):
             logger.info(
                 f"[{act_result.action}] "
-                f"{np.array(self.actions[act_result.action[0]])}"
-                f"{act_result.action[1]}"
+                f"{np.array(self.actions[act_result.action[0]])}, "
+                f"terminate={act_result.action[1]}"
             )
 
         poses = {}
