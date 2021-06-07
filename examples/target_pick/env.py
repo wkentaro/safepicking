@@ -427,14 +427,22 @@ class PickFromPileEnv(Env):
                     np.linalg.norm(pp.get_velocity(object_id)[0]),
                 )
 
-        for _ in self.ri.movej(j, speed=self._speed):
+        for _ in self.ri.movej(
+            j,
+            speed=self._speed,
+            timeout=5 * (0.01 / self._speed),
+        ):
             pp.step_simulation()
             step_callback()
             if self._gui:
                 time.sleep(pp.get_time_step())
 
         if terminate:
-            for _ in self.ri.movej(self.ri.homej, speed=self._speed):
+            for _ in self.ri.movej(
+                self.ri.homej,
+                speed=self._speed,
+                timeout=5 * (0.01 / self._speed),
+            ):
                 pp.step_simulation()
                 step_callback()
                 if self._gui:
