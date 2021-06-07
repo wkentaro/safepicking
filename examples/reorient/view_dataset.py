@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import pickle
 import pprint
 
 from loguru import logger
@@ -17,7 +18,7 @@ from pick_and_place_env import PickAndPlaceEnv
 home = path.Path("~").expanduser()
 
 
-def view_npz_file(npz_file):
+def view_pkl_file(pkl_file):
     pp.reset_simulation()
     p.setGravity(0, 0, -9.8)
     p.resetDebugVisualizerCamera(
@@ -32,8 +33,9 @@ def view_npz_file(npz_file):
     bin = mercury.pybullet.create_bin(*PickAndPlaceEnv.BIN_EXTENTS)
     pp.set_pose(bin, PickAndPlaceEnv.BIN_POSE)
 
-    data = dict(np.load(npz_file))
-    if np.isnan(data["js_place_length"]):
+    with open(pkl_file, "rb") as f:
+        data = pickle.load(f)
+    if np.isnan(data["length"]):
         logger.error("\n" + pprint.pformat(data))
     else:
         logger.success("\n" + pprint.pformat(data))
@@ -86,9 +88,11 @@ def main():
     pp.connect(use_gui=True)
     pp.add_data_path()
 
-    root_dir = path.Path("/home/wkentaro/data/mercury/reorient/n_class_5")
-    for npz_file in sorted(root_dir.listdir()):
-        view_npz_file(npz_file=npz_file)
+    root_dir = path.Path(
+        "/home/wkentaro/data/mercury/reorient/class_2_3_5_11_12_15/"
+    )
+    for pkl_file in sorted(root_dir.listdir()):
+        view_pkl_file(pkl_file=pkl_file)
 
 
 if __name__ == "__main__":
