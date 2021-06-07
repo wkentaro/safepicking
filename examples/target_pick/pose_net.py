@@ -2,16 +2,21 @@ import torch
 
 
 class PoseNet(torch.nn.Module):
-    def __init__(self, n_action):
+    def __init__(self, episode_length, openloop):
         super().__init__()
+
+        self._openloop = openloop
 
         # ee_pose: 7
         # object_labels: 7
         # object_poses: 7
         # grasp_flags: 1
         # actions: 6
+        in_channels = 7 + 7 + 7 + 1 + 6
+        if self._openloop:
+            in_channels += (episode_length - 1) * 7
         self.fc_encoder = torch.nn.Sequential(
-            torch.nn.Linear(7 + 7 + 7 + 1 + 6, 32),
+            torch.nn.Linear(in_channels, 32),
             torch.nn.ReLU(),
         )
         self.transformer_object = torch.nn.TransformerEncoder(
@@ -34,6 +39,7 @@ class PoseNet(torch.nn.Module):
         object_poses,
         grasp_flags,
         actions,
+        **kwargs,
     ):
         B, O = grasp_flags.shape
         A, _ = actions.shape
@@ -42,6 +48,12 @@ class PoseNet(torch.nn.Module):
         h_object = torch.cat(
             [object_labels, object_poses, grasp_flags[:, :, None]], dim=2
         )
+        if self._openloop:
+            past_grasped_object_poses = kwargs["past_grasped_object_poses"]
+            past_grasped_object_poses = past_grasped_object_poses.reshape(
+                B, -1
+            )[:, None, :].repeat(1, O, 1)
+            h_object = torch.cat([h_object, past_grasped_object_poses], dim=2)
         h_action = actions
 
         # B, A, O, C

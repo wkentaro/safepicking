@@ -64,6 +64,7 @@ class PickFromPileEnv(Env):
         dgs = [-self.DR, 0, self.DR]
         self.actions = list(itertools.product(dxs, dys, dzs, das, dbs, dgs))
 
+        # closed-loop
         ee_pose = gym.spaces.Box(
             low=-np.inf,
             high=np.inf,
@@ -83,12 +84,45 @@ class PickFromPileEnv(Env):
             shape=(8, 7),
             dtype=np.float32,
         )
+        # open-loop
+        ee_pose_init = gym.spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=(7,),
+            dtype=np.float32,
+        )
+        grasp_flags_init = gym.spaces.Box(
+            low=0, high=1, shape=(8,), dtype=np.uint8
+        )
+        object_labels_init = gym.spaces.Box(
+            low=0,
+            high=1,
+            shape=(8, len(self.CLASS_IDS)),
+            dtype=np.uint8,
+        )
+        object_poses_init = gym.spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=(8, 7),
+            dtype=np.float32,
+        )
+        past_grasped_object_poses = gym.spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=(self.episode_length - 1, 7),
+            dtype=np.float32,
+        )
         self.observation_space = gym.spaces.Dict(
             dict(
                 ee_pose=ee_pose,
                 grasp_flags=grasp_flags,
                 object_labels=object_labels,
                 object_poses=object_poses,
+                ee_pose_init=ee_pose_init,
+                grasp_flags_init=grasp_flags_init,
+                object_labels_init=object_labels_init,
+                object_poses_init=object_poses_init,
+                past_grasped_object_poses=past_grasped_object_poses,
             )
         )
 
@@ -301,6 +335,16 @@ class PickFromPileEnv(Env):
         self.target_object_class = data["class_id"][target_index]
         self.target_object_visibility = data["visibility"][target_index]
 
+        self.ee_pose_init = np.hstack(self.ri.get_pose("tipLink")).astype(
+            np.float32
+        )
+        self.object_state = self.get_object_state(
+            self.object_ids, self.target_object_id
+        )
+        self.past_grasped_object_poses = np.zeros(
+            (self.episode_length - 1, 7), dtype=np.float32
+        )
+
         self.i = 0
         self.translations = collections.defaultdict(float)
         self.max_velocities = collections.defaultdict(float)
@@ -327,11 +371,21 @@ class PickFromPileEnv(Env):
         grasp_flags, object_labels, object_poses = self.get_object_state(
             self.object_ids, self.target_object_id
         )
+        (
+            grasp_flags_init,
+            object_labels_init,
+            object_poses_init,
+        ) = self.object_state
         obs = dict(
             ee_pose=ee_pose,
             grasp_flags=grasp_flags,
             object_labels=object_labels,
             object_poses=object_poses,
+            ee_pose_init=self.ee_pose_init,
+            grasp_flags_init=grasp_flags_init,
+            object_labels_init=object_labels_init,
+            object_poses_init=object_poses_init,
+            past_grasped_object_poses=self.past_grasped_object_poses,
         )
 
         for key, space in self.observation_space.spaces.items():
@@ -488,6 +542,14 @@ class PickFromPileEnv(Env):
         }
         if terminal:
             info["max_velocity"] = sum(self.max_velocities.values())
+
+        object_to_ee = self.ri.attachments[0].grasp_pose
+        ee_to_world = self.ri.get_pose("tipLink")
+        object_to_world = pp.multiply(ee_to_world, object_to_ee)
+        self.past_grasped_object_poses = np.r_[
+            self.past_grasped_object_poses[1:],
+            np.hstack(object_to_world).astype(np.float32)[None],
+        ]
 
         return Transition(
             observation=self.get_obs(),

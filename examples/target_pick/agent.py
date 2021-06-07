@@ -18,7 +18,15 @@ class DqnModel(torch.nn.Module):
         self._model = model
 
         if self._model == "closedloop_pose_net":
-            self.module = PoseNet(n_action=len(env.actions))
+            self.module = PoseNet(
+                episode_length=env.episode_length,
+                openloop=False,
+            )
+        elif self._model == "openloop_pose_net":
+            self.module = PoseNet(
+                episode_length=env.episode_length,
+                openloop=True,
+            )
         else:
             raise ValueError
 
@@ -30,6 +38,17 @@ class DqnModel(torch.nn.Module):
             grasp_flags = observation["grasp_flags"]
             object_labels = observation["object_labels"]
             object_poses = observation["object_poses"]
+            kwargs = dict()
+        elif self._model == "openloop_pose_net":
+            ee_pose = observation["ee_pose_init"]
+            grasp_flags = observation["grasp_flags_init"]
+            object_labels = observation["object_labels_init"]
+            object_poses = observation["object_poses_init"]
+            kwargs = dict(
+                past_grasped_object_poses=observation[
+                    "past_grasped_object_poses"
+                ],
+            )
         else:
             raise ValueError
 
@@ -39,6 +58,7 @@ class DqnModel(torch.nn.Module):
             object_labels=object_labels,
             object_poses=object_poses,
             actions=self._actions.to(grasp_flags.device),
+            **kwargs,
         )
 
 

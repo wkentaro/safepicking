@@ -18,7 +18,7 @@ def main():
     )
     parser.add_argument(
         "--model",
-        choices=["closedloop_pose_net"],
+        choices=["closedloop_pose_net", "openloop_pose_net"],
         help="model",
     )
     parser.add_argument("--nogui", action="store_true", help="no gui")
