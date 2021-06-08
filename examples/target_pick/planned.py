@@ -54,7 +54,6 @@ def main():
         random_state=np.random.RandomState(args.seed),
         pile_file=args.pile_file,
     )
-    del obs
 
     ri = env.ri
     plane = env.plane
@@ -64,6 +63,10 @@ def main():
     ri.planner = args.planner
 
     with pp.LockRenderer(), pp.WorldSaver():
+        for object_id, object_pose in zip(
+            object_ids, obs["object_poses_init"]
+        ):
+            pp.set_pose(object_id, (object_pose[:3], object_pose[3:]))
         steps = ri.move_to_homej(
             bg_object_ids=[plane],
             object_ids=object_ids,
