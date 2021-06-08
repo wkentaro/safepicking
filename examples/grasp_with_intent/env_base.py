@@ -11,6 +11,7 @@ from yarr.envs.env import Env
 from yarr.utils.observation_type import ObservationElement
 from yarr.utils.transition import Transition
 
+import common_utils
 import mercury
 
 
@@ -35,8 +36,17 @@ class EnvBase(Env):
 
     CAMERA_POSITION = np.array([PILE_POSITION[0], PILE_POSITION[1], 0.7])
 
-    PRE_PLACE_POSE = BIN_POSE[0] + (0, -0.3, 0), (0, 0, 0, 1)
-    PLACE_POSE = BIN_POSE[0], PRE_PLACE_POSE[1]
+    @property
+    def PLACE_POSE(self):
+        return self.BIN_POSE[0], common_utils.get_canonical_quaternion(
+            common_utils.get_class_id(self.fg_object_id)
+        )
+
+    @property
+    def PRE_PLACE_POSE(self):
+        c = mercury.geometry.Coordinate(*self.PLACE_POSE)
+        c.translate([0, -0.3, 0], wrt="world")
+        return c.pose
 
     def __init__(
         self, class_ids, gui=True, retime=1, step_callback=None, mp4=None
