@@ -335,9 +335,9 @@ def correct(
             for _ in ri.random_grasp(
                 depth=depth,
                 segm=segm,
+                mask=segm == object_id,
                 bg_object_ids=bg_object_ids,
                 object_ids=object_ids,
-                target_object_ids=[object_id],
                 max_angle=np.deg2rad(10),
             ):
                 step_simulation()

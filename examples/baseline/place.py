@@ -94,10 +94,18 @@ def main():
 
         i = 0
         _, depth, segm = ri.get_camera_image()
-        for _ in ri.random_grasp(depth, segm, [plane], object_ids):
+        for _ in ri.random_grasp(
+            depth,
+            segm,
+            mask=np.isin(segm, object_ids),
+            bg_object_ids=[plane, table],
+            object_ids=object_ids,
+        ):
             step_simulation()
             i += 1
-        for _ in ri.move_to_homej([plane, table], object_ids):
+        for _ in ri.move_to_homej(
+            bg_object_ids=[plane, table], object_ids=object_ids
+        ):
             step_simulation()
         if i == 0:
             logger.success("Completed the task")
@@ -129,8 +137,9 @@ def main():
                     for _ in ri.random_grasp(
                         depth,
                         segm,
-                        [plane, table],
-                        object_ids,
+                        mask=np.isin(segm, object_ids),
+                        bg_object_ids=[plane, table],
+                        object_ids=object_ids,
                         max_angle=np.deg2rad(10),
                     ):
                         step_simulation()
@@ -151,7 +160,7 @@ def main():
                 break
 
             ri.homej[0] = 0
-            regrasp_pose, _ = baseline_utils.place_to_regrasp(
+            regrasp_pose, _, _ = baseline_utils.place_to_regrasp(
                 ri,
                 regrasp_aabb,
                 bg_object_ids=[plane, table],

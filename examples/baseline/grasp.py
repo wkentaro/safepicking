@@ -93,10 +93,18 @@ def main():
 
         i = 0
         _, depth, segm = ri.get_camera_image()
-        for _ in ri.random_grasp(depth, segm, [plane], object_ids):
+        for _ in ri.random_grasp(
+            depth,
+            segm,
+            mask=np.isin(segm, object_ids),
+            bg_object_ids=[plane, table],
+            object_ids=object_ids,
+        ):
             step_simulation()
             i += 1
-        for _ in ri.move_to_homej([plane, table], object_ids):
+        for _ in ri.move_to_homej(
+            bg_object_ids=[plane, table], object_ids=object_ids
+        ):
             step_simulation()
         if i == 0:
             logger.success("Completed the task")

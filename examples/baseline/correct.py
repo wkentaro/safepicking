@@ -107,11 +107,17 @@ def main():
         i = 0
         _, depth, segm = ri.get_camera_image()
         for _ in ri.random_grasp(
-            depth, segm, [plane], object_ids, random_state=random_state
+            depth,
+            segm,
+            mask=np.isin(segm, object_ids),
+            bg_object_ids=[plane, table],
+            object_ids=object_ids,
         ):
             step_simulation()
             i += 1
-        for _ in ri.move_to_homej([plane, table], object_ids):
+        for _ in ri.move_to_homej(
+            bg_object_ids=[plane, table], object_ids=object_ids
+        ):
             step_simulation()
         time_table_row.append(
             ("grasp", (step_simulation.i - i_start) * pp.get_time_step())
@@ -152,8 +158,9 @@ def main():
                     for _ in ri.random_grasp(
                         depth,
                         segm,
-                        [plane, table],
-                        object_ids,
+                        mask=np.isin(segm, object_ids),
+                        bg_object_ids=[plane, table],
+                        object_ids=object_ids,
                         max_angle=np.deg2rad(10),
                         random_state=random_state,
                     ):
