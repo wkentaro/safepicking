@@ -20,6 +20,7 @@ from planned import get_grasp_poses
 from planned import plan_and_execute_place
 from planned import plan_reorient
 from reorient_poses import get_reorient_poses2
+from train import Dataset
 from train import Model
 
 
@@ -69,7 +70,7 @@ def plan_and_execute_reorient(env, model, timeout, visualize=True):
     object_poses = np.tile(object_poses[None], (B, 1, 1))
 
     with torch.no_grad():
-        solved_pred = model(
+        solved_pred, length_pred = model(
             object_fg_flags=torch.as_tensor(object_fg_flags).cuda(),
             object_classes=torch.as_tensor(object_classes).cuda(),
             object_poses=torch.as_tensor(object_poses).cuda(),
@@ -78,6 +79,7 @@ def plan_and_execute_reorient(env, model, timeout, visualize=True):
         )
     solved_pred = solved_pred.cpu().numpy()
     solved_pred = solved_pred.sum(axis=1) / solved_pred.shape[1]
+    length_pred = length_pred.cpu().numpy() * Dataset.LENGTH_MAX
 
     keep = solved_pred >= 0.90
 
@@ -85,17 +87,25 @@ def plan_and_execute_reorient(env, model, timeout, visualize=True):
     reorient_poses = reorient_poses[keep]
     angles = angles[keep]
     solved_pred = solved_pred[keep]
+    length_pred = length_pred[keep]
 
-    indices = np.argsort(angles)
+    bins = np.linspace(angles.min(), angles.max(), num=9)
+    binned = np.digitize(angles, bins)
+
+    keep = binned <= 1
+
+    grasp_poses = grasp_poses[keep]
+    reorient_poses = reorient_poses[keep]
+    angles = angles[keep]
+    solved_pred = solved_pred[keep]
+    length_pred = length_pred[keep]
+
+    indices = np.argsort(length_pred)
 
     t_start = time.time()
 
     results = []
     for index in indices:
-        logger.info(
-            f"solved_pred={solved_pred[index]:.1%}, "
-            f"angle={np.rad2deg(angles[index]):.1f} [deg]"
-        )
         ee_to_obj = grasp_poses[index, :3], grasp_poses[index, 3:]
         ee_to_world = pp.multiply(obj_to_world, ee_to_obj)
         obj_af_to_world = reorient_poses[index, :3], reorient_poses[index, 3:]
@@ -123,7 +133,20 @@ def plan_and_execute_reorient(env, model, timeout, visualize=True):
             lock_renderer.restore()
 
         if "js_place_length" in result:
+            logger.success(
+                f"angle={np.rad2deg(angles[index]):.1f} [deg], "
+                f"solved_pred={solved_pred[index]:.1%}, "
+                f"length_pred={length_pred[index]:.2g}, "
+                f"length_true={result['js_place_length']:.2g}"
+            )
             results.append(result)
+        else:
+            logger.warning(
+                f"angle={np.rad2deg(angles[index]):.1f} [deg], "
+                f"solved_pred={solved_pred[index]:.1%}, "
+                f"length_pred={length_pred[index]:.2g}, "
+                f"length_true={np.nan}"
+            )
 
         if (time.time() - t_start) > timeout:
             break

@@ -89,8 +89,12 @@ class Model(torch.nn.Module):
         self.encoder_object_poses = PoseEncoder(
             out_channels, nhead=4, num_layers=4
         )
-        self.fc_output = torch.nn.Sequential(
+        self.fc_solved = torch.nn.Sequential(
             torch.nn.Linear(out_channels, 5),
+            torch.nn.Sigmoid(),
+        )
+        self.fc_length = torch.nn.Sequential(
+            torch.nn.Linear(out_channels, 1),
             torch.nn.Sigmoid(),
         )
 
@@ -109,14 +113,17 @@ class Model(torch.nn.Module):
             grasp_pose,
             reorient_pose,
         )
-        fc_output = self.fc_output(h)
+        solved = self.fc_solved(h)
+        length = self.fc_length(h)[:, 0]
 
-        return fc_output
+        return solved, length
 
 
 class Dataset(torch.utils.data.Dataset):
 
     ROOT_DIR = home / "data/mercury/reorient"
+
+    LENGTH_MAX = 20
 
     def __init__(self, split, dataset):
         self._split = split
@@ -151,6 +158,9 @@ class Dataset(torch.utils.data.Dataset):
 
         solved = data["solved"]
 
+        length = data["length"] / self.LENGTH_MAX
+        assert np.isnan(length) or (0 <= length <= 1)
+
         return dict(
             object_fg_flags=object_fg_flags,
             object_classes=object_classes,
@@ -158,6 +168,7 @@ class Dataset(torch.utils.data.Dataset):
             grasp_pose=grasp_pose,
             reorient_pose=reorient_pose,
             solved=solved,
+            length=length,
         )
 
 
@@ -180,7 +191,7 @@ def epoch_loop(
             ncols=100,
         )
     ):
-        solved_pred = model(
+        solved_pred, length_pred = model(
             object_fg_flags=batch["object_fg_flags"].float().cuda(),
             object_classes=batch["object_classes"].float().cuda(),
             object_poses=batch["object_poses"].float().cuda(),
@@ -188,14 +199,22 @@ def epoch_loop(
             reorient_pose=batch["reorient_pose"].float().cuda(),
         )
         solved_true = batch["solved"].float().cuda()
+        length_true = batch["length"].float().cuda()
 
         if is_training:
             optimizer.zero_grad()
 
-        loss = torch.nn.functional.binary_cross_entropy(
+        loss_solved = torch.nn.functional.binary_cross_entropy(
             solved_pred, solved_true
         )
+        keep = (solved_true == 1).all(dim=1)
+        loss_length = torch.nn.functional.l1_loss(
+            length_pred[keep], length_true[keep]
+        )
+        loss = loss_solved + loss_length
 
+        losses["loss_solved"].append(loss_solved.item())
+        losses["loss_length"].append(loss_length.item())
         losses["loss"].append(loss.item())
 
         if is_training:
