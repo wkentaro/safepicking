@@ -47,7 +47,7 @@ def main():
 
     pprint.pprint(hparams)
 
-    env = PickFromPileEnv(gui=not args.nogui, mp4=args.mp4, speed=0.001)
+    env = PickFromPileEnv(gui=not args.nogui, mp4=args.mp4, speed=0.005)
     env.eval = True
     obs = env.reset(
         random_state=np.random.RandomState(args.seed),
@@ -85,8 +85,10 @@ def main():
         logger.info(
             f"[{object_id:2d}] {class_name:20s}: "
             f"translation={translations[object_id]:.2f}, "
+            f"max_velocity={max_velocities[object_id]:.2f}, "
         )
     logger.info(f"sum_of_translations: {sum(translations.values()):.2f}")
+    logger.info(f"sum_of_max_velocities: {sum(max_velocities.values()):.2f}")
 
     if args.nogui:
         data = dict(

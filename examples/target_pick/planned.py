@@ -70,8 +70,7 @@ def main():
         steps = ri.move_to_homej(
             bg_object_ids=[plane],
             object_ids=object_ids,
-            speed=0.001,
-            timeout=30,
+            speed=0.005,
         )
 
     poses = {}
