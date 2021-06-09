@@ -34,13 +34,17 @@ def main():
     parser.add_argument("--seed", type=int, default=0, help="random seed")
     parser.add_argument("--nogui", action="store_true", help="no gui")
     parser.add_argument("--mp4", help="mp4")
+    parser.add_argument("--pose-noise", action="store_true", help="pose noise")
     args = parser.parse_args()
 
     log_dir = here / f"logs/{args.planner}"
 
     if args.nogui:
         scene_id = args.pile_file.stem
-        json_file = log_dir / f"eval/{scene_id}/{args.seed}.json"
+        json_file = (
+            log_dir
+            / f"eval-noise_{args.pose_noise}/{scene_id}/{args.seed}.json"
+        )
         if json_file.exists():
             logger.info(f"Result file already exists: {json_file}")
             return
@@ -48,6 +52,7 @@ def main():
     env = PickFromPileEnv(
         gui=not args.nogui,
         mp4=args.mp4,
+        pose_noise=args.pose_noise,
     )
     env.eval = True
     obs = env.reset(

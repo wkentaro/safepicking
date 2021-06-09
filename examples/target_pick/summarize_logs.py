@@ -24,6 +24,8 @@ def summarize(eval_dir, valid_ids):
         ]
     ]
 
+    assert (df["sum_of_translations"] == 0).sum() == 0
+
     print(f"Eval dir: {eval_dir}")
     print(f"Support: {len(df)}")
 

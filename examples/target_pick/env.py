@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import collections
+import copy
 import itertools
 import time
 
@@ -43,6 +44,7 @@ class PickFromPileEnv(Env):
         use_reward_max_velocity=False,
         speed=0.01,
         episode_length=5,
+        pose_noise=False,
     ):
         super().__init__()
 
@@ -52,6 +54,7 @@ class PickFromPileEnv(Env):
         self._use_reward_max_velocity = use_reward_max_velocity
         self._speed = speed
         self._episode_length = episode_length
+        self._pose_noise = pose_noise
 
         self.plane = None
         self.ri = None
@@ -318,7 +321,16 @@ class PickFromPileEnv(Env):
             else:
                 return self.reset()
 
-        obj_to_world = pp.get_pose(target_object_id)
+        self.object_state = self.get_object_state(
+            object_ids=object_ids,
+            target_object_id=target_object_id,
+            pose_noise=self._pose_noise,
+            random_state=random_state,
+        )
+
+        grasp_flags, _, object_poses = self.object_state
+        obj_to_world = object_poses[grasp_flags == 1][0]
+        obj_to_world = obj_to_world[:3], obj_to_world[3:]
         ee_to_world = self.ri.get_pose("tipLink")
         obj_to_ee = pp.multiply(pp.invert(ee_to_world), obj_to_world)
 
@@ -327,6 +339,11 @@ class PickFromPileEnv(Env):
                 self.ri.robot, self.ri.ee, obj_to_ee, target_object_id
             )
         ]
+
+        with pp.LockRenderer(), pp.WorldSaver():
+            self.ri.setj(j)
+            self.ri.attachments[0].assign()
+            self._z_min_init = pp.get_aabb(self.ri.attachments[0].child)[0][2]
 
         # ---------------------------------------------------------------------
 
@@ -338,9 +355,6 @@ class PickFromPileEnv(Env):
         self.ee_pose_init = np.hstack(self.ri.get_pose("tipLink")).astype(
             np.float32
         )
-        self.object_state = self.get_object_state(
-            self.object_ids, self.target_object_id
-        )
         self.past_grasped_object_poses = np.zeros(
             (self.episode_length - 1, 7), dtype=np.float32
         )
@@ -351,7 +365,11 @@ class PickFromPileEnv(Env):
 
         return self.get_obs()
 
-    def get_object_state(self, object_ids, target_object_id):
+    def get_object_state(
+        self, object_ids, target_object_id, pose_noise=False, random_state=None
+    ):
+        if pose_noise:
+            random_state = copy.deepcopy(random_state)
         grasp_flags = np.zeros((len(object_ids),), dtype=np.uint8)
         object_labels = np.zeros(
             (len(object_ids), len(self.CLASS_IDS)), dtype=np.uint8
@@ -363,6 +381,11 @@ class PickFromPileEnv(Env):
             class_id = common_utils.get_class_id(object_id)
             object_label = self.CLASS_IDS.index(class_id)
             object_labels[i] = np.eye(len(self.CLASS_IDS))[object_label]
+            if pose_noise:
+                object_to_world = (
+                    object_to_world[0] + random_state.normal(0, 0.03, 3),
+                    object_to_world[1] + random_state.normal(0, 0.1, 4),
+                )
             object_poses[i] = np.hstack(object_to_world)
         return grasp_flags, object_labels, object_poses
 
@@ -423,7 +446,11 @@ class PickFromPileEnv(Env):
             if j is None:
                 return
 
-            if not self.ri.validatej(j, obstacles=[self.plane]):
+            with pp.LockRenderer(), pp.WorldSaver():
+                self.ri.setj(j)
+                self.ri.attachments[0].assign()
+                z_min = pp.get_aabb(self.ri.attachments[0].child)[0][2]
+            if z_min < self._z_min_init:
                 return
 
             return j
