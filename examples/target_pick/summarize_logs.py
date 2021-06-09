@@ -42,16 +42,9 @@ def summarize(eval_dir, valid_ids):
             )
         )
 
-    data.append(
-        dict(
-            visibility=-1,
-            sum_of_translations=df.mean()["sum_of_translations"],
-            sum_of_max_velocities=df.mean()["sum_of_max_velocities"],
-        )
-    )
-
     df = pandas.DataFrame(data)
     print(df.dropna())
+    print(df.mean()[["sum_of_translations", "sum_of_max_velocities"]])
 
     print()
 
