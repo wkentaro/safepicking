@@ -186,12 +186,21 @@ class PickAndPlaceEnv(EnvBase):
         self.ri.setj(j)
 
         c = mercury.geometry.Coordinate(*self.ri.get_pose("tipLink"))
-        c.translate([0, 0, 0.1])
-        j = self.ri.solve_ik(c.pose, rotation_axis=True)
-        if j is None:
-            logger.error(f"Failed to solve grasping IK: {act_result.action}")
-            before_return()
-            return False, result
+        obstacles = [self.plane, self.bin] + self.object_ids
+        obstacles.remove(self.fg_object_id)
+        for _ in range(10):
+            c.translate([0, 0, 0.01])
+            j = self.ri.solve_ik(c.pose, rotation_axis=True)
+            if j is None:
+                logger.error(
+                    f"Failed to solve grasping IK: {act_result.action}"
+                )
+                before_return()
+                return False, result
+            if not self.ri.validatej(j, obstacles=obstacles):
+                logger.error(f"grasping j is invalid: {act_result.action}")
+                before_return()
+                return False, result
         result["j_grasp"] = j
 
         self.ri.setj(j)
