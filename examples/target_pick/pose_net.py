@@ -49,11 +49,11 @@ class PoseNet(torch.nn.Module):
             [object_labels, object_poses, grasp_flags[:, :, None]], dim=2
         )
         if self._openloop:
-            past_grasped_object_poses = kwargs["past_grasped_object_poses"]
-            past_grasped_object_poses = past_grasped_object_poses.reshape(
-                B, -1
-            )[:, None, :].repeat(1, O, 1)
-            h_object = torch.cat([h_object, past_grasped_object_poses], dim=2)
+            grasped_object_poses = kwargs["grasped_object_poses"]
+            grasped_object_poses = grasped_object_poses.reshape(B, -1)[
+                :, None, :
+            ].repeat(1, O, 1)
+            h_object = torch.cat([h_object, grasped_object_poses], dim=2)
         h_action = actions
 
         # B, A, O, C

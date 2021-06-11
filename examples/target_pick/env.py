@@ -109,7 +109,7 @@ class PickFromPileEnv(Env):
             shape=(8, 7),
             dtype=np.float32,
         )
-        past_grasped_object_poses = gym.spaces.Box(
+        grasped_object_poses = gym.spaces.Box(
             low=-np.inf,
             high=np.inf,
             shape=(self.episode_length - 1, 7),
@@ -125,7 +125,7 @@ class PickFromPileEnv(Env):
                 grasp_flags_init=grasp_flags_init,
                 object_labels_init=object_labels_init,
                 object_poses_init=object_poses_init,
-                past_grasped_object_poses=past_grasped_object_poses,
+                grasped_object_poses=grasped_object_poses,
             )
         )
 
@@ -355,9 +355,13 @@ class PickFromPileEnv(Env):
         self.ee_pose_init = np.hstack(self.ri.get_pose("tipLink")).astype(
             np.float32
         )
-        self.past_grasped_object_poses = np.zeros(
+        self.grasped_object_poses = np.zeros(
             (self.episode_length - 1, 7), dtype=np.float32
         )
+        self.grasped_object_poses = np.r_[
+            self.grasped_object_poses[1:],
+            np.hstack(obj_to_world).astype(np.float32)[None],
+        ]
 
         self.i = 0
         self.translations = collections.defaultdict(float)
@@ -408,7 +412,7 @@ class PickFromPileEnv(Env):
             grasp_flags_init=grasp_flags_init,
             object_labels_init=object_labels_init,
             object_poses_init=object_poses_init,
-            past_grasped_object_poses=self.past_grasped_object_poses,
+            grasped_object_poses=self.grasped_object_poses,
         )
 
         for key, space in self.observation_space.spaces.items():
@@ -570,12 +574,12 @@ class PickFromPileEnv(Env):
         if terminal:
             info["max_velocity"] = sum(self.max_velocities.values())
 
-        object_to_ee = self.ri.attachments[0].grasp_pose
+        obj_to_ee = self.ri.attachments[0].grasp_pose
         ee_to_world = self.ri.get_pose("tipLink")
-        object_to_world = pp.multiply(ee_to_world, object_to_ee)
-        self.past_grasped_object_poses = np.r_[
-            self.past_grasped_object_poses[1:],
-            np.hstack(object_to_world).astype(np.float32)[None],
+        obj_to_world = pp.multiply(ee_to_world, obj_to_ee)
+        self.grasped_object_poses = np.r_[
+            self.grasped_object_poses[1:],
+            np.hstack(obj_to_world).astype(np.float32)[None],
         ]
 
         return Transition(

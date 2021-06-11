@@ -45,9 +45,7 @@ class DqnModel(torch.nn.Module):
             object_labels = observation["object_labels_init"]
             object_poses = observation["object_poses_init"]
             kwargs = dict(
-                past_grasped_object_poses=observation[
-                    "past_grasped_object_poses"
-                ],
+                grasped_object_poses=observation["grasped_object_poses"],
             )
         else:
             raise ValueError

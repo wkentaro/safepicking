@@ -79,7 +79,7 @@ def main():
                 visual_file = mercury.datasets.ycb.get_visual_file(
                     class_id=class_id
                 )
-                for pose in obs["past_grasped_object_poses"]:
+                for pose in obs["grasped_object_poses"]:
                     if (pose == 0).all():
                         continue
                     mercury.pybullet.create_mesh_body(
