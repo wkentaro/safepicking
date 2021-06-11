@@ -158,14 +158,16 @@ class PickAndPlaceEnv(EnvBase):
         obj_to_world = pp.get_pose(object_id)
 
         j = self.ri.solve_ik(c.pose, rotation_axis="z")
-        if j is not None and not self.ri.validatej(
-            j, obstacles=[self.plane, self.bin] + self.object_ids
-        ):
-            j = None
         if j is None:
             logger.error(
                 f"Failed to solve pre-grasping IK: {act_result.action}"
             )
+            before_return()
+            return False, result
+        if not self.ri.validatej(
+            j, obstacles=[self.plane, self.bin] + self.object_ids
+        ):
+            logger.error(f"j_pre_grasp is invalid: {act_result.action}")
             before_return()
             return False, result
         result["j_pre_grasp"] = j
