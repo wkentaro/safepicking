@@ -123,7 +123,7 @@ class Dataset(torch.utils.data.Dataset):
 
     ROOT_DIR = home / "data/mercury/reorient"
 
-    LENGTH_MAX = 20
+    LENGTH_MAX = 30
 
     def __init__(self, split, dataset):
         self._split = split
