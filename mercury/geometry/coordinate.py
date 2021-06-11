@@ -72,7 +72,7 @@ class Coordinate:
 
     @position.setter
     def position(self, position):
-        self._position = np.asarray(position)
+        self._position = np.array(position)
 
     @property
     def quaternion(self):
@@ -80,7 +80,7 @@ class Coordinate:
 
     @quaternion.setter
     def quaternion(self, quaternion):
-        self._quaternion = np.asarray(quaternion)
+        self._quaternion = np.array(quaternion)
 
     @property
     def matrix(self):
