@@ -19,6 +19,7 @@ from yarr.utils.transition import Transition
 import mercury
 
 import common_utils
+from get_heightmap import get_heightmap
 
 
 home = path.Path("~").expanduser()
@@ -27,7 +28,9 @@ home = path.Path("~").expanduser()
 class PickFromPileEnv(Env):
 
     PILES_DIR = home / "data/mercury/pile_generation"
-    PILE_CENTER = (0.5, 0, 0)
+    PILE_CENTER = np.array([0.5, 0, 0])
+
+    HEIGHTMAP_PIXEL_SIZE = 0.002
 
     CLASS_IDS = [2, 3, 5, 11, 12, 15, 16]
 
@@ -115,6 +118,37 @@ class PickFromPileEnv(Env):
             shape=(self.episode_length - 1, 7),
             dtype=np.float32,
         )
+        # heightmap
+        heightmap = gym.spaces.Box(
+            low=0,
+            high=np.inf,
+            shape=(400, 400),
+            dtype=np.float32,
+        )
+        colormap = gym.spaces.Box(
+            low=0,
+            high=255,
+            shape=(400, 400, 3),
+            dtype=np.uint8,
+        )
+        maskmap = gym.spaces.Box(
+            low=0,
+            high=1,
+            shape=(400, 400),
+            dtype=np.uint8,
+        )
+        grasped_uv = gym.spaces.Box(
+            low=0,
+            high=400,
+            shape=(2,),
+            dtype=np.int32,
+        )
+        ee_poses = gym.spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=(self.episode_length - 1, 7),
+            dtype=np.float32,
+        )
         self.observation_space = gym.spaces.Dict(
             dict(
                 ee_pose=ee_pose,
@@ -126,6 +160,11 @@ class PickFromPileEnv(Env):
                 object_labels_init=object_labels_init,
                 object_poses_init=object_poses_init,
                 grasped_object_poses=grasped_object_poses,
+                heightmap=heightmap,
+                colormap=colormap,
+                maskmap=maskmap,
+                grasped_uv=grasped_uv,
+                ee_poses=ee_poses,
             )
         )
 
@@ -345,6 +384,18 @@ class PickFromPileEnv(Env):
             self.ri.attachments[0].assign()
             self._z_min_init = pp.get_aabb(self.ri.attachments[0].child)[0][2]
 
+        pcd_in_world = mercury.geometry.transform_points(
+            pcd_in_camera,
+            mercury.geometry.transformation_matrix(*camera_to_world),
+        )
+        self.visual_state = self.get_visual_state(
+            rgb=rgb,
+            pcd_in_world=pcd_in_world,
+            segm=segm,
+            target_object_id=target_object_id,
+            ee_to_world=ee_to_world,
+        )
+
         # ---------------------------------------------------------------------
 
         self.object_ids = object_ids
@@ -352,9 +403,14 @@ class PickFromPileEnv(Env):
         self.target_object_class = data["class_id"][target_index]
         self.target_object_visibility = data["visibility"][target_index]
 
-        self.ee_pose_init = np.hstack(self.ri.get_pose("tipLink")).astype(
-            np.float32
+        self.ee_pose_init = np.hstack(ee_to_world).astype(np.float32)
+        self.ee_poses = np.zeros(
+            (self.episode_length - 1, 7), dtype=np.float32
         )
+        self.ee_poses = np.r_[
+            self.ee_poses[1:],
+            np.hstack(ee_to_world).astype(np.float32)[None],
+        ]
         self.grasped_object_poses = np.zeros(
             (self.episode_length - 1, 7), dtype=np.float32
         )
@@ -368,6 +424,35 @@ class PickFromPileEnv(Env):
         self.max_velocities = collections.defaultdict(float)
 
         return self.get_obs()
+
+    def get_visual_state(
+        self,
+        rgb,
+        pcd_in_world,
+        segm,
+        target_object_id,
+        ee_to_world,
+    ):
+        position = np.array(pp.get_pose(target_object_id)[0])
+        aabb = np.array(
+            [position + [-0.4, -0.4, -0.4], position + [0.4, 0.4, 0.4]]
+        )
+        heightmap, colormap, segmmap = get_heightmap(
+            points=pcd_in_world,
+            colors=rgb,
+            ids=segm,
+            aabb=aabb,
+            pixel_size=self.HEIGHTMAP_PIXEL_SIZE,
+        )
+        maskmap = (segmmap == target_object_id).astype(np.uint8)
+        u = np.floor(
+            (ee_to_world[0][0] - aabb[0, 0]) / self.HEIGHTMAP_PIXEL_SIZE
+        )
+        v = np.floor(
+            (ee_to_world[0][1] - aabb[0, 1]) / self.HEIGHTMAP_PIXEL_SIZE
+        )
+        grasped_uv = np.array([u, v], dtype=np.int32)
+        return heightmap, colormap, maskmap, grasped_uv
 
     def get_object_state(
         self, object_ids, target_object_id, pose_noise=False, random_state=None
@@ -403,6 +488,7 @@ class PickFromPileEnv(Env):
             object_labels_init,
             object_poses_init,
         ) = self.object_state
+        heightmap, colormap, maskmap, grasped_uv = self.visual_state
         obs = dict(
             ee_pose=ee_pose,
             grasp_flags=grasp_flags,
@@ -413,6 +499,11 @@ class PickFromPileEnv(Env):
             object_labels_init=object_labels_init,
             object_poses_init=object_poses_init,
             grasped_object_poses=self.grasped_object_poses,
+            heightmap=heightmap,
+            colormap=colormap,
+            maskmap=maskmap,
+            grasped_uv=grasped_uv,
+            ee_poses=self.ee_poses,
         )
 
         for key, space in self.observation_space.spaces.items():
@@ -580,6 +671,10 @@ class PickFromPileEnv(Env):
         self.grasped_object_poses = np.r_[
             self.grasped_object_poses[1:],
             np.hstack(obj_to_world).astype(np.float32)[None],
+        ]
+        self.ee_poses = np.r_[
+            self.ee_poses[1:],
+            np.hstack(ee_to_world).astype(np.float32)[None],
         ]
 
         return Transition(

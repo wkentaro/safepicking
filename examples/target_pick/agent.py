@@ -8,6 +8,7 @@ from yarr.agents.agent import ActResult
 from yarr.agents.agent import Agent
 from yarr.agents.agent import ScalarSummary
 
+from conv_net import ConvNet
 from pose_net import PoseNet
 
 
@@ -27,35 +28,43 @@ class DqnModel(torch.nn.Module):
                 episode_length=env.episode_length,
                 openloop=True,
             )
+        elif self._model == "conv_net":
+            self.module = ConvNet(episode_length=env.episode_length)
         else:
             raise ValueError
 
         self._actions = torch.as_tensor(env.actions, dtype=torch.float)
 
     def forward(self, observation):
+        device = observation["ee_pose"].device
+
         if self._model == "closedloop_pose_net":
-            ee_pose = observation["ee_pose"]
-            grasp_flags = observation["grasp_flags"]
-            object_labels = observation["object_labels"]
-            object_poses = observation["object_poses"]
-            kwargs = dict()
-        elif self._model == "openloop_pose_net":
-            ee_pose = observation["ee_pose_init"]
-            grasp_flags = observation["grasp_flags_init"]
-            object_labels = observation["object_labels_init"]
-            object_poses = observation["object_poses_init"]
             kwargs = dict(
+                ee_pose=observation["ee_pose"],
+                grasp_flags=observation["grasp_flags"],
+                object_labels=observation["object_labels"],
+                object_poses=observation["object_poses"],
+            )
+        elif self._model == "openloop_pose_net":
+            kwargs = dict(
+                ee_pose=observation["ee_pose_init"],
+                grasp_flags=observation["grasp_flags_init"],
+                object_labels=observation["object_labels_init"],
+                object_poses=observation["object_poses_init"],
                 grasped_object_poses=observation["grasped_object_poses"],
+            )
+        elif self._model == "conv_net":
+            kwargs = dict(
+                heightmap=observation["heightmap"],
+                maskmap=observation["maskmap"],
+                grasped_uv=observation["grasped_uv"],
+                ee_poses=observation["ee_poses"],
             )
         else:
             raise ValueError
 
         return self.module(
-            ee_pose=ee_pose,
-            grasp_flags=grasp_flags,
-            object_labels=object_labels,
-            object_poses=object_poses,
-            actions=self._actions.to(grasp_flags.device),
+            actions=self._actions.to(device),
             **kwargs,
         )
 

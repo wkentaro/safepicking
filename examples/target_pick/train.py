@@ -38,9 +38,9 @@ def main():
     parser.add_argument("--name", required=True, help="name")
     parser.add_argument(
         "--model",
-        default="closedloop_pose_net",
-        choices=["closedloop_pose_net", "openloop_pose_net"],
+        choices=["closedloop_pose_net", "openloop_pose_net", "conv_net"],
         help="model",
+        required=True,
     )
     parser.add_argument(
         "--train-envs", type=int, default=5, help="number of train envs"
@@ -62,7 +62,7 @@ def main():
     parser.add_argument(
         "--use-reward-max-velocity",
         type=int,
-        default=1,
+        default=0,
         choices=[0, 1],
         help="use reward max velocity",
     )
