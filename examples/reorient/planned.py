@@ -284,10 +284,9 @@ def plan_reorient(env, c_grasp, c_reorient):
     result["js_place"] = js
 
     result["js_place_length"] = 0
-    j_prev = None
+    j_prev = result["j_grasp"]
     for j in result["js_place"]:
-        if j_prev is not None:
-            result["js_place_length"] += np.linalg.norm(j_prev - j)
+        result["js_place_length"] += np.linalg.norm(j_prev - j)
         j_prev = j
 
     before_return()

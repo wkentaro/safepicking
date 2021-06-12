@@ -123,7 +123,7 @@ class Dataset(torch.utils.data.Dataset):
 
     ROOT_DIR = home / "data/mercury/reorient"
 
-    LENGTH_MAX = 30
+    LENGTH_MAX = 20
 
     def __init__(self, split, dataset):
         self._split = split
@@ -159,7 +159,8 @@ class Dataset(torch.utils.data.Dataset):
         solved = data["solved"]
 
         length = data["length"] / self.LENGTH_MAX
-        assert np.isnan(length) or (0 <= length <= 1)
+        assert np.isnan(length) or (length > 0)
+        length = np.clip(length, 0, 1)
 
         return dict(
             object_fg_flags=object_fg_flags,
