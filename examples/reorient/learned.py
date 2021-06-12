@@ -189,9 +189,12 @@ def main():
     model.eval()
     model.cuda()
 
-    while True:
+    for i in itertools.count():
         if plan_and_execute_place(env):
             return
+
+        if i == 2:
+            break
 
         if not plan_and_execute_reorient(
             env,

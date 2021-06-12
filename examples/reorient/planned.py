@@ -516,8 +516,11 @@ def main():
         env.object_ids = [env.fg_object_id]
         env.update_obs()
 
-    while True:
+    for i in itertools.count():
         if plan_and_execute_place(env):
+            break
+
+        if i == 2:
             break
 
         env.setj_to_camera_pose()
