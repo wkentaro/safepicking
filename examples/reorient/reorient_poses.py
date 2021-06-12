@@ -27,8 +27,12 @@ def get_reorient_poses2(env):
     world_saver = pp.WorldSaver()
     lock_renderer = pp.LockRenderer()
 
+    aabb = pp.get_aabb(env.fg_object_id)
+    aabb_extents = aabb[1] - aabb[0]
+    max_extent = np.max(aabb_extents)
+
     # XY validation
-    sphere = pp.create_sphere(radius=0.075)
+    box = pp.create_box(max_extent, max_extent, max_extent)
     XY = []
     for size in [0.2, 0.3, 0.4]:
         for dx, dy in itertools.product(
@@ -38,26 +42,19 @@ def get_reorient_poses2(env):
             c = mercury.geometry.Coordinate(
                 position=(pose_init[0][0] + dx, pose_init[0][1] + dy, 0.1)
             )
-            pp.set_pose(sphere, c.pose)
+            pp.set_pose(box, c.pose)
 
-            if not mercury.pybullet.is_colliding(sphere, env.object_ids):
+            obstacles = [env.ri.robot] + env.object_ids
+            obstacles.remove(env.fg_object_id)
+            if not mercury.pybullet.is_colliding(box, obstacles):
                 XY.append(c.position[:2])
-            if len(XY) >= 10:
-                break
-        if len(XY) >= 10:
-            break
-    pp.remove_body(sphere)
+    XY = np.array(XY)
+    pp.remove_body(box)
 
-    Z = np.linspace(0.05, 0.15, num=5)
-    XYZ = []
-    for (x, y), z in itertools.product(XY, Z):
-        XYZ.append((x, y, z))
-    XYZ = np.array(XYZ)
-    XYZ = XYZ[np.random.permutation(len(XYZ))][:10]
-    for x, y, z in XYZ:
-        pp.draw_point([x, y, z])
+    indices = np.argsort(np.linalg.norm(XY - pose_init[0][:2], axis=1))[:10]
+    XY = XY[indices]
 
-    # XYZ, ABG validation
+    # XY, ABG validation
     ABG = itertools.product(
         np.linspace(-np.pi, np.pi, num=9, endpoint=False),
         np.linspace(-np.pi, np.pi, num=9, endpoint=False),
@@ -65,10 +62,21 @@ def get_reorient_poses2(env):
     )
     poses = []
     angles = []
-    for (x, y, z), (a, b, g) in itertools.product(XYZ, ABG):
-        c = mercury.geometry.Coordinate(position=(x, y, z))
+    for (x, y), (a, b, g) in itertools.product(XY, ABG):
+        c = mercury.geometry.Coordinate(position=(x, y, 0))
         c.quaternion = mercury.geometry.quaternion_from_euler((a, b, g))
+        pp.set_pose(env.fg_object_id, c.pose)
 
+        c.position[2] = -pp.get_aabb(env.fg_object_id)[0][2]
+        pp.set_pose(env.fg_object_id, c.pose)
+
+        points = pp.body_collision_info(
+            env.fg_object_id, env.plane, max_distance=0.2
+        )
+        distance_to_plane = min(point[8] for point in points)
+        assert distance_to_plane > 0
+        c.position[2] -= distance_to_plane
+        c.position[2] += 0.02
         pp.set_pose(env.fg_object_id, c.pose)
 
         if mercury.pybullet.is_colliding(env.fg_object_id):
@@ -109,17 +117,20 @@ def main():
     parser.add_argument("--simulate", action="store_true", help="simulate")
     parser.add_argument(
         "--min-angle",
-        type=lambda x: np.deg2rad(float(x)),
+        type=float,
         default=0,
         help="threshold [deg]",
     )
     parser.add_argument(
         "--max-angle",
-        type=lambda x: np.deg2rad(float(x)),
-        default=np.deg2rad(10),
+        type=float,
+        default=10,
         help="threshold [deg]",
     )
     args = parser.parse_args()
+
+    args.min_angle = np.deg2rad(args.min_angle)
+    args.max_angle = np.deg2rad(args.max_angle)
 
     env = PickAndPlaceEnv(class_ids=args.class_ids, mp4=args.mp4)
     env.random_state = np.random.RandomState(args.seed)
