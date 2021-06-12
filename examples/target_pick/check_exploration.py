@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 import argparse
-import pprint
 
+import imgviz
 import numpy as np
 import pybullet_planning as pp
 
@@ -24,14 +24,22 @@ def main():
         help="model",
     )
     parser.add_argument("--nogui", action="store_true", help="no gui")
-    parser.add_argument("--print-obs", action="store_true", help="print obs")
     parser.add_argument("--draw-obs", action="store_true", help="draw obs")
     args = parser.parse_args()
 
     env = PickFromPileEnv(gui=not args.nogui)
     obs = env.reset()
-    if args.print_obs:
-        pprint.pprint(obs)
+
+    if args.draw_obs:
+        viz = imgviz.tile(
+            [
+                obs["colormap"],
+                imgviz.depth2rgb(obs["heightmap"]),
+            ],
+            shape=(1, 2),
+        )
+        imgviz.io.pyglet_imshow(viz)
+        imgviz.io.pyglet_run()
 
     if args.model is None:
         agent = None

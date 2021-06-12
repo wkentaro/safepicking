@@ -31,6 +31,8 @@ class PickFromPileEnv(Env):
     PILE_CENTER = np.array([0.5, 0, 0])
 
     HEIGHTMAP_PIXEL_SIZE = 0.002
+    HEIGHTMAP_IMAGE_SIZE = 240
+    HEIGHTMAP_SIZE = HEIGHTMAP_PIXEL_SIZE * HEIGHTMAP_IMAGE_SIZE
 
     CLASS_IDS = [2, 3, 5, 11, 12, 15, 16]
 
@@ -122,24 +124,24 @@ class PickFromPileEnv(Env):
         heightmap = gym.spaces.Box(
             low=0,
             high=np.inf,
-            shape=(400, 400),
+            shape=(self.HEIGHTMAP_IMAGE_SIZE, self.HEIGHTMAP_IMAGE_SIZE),
             dtype=np.float32,
         )
         colormap = gym.spaces.Box(
             low=0,
             high=255,
-            shape=(400, 400, 3),
+            shape=(self.HEIGHTMAP_IMAGE_SIZE, self.HEIGHTMAP_IMAGE_SIZE, 3),
             dtype=np.uint8,
         )
         maskmap = gym.spaces.Box(
             low=0,
             high=1,
-            shape=(400, 400),
+            shape=(self.HEIGHTMAP_IMAGE_SIZE, self.HEIGHTMAP_IMAGE_SIZE),
             dtype=np.uint8,
         )
         grasped_uv = gym.spaces.Box(
             low=0,
-            high=400,
+            high=300,
             shape=(2,),
             dtype=np.int32,
         )
@@ -435,7 +437,10 @@ class PickFromPileEnv(Env):
     ):
         position = np.array(pp.get_pose(target_object_id)[0])
         aabb = np.array(
-            [position + [-0.4, -0.4, -0.4], position + [0.4, 0.4, 0.4]]
+            [
+                position - self.HEIGHTMAP_SIZE / 2,
+                position + self.HEIGHTMAP_SIZE / 2,
+            ]
         )
         heightmap, colormap, segmmap = get_heightmap(
             points=pcd_in_world,
