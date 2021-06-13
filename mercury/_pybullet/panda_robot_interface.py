@@ -8,7 +8,8 @@ import pybullet as p
 import pybullet_planning
 
 from .. import geometry
-from . import utils
+from .. import utils
+from . import utils as pybullet_utils
 from .ompl_planning import PbPlanner
 from .suction_gripper import SuctionGripper
 
@@ -374,7 +375,7 @@ class PandaRobotInterface:
         pybullet_planning.draw_pose(
             pose, parent=self.robot, parent_link=parent
         )
-        utils.draw_camera(
+        pybullet_utils.draw_camera(
             fovy=fovy,
             height=height,
             width=width,
@@ -390,7 +391,7 @@ class PandaRobotInterface:
             raise ValueError
 
         self.update_robot_model()
-        return utils.get_camera_image(
+        return pybullet_utils.get_camera_image(
             T_cam2world=self.robot_model.camera_link.worldcoords().T(),
             fovy=self.camera["fovy"],
             height=self.camera["height"],
@@ -464,7 +465,7 @@ class PandaRobotInterface:
             )
 
             T_ee_to_world = geometry.transformation_matrix(
-                *utils.get_pose(self.robot, self.ee)
+                *pybullet_utils.get_pose(self.robot, self.ee)
             )
             T_ee_to_ee = np.eye(4)
             T_ee_af_to_ee = T_ee_to_ee_af_in_ee @ T_ee_to_ee
@@ -548,7 +549,7 @@ class PandaRobotInterface:
                 )
             ]
 
-            # self.virtual_grasped_object = utils.duplicate(
+            # self.virtual_grasped_object = pybullet_utils.duplicate(
             #     object_id,
             #     mass=1e-12,
             #     position=obj_to_world[0],
@@ -579,20 +580,13 @@ class PandaRobotInterface:
         if self.attachments and self.attachments[0].child in obstacles:
             obstacles.remove(self.attachments[0].child)
 
-        class StaticDict:
-            def __init__(self, value):
-                self._value = value
-
-            def get(self, key, default=None):
-                return self._value
-
         js = None
         min_distance = 0
         while True:
             js = self.planj(
                 self.homej,
                 obstacles=obstacles,
-                min_distances=StaticDict(value=min_distance),
+                min_distances=utils.StaticDict(value=min_distance),
             )
             if js is not None:
                 break

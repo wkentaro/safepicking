@@ -271,8 +271,22 @@ def plan_reorient(env, c_grasp, c_reorient):
 
     env.ri.setj(result["j_grasp"])
 
-    # solve js_place
+    # solve j_post_grasp
     env.ri.attachments = attachments
+
+    c = mercury.geometry.Coordinate(*env.ri.get_pose("tipLink"))
+    c.translate([0, 0, -0.1])
+    j = env.ri.solve_ik(c.pose, rotation_axis=True)
+    if j is None:
+        logger.warning("j_post_grasp is not found")
+        before_return()
+        return result
+    result["j_post_grasp"] = j
+
+    env.ri.setj(j)
+    env.ri.attachments[0].assign()
+
+    # solve js_place
     obstacles = [env.plane, env.bin] + env.object_ids
     obstacles.remove(env.ri.attachments[0].child)
     js = env.ri.planj(
@@ -314,6 +328,11 @@ def execute_plan(env, result):
         pp.step_simulation()
         time.sleep(pp.get_time_step())
 
+    j = result["j_post_grasp"]
+    for _ in env.ri.movej(j, speed=0.005):
+        pp.step_simulation()
+        time.sleep(pp.get_time_step())
+
     js = result["js_place"]
     for _ in (_ for j in js for _ in env.ri.movej(j, speed=0.005)):
         pp.step_simulation()
@@ -325,9 +344,20 @@ def execute_plan(env, result):
 
     env.ri.ungrasp()
 
-    for _ in range(int(1 / pp.get_time_step())):
-        pp.step_simulation()
-        time.sleep(pp.get_time_step())
+    c = mercury.geometry.Coordinate(*env.ri.get_pose("tipLink"))
+    c.translate([0, 0, -0.1])
+    c.translate([0, 0, 0.2], wrt="world")
+    j = env.ri.solve_ik(c.pose, rotation_axis=False)
+    if j is not None:
+        js = env.ri.planj(
+            j,
+            obstacles=[env.plane, env.bin] + env.object_ids,
+            min_distances_start_goal=mercury.utils.StaticDict(-0.02),
+        )
+        if js is not None:
+            for _ in (_ for j in js for _ in env.ri.movej(j, speed=0.005)):
+                pp.step_simulation()
+                time.sleep(pp.get_time_step())
 
     for _ in env.ri.move_to_homej(
         bg_object_ids=[env.plane, env.bin],
