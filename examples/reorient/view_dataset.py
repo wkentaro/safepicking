@@ -62,17 +62,6 @@ def view_pkl_file(pkl_file):
                     texture=True,
                     collision=False,
                     rgba_color=(0, 1, 0, 0.5),
-                    position=PickAndPlaceEnv.PLACE_POSE[0],
-                    quaternion=PickAndPlaceEnv.PLACE_POSE[1],
-                )
-            )
-
-            object_ids.append(
-                mercury.pybullet.duplicate(
-                    object_id,
-                    texture=True,
-                    collision=False,
-                    rgba_color=(0, 1, 0, 0.5),
                     position=data["reorient_pose"][:3],
                     quaternion=data["reorient_pose"][3:],
                 )
