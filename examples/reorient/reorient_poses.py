@@ -53,6 +53,8 @@ def get_reorient_poses2(env):
 
     indices = np.argsort(np.linalg.norm(XY - pose_init[0][:2], axis=1))[:10]
     XY = XY[indices]
+    for x, y in XY:
+        pp.draw_point((x, y, 0.1))
 
     # XY, ABG validation
     ABG = itertools.product(
