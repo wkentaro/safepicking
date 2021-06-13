@@ -77,11 +77,15 @@ def main():
 
             length = result.get("js_place_length", np.nan)
 
-            ee_to_world = result["c_grasp"].pose
-            obj_to_world = result["c_init"].pose
+            ee_to_world = result["grasp_pose"][:3], result["grasp_pose"][3:]
+            obj_to_world = object_poses[object_fg_flags][0]
+            obj_to_world = obj_to_world[:3], obj_to_world[3:]
             ee_to_obj = pp.multiply(pp.invert(obj_to_world), ee_to_world)
 
-            obj_af_to_world = result["c_reorient"].pose
+            obj_af_to_world = (
+                result["reorient_pose"][:3],
+                result["reorient_pose"][3:],
+            )
 
             data = dict(
                 object_fg_flags=object_fg_flags,

@@ -173,6 +173,9 @@ def plan_reorient(env, c_grasp, c_reorient):
 
     result = {}
 
+    result["grasp_pose"] = np.hstack(c_grasp.pose)
+    result["reorient_pose"] = np.hstack(c_reorient.pose)
+
     def before_return():
         env.ri.attachments = []
         world_saver.restore()
@@ -378,12 +381,6 @@ def rollout_plan_reorient(
 
             pp.remove_body(obj_af)
             pp.remove_debug(debug)
-
-            result["c_init"] = mercury.geometry.Coordinate(
-                *pp.get_pose(env.fg_object_id)
-            )
-            result["c_grasp"] = c_grasp
-            result["c_reorient"] = c_reorient
 
             if return_failed or success:
                 yield result
