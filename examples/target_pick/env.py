@@ -127,12 +127,6 @@ class PickFromPileEnv(Env):
             shape=(self.HEIGHTMAP_IMAGE_SIZE, self.HEIGHTMAP_IMAGE_SIZE),
             dtype=np.float32,
         )
-        colormap = gym.spaces.Box(
-            low=0,
-            high=255,
-            shape=(self.HEIGHTMAP_IMAGE_SIZE, self.HEIGHTMAP_IMAGE_SIZE, 3),
-            dtype=np.uint8,
-        )
         maskmap = gym.spaces.Box(
             low=0,
             high=1,
@@ -163,7 +157,6 @@ class PickFromPileEnv(Env):
                 object_poses_init=object_poses_init,
                 grasped_object_poses=grasped_object_poses,
                 heightmap=heightmap,
-                colormap=colormap,
                 maskmap=maskmap,
                 grasped_uv=grasped_uv,
                 ee_poses=ee_poses,
@@ -505,7 +498,6 @@ class PickFromPileEnv(Env):
             object_poses_init=object_poses_init,
             grasped_object_poses=self.grasped_object_poses,
             heightmap=heightmap,
-            colormap=colormap,
             maskmap=maskmap,
             grasped_uv=grasped_uv,
             ee_poses=self.ee_poses,
