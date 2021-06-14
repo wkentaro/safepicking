@@ -51,6 +51,17 @@ def get_reorient_poses2(env):
     XY = np.array(XY)
     pp.remove_body(box)
 
+    bounds = ([0.2, -0.4, 0], [0.8, 0.4, 0.5])
+    pp.draw_aabb(bounds)
+
+    keep = (
+        (bounds[0][0] <= XY[:, 0])
+        & (XY[:, 0] < bounds[1][0])
+        & (bounds[0][1] <= XY[:, 1])
+        & (XY[:, 1] < bounds[1][1])
+    )
+    XY = XY[keep]
+
     indices = np.argsort(np.linalg.norm(XY - pose_init[0][:2], axis=1))[:10]
     XY = XY[indices]
     for x, y in XY:
