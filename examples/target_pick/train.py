@@ -144,7 +144,7 @@ def main():
         model=hparams["model"],
     )
 
-    stat_accumulator = SimpleAccumulator()
+    stat_accumulator = SimpleAccumulator(maxlen=100)
 
     env_runner = EnvRunner(
         env=env,

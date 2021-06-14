@@ -1,24 +1,66 @@
 from multiprocessing import Lock
+import numpy as np
+import queue
 from typing import List
 
 from yarr.agents.agent import ScalarSummary
 from yarr.agents.agent import Summary
-from yarr.utils.stat_accumulator import Metric
 from yarr.utils.stat_accumulator import StatAccumulator
 from yarr.utils.transition import ReplayTransition
 
 
+class Metric:
+    def __init__(self, maxlen=None):
+        if maxlen is None:
+            self._previous = []
+        else:
+            self._previous = queue.deque(maxlen=maxlen)
+        self._current = 0
+
+    def update(self, value):
+        self._current += value
+
+    def next(self):
+        self._previous.append(self._current)
+        self._current = 0
+
+    def reset(self):
+        if isinstance(self._previous, list):
+            self._previous.clear()
+
+    def min(self):
+        return np.min(self._previous)
+
+    def max(self):
+        return np.max(self._previous)
+
+    def mean(self):
+        return np.mean(self._previous)
+
+    def median(self):
+        return np.median(self._previous)
+
+    def std(self):
+        return np.std(self._previous)
+
+    def __len__(self):
+        return len(self._previous)
+
+    def __getitem__(self, i):
+        return self._previous[i]
+
+
 class _SimpleAccumulator(StatAccumulator):
-    def __init__(self, prefix):
+    def __init__(self, prefix, maxlen=None):
         self._prefix = prefix
         self._lock = Lock()
         self._transitions = 0
 
         self._metrics = {
-            "return": Metric(),
-            "length": Metric(),
-            "translation": Metric(),
-            "max_velocity": Metric(),
+            "return": Metric(maxlen=maxlen),
+            "length": Metric(maxlen=maxlen),
+            "translation": Metric(maxlen=maxlen),
+            "max_velocity": Metric(maxlen=maxlen),
         }
 
     def _reset_data(self):
@@ -86,9 +128,13 @@ class _SimpleAccumulator(StatAccumulator):
 
 
 class SimpleAccumulator(StatAccumulator):
-    def __init__(self):
-        self._accumulator_train = _SimpleAccumulator("train_envs")
-        self._accumulator_eval = _SimpleAccumulator("eval_envs")
+    def __init__(self, maxlen=None):
+        self._accumulator_train = _SimpleAccumulator(
+            prefix="train_envs", maxlen=maxlen
+        )
+        self._accumulator_eval = _SimpleAccumulator(
+            prefix="eval_envs", maxlen=maxlen
+        )
 
     def step(self, transition: ReplayTransition, eval: bool):
         if not eval:
