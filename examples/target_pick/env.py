@@ -190,7 +190,7 @@ class PickFromPileEnv(Env):
         pass
 
     def reset(self, random_state=None, pile_file=None):
-        raise_on_failure = pile_file is not None
+        raise_on_failure = random_state is not None or pile_file is not None
 
         if random_state is None:
             random_state = np.random.RandomState()
@@ -316,7 +316,7 @@ class PickFromPileEnv(Env):
 
         yx = np.argwhere(segm == target_object_id)
 
-        for y, x in yx[np.random.permutation(len(yx))]:
+        for y, x in yx[random_state.permutation(len(yx))]:
             position = pcd_in_ee[y, x]
             quaternion = mercury.geometry.quaternion_from_vec2vec(
                 [0, 0, 1], normals[y, x]
@@ -363,8 +363,7 @@ class PickFromPileEnv(Env):
         )
 
         grasp_flags, _, object_poses = self.object_state
-        obj_to_world = object_poses[grasp_flags == 1][0]
-        obj_to_world = obj_to_world[:3], obj_to_world[3:]
+        obj_to_world = pp.get_pose(target_object_id)
         ee_to_world = self.ri.get_pose("tipLink")
         obj_to_ee = pp.multiply(pp.invert(ee_to_world), obj_to_world)
 
