@@ -147,13 +147,22 @@ def git_hash(cwd=None, log_dir=None):
 
 
 def get_canonical_quaternion(class_id):
-    if class_id == 15:
-        quaternion = mercury.geometry.quaternion_from_euler(
-            [np.deg2rad(90), 0, 0]
-        )
+    c = mercury.geometry.Coordinate()
+    if class_id == 2:
+        c.rotate([0, 0, np.deg2rad(0)])
+    elif class_id == 3:
+        c.rotate([0, 0, np.deg2rad(5)])
+    elif class_id == 5:
+        c.rotate([0, 0, np.deg2rad(-65)])
+    elif class_id == 11:
+        c.rotate([0, 0, np.deg2rad(47)])
+    elif class_id == 12:
+        c.rotate([0, 0, np.deg2rad(90)])
+    elif class_id == 15:
+        c.rotate([0, np.deg2rad(90), np.deg2rad(90)])
     else:
-        quaternion = [0, 0, 0, 1]
-    return quaternion
+        pass
+    return c.quaternion
 
 
 def pause(enabled):
