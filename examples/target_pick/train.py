@@ -156,7 +156,7 @@ def main():
         episode_length=env.episode_length,
         stat_accumulator=stat_accumulator,
         weightsdir=log_dir / "weights",
-        max_fails=10,
+        max_fails=0,
         rollout_generator=RolloutGenerator(),
     )
 
@@ -171,8 +171,8 @@ def main():
         log_freq=10,
         transitions_before_train=1000,
         weightsdir=log_dir / "weights",
-        save_freq=10,
-        max_replay_ratio=16,
+        save_freq=100,
+        replay_ratio=16,
     )
 
     train_runner.start()

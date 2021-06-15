@@ -15,7 +15,7 @@ if [ ! -d _YARR ]; then
 fi
 cd _YARR
 
-git checkout cc4e17a
+git checkout cb0244b
 
 pip_install -r requirements.txt
 pip_install natsort
