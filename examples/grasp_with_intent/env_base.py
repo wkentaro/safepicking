@@ -38,9 +38,7 @@ class EnvBase(Env):
 
     @property
     def PLACE_POSE(self):
-        return self.BIN_POSE[0], common_utils.get_canonical_quaternion(
-            common_utils.get_class_id(self.fg_object_id)
-        )
+        return self._place_pose
 
     @property
     def PRE_PLACE_POSE(self):
@@ -179,6 +177,18 @@ class EnvBase(Env):
             color=(1, 0, 0),
             width=2,
         )
+
+        c = mercury.geometry.Coordinate(
+            self.BIN_POSE[0],
+            common_utils.get_canonical_quaternion(
+                common_utils.get_class_id(self.fg_object_id)
+            ),
+        )
+        c.rotate(
+            [0, 0, np.deg2rad(-90)],
+            wrt="world",
+        )
+        self._place_pose = c.pose
 
         mercury.pybullet.duplicate(
             self.fg_object_id,
