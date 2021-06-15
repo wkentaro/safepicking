@@ -329,7 +329,9 @@ class PickAndPlaceEnv(EnvBase):
         object_id = validation_result["object_id"]
         obj_to_world = pp.get_pose(object_id)
 
-        for _ in self.ri.grasp(min_dz=0.1, max_dz=0.15, speed=0.001):
+        for _ in self.ri.grasp(
+            min_dz=0.1, max_dz=0.15, speed=0.001, rotation_axis=True
+        ):
             pp.step_simulation()
             time.sleep(pp.get_time_step())
             if self.ri.gripper.detect_contact():
