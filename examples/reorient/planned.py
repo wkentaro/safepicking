@@ -386,14 +386,16 @@ def rollout_plan_reorient(
     keep = (min_angle <= angles) & (angles < max_angle)
     reorient_poses = reorient_poses[keep]
 
+    grasp_poses = np.array(list(itertools.islice(get_grasp_poses(env), 32)))
+
     i = 0
     for reorient_pose in reorient_poses:
         c_reorient = mercury.geometry.Coordinate(
             reorient_pose[:3], reorient_pose[3:]
         )
-        for grasp_pose in itertools.islice(
-            get_grasp_poses(env), grasp_num_sample
-        ):
+        for grasp_pose in grasp_poses[np.random.permutation(len(grasp_poses))][
+            :grasp_num_sample
+        ]:
             c_grasp = mercury.geometry.Coordinate(
                 grasp_pose[:3], grasp_pose[3:]
             )
