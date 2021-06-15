@@ -219,6 +219,8 @@ class PickAndPlaceEnv(EnvBase):
             j = self.ri.solve_ik(
                 self.PRE_PLACE_POSE,
                 move_target=self.ri.robot_model.attachment_link0,
+                thre=0.03,
+                rthre=np.deg2rad(30),
             )
         if j is None:
             logger.error(
@@ -228,11 +230,31 @@ class PickAndPlaceEnv(EnvBase):
             return False, result
         result["j_pre_place"] = j
 
+        self.ri.setj(j)
+        self.ri.attachments[0].assign()
+
+        with self.ri.enabling_attachments():
+            j = self.ri.solve_ik(
+                self.PLACE_POSE,
+                move_target=self.ri.robot_model.attachment_link0,
+            )
+        if j is None:
+            logger.error(f"Failed to solve placing IK: {act_result.action}")
+            before_return()
+            return False, result
+        result["j_place"] = j
+
         obstacles = [self.plane, self.bin] + self.object_ids
         obstacles.remove(self.fg_object_id)
+
+        if not self.ri.validatej(result["j_place"], obstacles=obstacles):
+            logger.error(f"j_place is invalid: {act_result.action}")
+            before_return()
+            return False, result
+
         assert self.ri.attachments[0].child == self.fg_object_id
         js = self.ri.planj(
-            j,
+            result["j_pre_place"],
             obstacles=obstacles,
             min_distances_start_goal={
                 (self.ri.attachments[0].child, -1): -0.01
@@ -246,7 +268,7 @@ class PickAndPlaceEnv(EnvBase):
             return False, result
         result["js_pre_place"] = js
 
-        self.ri.setj(j)
+        self.ri.setj(js[-1])
         self.ri.attachments[0].assign()
 
         js = []
