@@ -275,10 +275,16 @@ def plan_reorient(env, c_grasp, c_reorient):
     env.ri.attachments = attachments
 
     c = mercury.geometry.Coordinate(*env.ri.get_pose("tipLink"))
-    c.translate([0, 0, -0.1])
+    c.translate([0, 0, 0.05], wrt="world")
     j = env.ri.solve_ik(c.pose, rotation_axis=True)
     if j is None:
         logger.warning("j_post_grasp is not found")
+        before_return()
+        return result
+    obstacles = [env.plane, env.bin] + env.object_ids
+    obstacles.remove(env.fg_object_id)
+    if not env.ri.validatej(j, obstacles=obstacles):
+        logger.warning("j_post_grasp is invalid")
         before_return()
         return result
     result["j_post_grasp"] = j
