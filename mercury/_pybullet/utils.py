@@ -267,3 +267,11 @@ def stash_objects(object_ids):
             yield
     finally:
         pass
+
+
+def pause():
+    print("Please press 'n' to start")
+    while True:
+        events = pybullet.getKeyboardEvents()
+        if events.get(ord("n")) == 4:
+            break
