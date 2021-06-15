@@ -51,8 +51,11 @@ def get_reorient_poses2(env):
     XY = np.array(XY)
     pp.remove_body(box)
 
-    bounds = ([0.2, -0.4, 0], [0.8, 0.4, 0.5])
-    pp.draw_aabb(bounds)
+    bounds = ([0.2, -0.4], [0.8, 0.4])
+
+    pp.draw_aabb(
+        ((bounds[0][0], bounds[0][1], 0), (bounds[1][0], bounds[1][1], 0.01)),
+    )
 
     keep = (
         (bounds[0][0] <= XY[:, 0])
@@ -65,7 +68,7 @@ def get_reorient_poses2(env):
     indices = np.argsort(np.linalg.norm(XY - pose_init[0][:2], axis=1))[:10]
     XY = XY[indices]
     for x, y in XY:
-        pp.draw_point((x, y, 0.1))
+        pp.draw_point((x, y, 0.01))
 
     # XY, ABG validation
     ABG = itertools.product(

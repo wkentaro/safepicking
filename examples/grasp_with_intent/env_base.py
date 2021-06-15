@@ -97,7 +97,10 @@ class EnvBase(Env):
             cameraPitch=-60,
             cameraTargetPosition=(0, 0, 0),
         )
-        self.plane = p.loadURDF("plane.urdf")
+        with pp.LockRenderer():
+            self.plane = p.loadURDF("plane.urdf")
+            pp.set_texture(self.plane)
+            pp.set_color(self.plane, (100 / 256, 100 / 256, 100 / 256, 1))
 
         self.ri = mercury.pybullet.PandaRobotInterface(
             suction_max_force=None,
@@ -120,7 +123,15 @@ class EnvBase(Env):
             self.PILE_POSITION + [-0.25, -0.25, -0.05],
             self.PILE_POSITION + [0.25, 0.25, 0.5],
         )
-        pp.draw_aabb(PILE_AABB)
+        # pp.draw_aabb(PILE_AABB)
+        box = pp.create_box(
+            w=PILE_AABB[1][0] - PILE_AABB[0][0],
+            l=PILE_AABB[1][1] - PILE_AABB[0][1],
+            h=0.01,
+            color=(0, 100 / 256, 0, 1),
+            collision=False,
+        )
+        pp.set_pose(box, (self.PILE_POSITION, [0, 0, 0, 1]))
 
         num_instances = len(data["class_id"])
         object_ids = []
