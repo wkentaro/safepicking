@@ -2,27 +2,39 @@ import numpy as np
 import pybullet as p
 
 
-def create_bin(X, Y, Z):
+def create_bin(X, Y, Z, color=(0.59, 0.44, 0.2, 1), create=None):
     origin = [0, 0, 0]
 
+    if create is None:
+        create = Ellipsis
+
     def get_parts(origin, X, Y, Z, T=0.01):
-        extents = [[X, Y, T], [X, T, Z], [X, T, Z], [T, Y, Z], [T, Y, Z]]
-        positions = [
-            [0, 0, -Z / 2],
-            [0, Y / 2, 0],
-            [0, -Y / 2, 0],
-            [X / 2, 0, 0],
-            [-X / 2, 0, 0],
-        ]
-        positions += np.array(origin)
+        extents = np.array(
+            [
+                [X, Y, T],
+                [X, T, Z],
+                [X, T, Z],
+                [T, Y, Z],
+                [T, Y, Z],
+            ]
+        )[create]
+        positions = np.array(
+            [
+                [0, 0, -Z / 2],
+                [0, Y / 2, 0],
+                [0, -Y / 2, 0],
+                [X / 2, 0, 0],
+                [-X / 2, 0, 0],
+            ]
+        )[create]
+        positions += origin
         return extents, positions
 
     extents, positions = get_parts(origin, X, Y, Z)
 
-    color = [150, 111, 51, 255]
     halfExtents = np.array(extents) / 2
     shapeTypes = [p.GEOM_BOX] * len(extents)
-    rgbaColors = np.array([color] * len(extents)) / 255
+    rgbaColors = [color] * len(extents)
     visual_shape_id = p.createVisualShapeArray(
         shapeTypes=shapeTypes,
         halfExtents=halfExtents,
