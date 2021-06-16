@@ -12,7 +12,7 @@ import pybullet_planning as pp
 import mercury
 
 import common_utils
-from pick_and_place_env import PickAndPlaceEnv
+from env import Env
 
 
 home = path.Path("~").expanduser()
@@ -30,8 +30,8 @@ def view_pkl_file(pkl_file):
     pp.load_pybullet("plane.urdf")
     ri = mercury.pybullet.PandaRobotInterface()
 
-    bin = mercury.pybullet.create_bin(*PickAndPlaceEnv.BIN_EXTENTS)
-    pp.set_pose(bin, PickAndPlaceEnv.BIN_POSE)
+    bin = mercury.pybullet.create_bin(*Env.BIN_EXTENTS)
+    pp.set_pose(bin, Env.BIN_POSE)
 
     with open(pkl_file, "rb") as f:
         data = pickle.load(f)

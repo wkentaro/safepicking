@@ -12,7 +12,7 @@ import torch
 
 import mercury
 
-from pick_and_place_env import PickAndPlaceEnv
+from env import Env
 
 import common_utils
 from planned import execute_plan
@@ -173,7 +173,7 @@ def main():
     parser.add_argument("--mp4", help="mp4")
     args = parser.parse_args()
 
-    env = PickAndPlaceEnv(class_ids=args.class_ids, mp4=args.mp4)
+    env = Env(class_ids=args.class_ids, mp4=args.mp4)
     env.eval = True
     env.random_state = np.random.RandomState(args.seed)
     env.launch()

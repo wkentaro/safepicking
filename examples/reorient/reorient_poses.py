@@ -10,7 +10,7 @@ import pybullet_planning as pp
 
 import mercury
 
-from pick_and_place_env import PickAndPlaceEnv
+from env import Env
 from planned import get_query_ocs
 
 
@@ -148,7 +148,7 @@ def main():
     args.min_angle = np.deg2rad(args.min_angle)
     args.max_angle = np.deg2rad(args.max_angle)
 
-    env = PickAndPlaceEnv(class_ids=args.class_ids, mp4=args.mp4)
+    env = Env(class_ids=args.class_ids, mp4=args.mp4)
     env.random_state = np.random.RandomState(args.seed)
     env.eval = True
     env.reset()

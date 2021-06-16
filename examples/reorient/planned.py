@@ -12,7 +12,7 @@ from yarr.agents.agent import ActResult
 
 import mercury
 
-from pick_and_place_env import PickAndPlaceEnv
+from env import Env
 
 
 def get_query_ocs(env):
@@ -482,14 +482,13 @@ def plan_and_execute_place(env, num_sample=5):
         act_result = ActResult(action)
         is_valid, validation_result = env.validate_action(act_result)
         if is_valid:
-            act_result.validation_result = validation_result
             break
     else:
         logger.error("No valid actions")
         env.obs = obs
         return False
 
-    env.step(act_result)
+    env.execute(validation_result)
     env.obs = obs
     return True
 
@@ -507,7 +506,7 @@ def main():
     parser.add_argument("--timeout", type=float, default=9, help="timeout")
     args = parser.parse_args()
 
-    env = PickAndPlaceEnv(class_ids=args.class_ids, mp4=args.mp4)
+    env = Env(class_ids=args.class_ids, mp4=args.mp4)
     env.random_state = np.random.RandomState(args.seed)
     env.eval = True
     env.launch()

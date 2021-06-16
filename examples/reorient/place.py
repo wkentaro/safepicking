@@ -5,7 +5,7 @@ import argparse
 import numpy as np
 import pybullet_planning as pp
 
-from pick_and_place_env import PickAndPlaceEnv
+from env import Env
 from planned import plan_and_execute_place
 
 
@@ -21,7 +21,7 @@ def main():
     parser.add_argument("--timeout", type=float, default=3, help="timeout")
     args = parser.parse_args()
 
-    env = PickAndPlaceEnv(class_ids=args.class_ids, mp4=args.mp4)
+    env = Env(class_ids=args.class_ids, mp4=args.mp4)
     env.random_state = np.random.RandomState(args.seed)
     env.eval = True
     env.reset()

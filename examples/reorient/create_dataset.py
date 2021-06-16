@@ -13,7 +13,7 @@ import pybullet_planning as pp
 import mercury
 
 import common_utils
-from pick_and_place_env import PickAndPlaceEnv
+from env import Env
 from planned import get_grasp_poses
 from planned import plan_reorient
 
@@ -91,7 +91,7 @@ def main():
     process_index = int(process_index)
     process_num = int(process_num)
 
-    env = PickAndPlaceEnv(class_ids=args.class_ids, gui=args.gui)
+    env = Env(class_ids=args.class_ids, gui=args.gui)
 
     i = process_index
     while True:
