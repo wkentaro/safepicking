@@ -1,13 +1,16 @@
 import time
 
+import imgviz
 from loguru import logger
 import numpy as np
 import path
 import pybullet as p
 import pybullet_planning as pp
 
-import common_utils
 import mercury
+
+import common_utils
+from init_place_scene import init_place_scene
 
 
 home = path.Path("~").expanduser()
@@ -23,11 +26,6 @@ class Env:
     PILE_TRAIN_IDS = np.arange(0, 1000)
     PILE_EVAL_IDS = np.arange(1000, 1200)
     PILE_POSITION = np.array([0.5, 0, 0])
-
-    c = mercury.geometry.Coordinate([0, 0.8, 0.8])
-    c.rotate([np.pi / 2, 0, 0])
-    BIN_EXTENTS = (0.3, 0.4, 0.2)
-    BIN_POSE = c.pose
 
     CAMERA_POSITION = np.array([PILE_POSITION[0], PILE_POSITION[1], 0.7])
 
@@ -52,6 +50,7 @@ class Env:
         self._step_callback = step_callback
         self._mp4 = mp4
 
+        self.eval = False
         self.random_state = np.random.RandomState()
 
     def shutdown(self):
@@ -60,6 +59,10 @@ class Env:
     def launch(self):
         pp.connect(use_gui=self._gui, mp4=self._mp4)
         pp.add_data_path()
+
+    @property
+    def bg_objects(self):
+        return [self.plane] + self.containers
 
     def reset(self, pile_file=None):
         raise_on_error = pile_file is not None
@@ -74,8 +77,8 @@ class Env:
         if not pp.is_connected():
             self.launch()
 
-        p.resetSimulation()
-        p.setGravity(0, 0, -9.8)
+        pp.reset_simulation()
+        pp.enable_gravity()
         p.resetDebugVisualizerCamera(
             cameraDistance=1.5,
             cameraYaw=90,
@@ -83,7 +86,7 @@ class Env:
             cameraTargetPosition=(0, 0, 0),
         )
         with pp.LockRenderer():
-            self.plane = p.loadURDF("plane.urdf")
+            self.plane = pp.load_pybullet("plane.urdf")
             pp.set_texture(self.plane)
             pp.set_color(self.plane, (100 / 256, 100 / 256, 100 / 256, 1))
 
@@ -101,6 +104,16 @@ class Env:
             height=self.IMAGE_HEIGHT,
             width=self.IMAGE_WIDTH,
         )
+
+        if 0:
+            sphere = pp.create_sphere(
+                0.8, color=(1, 0, 0, 0.2), collision=False
+            )
+            pp.set_pose(sphere, ([0, 0, 0.1], [0, 0, 0, 1]))
+            sphere = pp.create_sphere(
+                0.8, color=(1, 0, 0, 0.2), collision=False
+            )
+            pp.set_pose(sphere, ([0, 0.3, 0.3], [0, 0, 0, 1]))
 
         data = dict(np.load(pile_file))
 
@@ -174,29 +187,10 @@ class Env:
             width=2,
         )
 
-        c = mercury.geometry.Coordinate(
-            self.BIN_POSE[0],
-            common_utils.get_canonical_quaternion(
-                common_utils.get_class_id(self.fg_object_id)
-            ),
+        # create container
+        self.containers, self._place_pose = init_place_scene(
+            class_id=common_utils.get_class_id(self.fg_object_id)
         )
-        c.rotate(
-            [0, 0, np.deg2rad(-90)],
-            wrt="world",
-        )
-        self._place_pose = c.pose
-
-        mercury.pybullet.duplicate(
-            self.fg_object_id,
-            collision=False,
-            rgba_color=(1, 1, 1, 0.5),
-            position=self.PLACE_POSE[0],
-            quaternion=self.PLACE_POSE[1],
-            mesh_scale=(0.95, 0.95, 0.95),
-        )
-
-        self.bin = mercury.pybullet.create_bin(*self.BIN_EXTENTS)
-        pp.set_pose(self.bin, self.BIN_POSE)
 
         for _ in range(int(1 / pp.get_time_step())):
             p.stepSimulation()
@@ -221,6 +215,10 @@ class Env:
 
     def update_obs(self):
         rgb, depth, segm = self.ri.get_camera_image()
+        imgviz.io.cv_imshow(
+            np.hstack((rgb, imgviz.depth2rgb(depth))), "update_obs"
+        )
+        imgviz.io.cv_waitkey(100)
         fg_mask = segm == self.fg_object_id
         K = self.ri.get_opengl_intrinsic_matrix()
         pcd_in_camera = mercury.geometry.pointcloud_from_depth(
@@ -328,16 +326,14 @@ class Env:
             before_return()
             return False, result
         if not self.ri.validatej(
-            j, obstacles=[self.plane, self.bin] + self.object_ids
+            j, obstacles=self.bg_objects + self.object_ids
         ):
             logger.error(f"j_pre_grasp is invalid: {act_result.action}")
             before_return()
             return False, result
         result["j_pre_grasp"] = j
 
-        js = self.ri.planj(
-            j, obstacles=[self.plane, self.bin] + self.object_ids
-        )
+        js = self.ri.planj(j, obstacles=self.bg_objects + self.object_ids)
         if js is None:
             logger.error(
                 f"Failed to solve pre-grasping path: {act_result.action}"
@@ -349,7 +345,7 @@ class Env:
         self.ri.setj(j)
 
         c = mercury.geometry.Coordinate(*self.ri.get_pose("tipLink"))
-        obstacles = [self.plane, self.bin] + self.object_ids
+        obstacles = self.bg_objects + self.object_ids
         obstacles.remove(self.fg_object_id)
         for _ in range(10):
             c.translate([0, 0, 0.01])
@@ -407,7 +403,7 @@ class Env:
             return False, result
         result["j_place"] = j
 
-        obstacles = [self.plane, self.bin] + self.object_ids
+        obstacles = self.bg_objects + self.object_ids
         obstacles.remove(self.fg_object_id)
 
         if not self.ri.validatej(result["j_place"], obstacles=obstacles):
@@ -454,7 +450,7 @@ class Env:
                     return False, result
                 is_valid = self.ri.validatej(
                     j,
-                    obstacles=[self.plane, self.bin],
+                    obstacles=self.bg_objects,
                     min_distances={(self.ri.attachments[0].child, -1): -0.01},
                 )
                 if not is_valid:
@@ -507,28 +503,23 @@ class Env:
             time.sleep(pp.get_time_step())
 
         js = validation_result["js_place"]
-        for _ in (_ for j in js for _ in self.ri.movej(j)):
+        for _ in (_ for j in js for _ in self.ri.movej(j, speed=0.005)):
             pp.step_simulation()
             time.sleep(pp.get_time_step())
 
-        def before_return():
-            for _ in range(240):
-                p.stepSimulation()
-                if self._step_callback:
-                    self._step_callback()
-                if self._gui:
-                    time.sleep(pp.get_time_step())
+        for _ in range(240):
+            p.stepSimulation()
+            if self._step_callback:
+                self._step_callback()
+            if self._gui:
+                time.sleep(pp.get_time_step())
 
-            self.ri.ungrasp()
+        self.ri.ungrasp()
 
-            for _ in range(240):
-                p.stepSimulation()
-                if self._step_callback:
-                    self._step_callback()
-                if self._gui:
-                    time.sleep(pp.get_time_step())
+        for _ in (_ for j in js[::-1] for _ in self.ri.movej(j, speed=0.005)):
+            pp.step_simulation()
+            time.sleep(pp.get_time_step())
 
-            pp.remove_body(object_id)
-            self.object_ids.remove(object_id)
-
-        before_return()
+        for _ in self.ri.movej(self.ri.homej):
+            pp.step_simulation()
+            time.sleep(pp.get_time_step())

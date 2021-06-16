@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
+import time
 
 import numpy as np
 import pybullet_planning as pp
@@ -26,17 +27,22 @@ def main():
     env.eval = True
     env.reset()
 
-    with pp.LockRenderer():
-        for object_id in env.object_ids:
-            if object_id != env.fg_object_id:
-                pp.remove_body(object_id)
+    if 0:
+        with pp.LockRenderer():
+            for object_id in env.object_ids:
+                if object_id != env.fg_object_id:
+                    pp.remove_body(object_id)
 
-        for _ in range(2400):
-            pp.step_simulation()
-    env.object_ids = [env.fg_object_id]
-    env.update_obs()
+            for _ in range(2400):
+                pp.step_simulation()
+        env.object_ids = [env.fg_object_id]
+        env.update_obs()
 
     plan_and_execute_place(env)
+
+    while True:
+        pp.step_simulation()
+        time.sleep(pp.get_time_step())
 
 
 if __name__ == "__main__":

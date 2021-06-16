@@ -4,6 +4,7 @@ import argparse
 import itertools
 import time
 
+import imgviz
 from loguru import logger
 import numpy as np
 import pybullet_planning as pp
@@ -21,8 +22,7 @@ def get_query_ocs(env):
         pp.set_pose(env.fg_object_id, env.PLACE_POSE)
 
         T_camera_to_world = mercury.geometry.look_at(
-            env.BIN_POSE[0] + [0, -0.3, 0],
-            env.BIN_POSE[0],
+            env.PRE_PLACE_POSE[0], env.PLACE_POSE[0]
         )
         fovy = np.deg2rad(60)
         height = 240
@@ -36,6 +36,10 @@ def get_query_ocs(env):
         rgb, depth, segm = mercury.pybullet.get_camera_image(
             T_camera_to_world, fovy, height, width
         )
+        imgviz.io.cv_imshow(
+            np.hstack((rgb, imgviz.depth2rgb(depth))), "get_query_ocs"
+        )
+        imgviz.io.cv_waitkey(100)
         K = mercury.geometry.opengl_intrinsic_matrix(fovy, height, width)
         pcd_in_camera = mercury.geometry.pointcloud_from_depth(
             depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
@@ -148,7 +152,7 @@ def get_grasp_poses(env):
     indices = np.argwhere(mask)
     env.random_state.shuffle(indices)
 
-    obstacles = [env.plane, env.bin] + env.object_ids
+    obstacles = env.bg_objects + env.object_ids
     obstacles.remove(env.fg_object_id)
 
     for y, x in indices:
@@ -183,7 +187,7 @@ def plan_reorient(env, c_grasp, c_reorient):
 
     result["j_init"] = env.ri.getj()
 
-    bg_object_ids = [env.plane, env.bin] + env.object_ids
+    bg_object_ids = env.bg_objects + env.object_ids
     bg_object_ids.remove(env.fg_object_id)
 
     # solve j_grasp
@@ -261,7 +265,7 @@ def plan_reorient(env, c_grasp, c_reorient):
     env.ri.setj(result["j_init"])
     js = env.ri.planj(
         result["j_pre_grasp"],
-        obstacles=[env.plane, env.bin] + env.object_ids,
+        obstacles=env.bg_objects + env.object_ids,
     )
     if js is None:
         logger.warning("js_pre_grasp is not found")
@@ -274,7 +278,7 @@ def plan_reorient(env, c_grasp, c_reorient):
     env.ri.attachments[0].assign()
 
     # solve js_place
-    obstacles = [env.plane, env.bin] + env.object_ids
+    obstacles = env.bg_objects + env.object_ids
     obstacles.remove(env.ri.attachments[0].child)
     js = env.ri.planj(
         result["j_place"],
@@ -333,7 +337,7 @@ def execute_plan(env, result):
     if j is not None:
         js = env.ri.planj(
             j,
-            obstacles=[env.plane, env.bin] + env.object_ids,
+            obstacles=env.bg_objects + env.object_ids,
             min_distances_start_goal=mercury.utils.StaticDict(-0.02),
         )
         if js is not None:
@@ -342,7 +346,7 @@ def execute_plan(env, result):
                 time.sleep(pp.get_time_step())
 
     for _ in env.ri.move_to_homej(
-        bg_object_ids=[env.plane, env.bin],
+        bg_object_ids=env.bg_objects,
         object_ids=env.object_ids,
     ):
         pp.step_simulation()
@@ -429,6 +433,10 @@ def plan_and_execute_place(env, num_sample=5):
         height,
         width,
     )
+    imgviz.io.cv_imshow(
+        np.hstack((rgb, imgviz.depth2rgb(depth))), "plan_and_execute_place"
+    )
+    imgviz.io.cv_waitkey(100)
 
     fg_mask = segm == env.fg_object_id
     K = env.ri.get_opengl_intrinsic_matrix()
