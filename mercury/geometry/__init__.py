@@ -1,10 +1,12 @@
 # flake8: noqa
 
+from .average_distance_auc import average_distance_auc
+
 from .coordinate import Coordinate
 
 from .look_at import look_at
 
-from .average_distance_auc import average_distance_auc
+from .normalize_vec import normalize_vec
 
 from .normals_from_pointcloud import normals_from_pointcloud
 
