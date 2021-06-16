@@ -43,11 +43,9 @@ class ConvNet(torch.nn.Module):
 
         # h: 32
         # actions: 6
-        # ee_poses: (episode_length - 1) * 7
+        # ee_poses: episode_length * 7
         self.mlp = torch.nn.Sequential(
-            torch.nn.Linear(
-                4 + 8 + 16 + 32 + 64 + 6 + (episode_length - 1) * 7, 32
-            ),
+            torch.nn.Linear(4 + 8 + 16 + 32 + 64 + 6 + episode_length * 7, 32),
             torch.nn.ReLU(),
             torch.nn.Linear(32, 32),
             torch.nn.ReLU(),

@@ -117,7 +117,7 @@ class PickFromPileEnv(Env):
         grasped_object_poses = gym.spaces.Box(
             low=-np.inf,
             high=np.inf,
-            shape=(self.episode_length - 1, 7),
+            shape=(self.episode_length, 7),
             dtype=np.float32,
         )
         # heightmap
@@ -142,7 +142,7 @@ class PickFromPileEnv(Env):
         ee_poses = gym.spaces.Box(
             low=-np.inf,
             high=np.inf,
-            shape=(self.episode_length - 1, 7),
+            shape=(self.episode_length, 7),
             dtype=np.float32,
         )
         self.observation_space = gym.spaces.Dict(
@@ -398,15 +398,13 @@ class PickFromPileEnv(Env):
         self.target_object_visibility = data["visibility"][target_index]
 
         self.ee_pose_init = np.hstack(ee_to_world).astype(np.float32)
-        self.ee_poses = np.zeros(
-            (self.episode_length - 1, 7), dtype=np.float32
-        )
+        self.ee_poses = np.zeros((self.episode_length, 7), dtype=np.float32)
         self.ee_poses = np.r_[
             self.ee_poses[1:],
             np.hstack(ee_to_world).astype(np.float32)[None],
         ]
         self.grasped_object_poses = np.zeros(
-            (self.episode_length - 1, 7), dtype=np.float32
+            (self.episode_length, 7), dtype=np.float32
         )
         self.grasped_object_poses = np.r_[
             self.grasped_object_poses[1:],
