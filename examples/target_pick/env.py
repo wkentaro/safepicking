@@ -316,7 +316,7 @@ class PickFromPileEnv(Env):
 
         yx = np.argwhere(segm == target_object_id)
 
-        for y, x in yx[random_state.permutation(len(yx))]:
+        for y, x in yx[random_state.permutation(len(yx))][:100]:
             position = pcd_in_ee[y, x]
             quaternion = mercury.geometry.quaternion_from_vec2vec(
                 [0, 0, 1], normals[y, x]
@@ -352,6 +352,12 @@ class PickFromPileEnv(Env):
         except RuntimeError:
             if raise_on_failure:
                 raise
+            else:
+                return self.reset()
+
+        if not self.ri.gripper.check_grasp():
+            if raise_on_failure:
+                raise RuntimeError("Unable to grasp the target object")
             else:
                 return self.reset()
 
