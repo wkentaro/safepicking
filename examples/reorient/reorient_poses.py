@@ -14,7 +14,7 @@ from env import Env
 from planned import get_query_ocs
 
 
-def get_reorient_poses2(env):
+def get_reorient_poses2(env, static=False):
     query_ocs, query_ocs_normal_ends = get_query_ocs(env)
     index = np.argmin(
         np.linalg.norm(query_ocs - query_ocs.mean(axis=0), axis=1)
@@ -27,55 +27,67 @@ def get_reorient_poses2(env):
     world_saver = pp.WorldSaver()
     lock_renderer = pp.LockRenderer()
 
-    aabb = pp.get_aabb(env.fg_object_id)
-    aabb_extents = aabb[1] - aabb[0]
-    max_extent = np.max(aabb_extents)
+    if static:
+        XY = [[0.2, -0.4]]
+        pp.draw_aabb(([0.15, -0.45, 0.001], [0.25, -0.35, 0.001]))
+        ABG = itertools.product(
+            [0],
+            [0],
+            np.linspace(-np.pi, np.pi, num=16, endpoint=False),
+        )
+    else:
+        aabb = pp.get_aabb(env.fg_object_id)
+        aabb_extents = aabb[1] - aabb[0]
+        max_extent = np.max(aabb_extents)
 
-    # XY validation
-    box = pp.create_box(max_extent, max_extent, max_extent)
-    XY = []
-    for size in [0.2, 0.3, 0.4]:
-        for dx, dy in itertools.product(
-            np.linspace(-size, size, num=7),
-            np.linspace(-size, size, num=7),
-        ):
-            c = mercury.geometry.Coordinate(
-                position=(pose_init[0][0] + dx, pose_init[0][1] + dy, 0.1)
-            )
-            pp.set_pose(box, c.pose)
+        box = pp.create_box(max_extent, max_extent, max_extent)
+        XY = []
+        for size in [0.2, 0.3, 0.4]:
+            for dx, dy in itertools.product(
+                np.linspace(-size, size, num=7),
+                np.linspace(-size, size, num=7),
+            ):
+                c = mercury.geometry.Coordinate(
+                    position=(pose_init[0][0] + dx, pose_init[0][1] + dy, 0.1)
+                )
+                pp.set_pose(box, c.pose)
 
-            obstacles = [env.ri.robot] + env.object_ids
-            obstacles.remove(env.fg_object_id)
-            if not mercury.pybullet.is_colliding(box, obstacles):
-                XY.append(c.position[:2])
-    XY = np.array(XY)
-    pp.remove_body(box)
+                obstacles = [env.ri.robot] + env.object_ids
+                obstacles.remove(env.fg_object_id)
+                if not mercury.pybullet.is_colliding(box, obstacles):
+                    XY.append(c.position[:2])
+        XY = np.array(XY)
+        pp.remove_body(box)
 
-    bounds = ([0.2, -0.4], [0.8, 0.4])
+        bounds = ([0.2, -0.4], [0.8, 0.4])
 
-    pp.draw_aabb(
-        ((bounds[0][0], bounds[0][1], 0), (bounds[1][0], bounds[1][1], 0.01)),
-    )
+        pp.draw_aabb(
+            (
+                (bounds[0][0], bounds[0][1], 0),
+                (bounds[1][0], bounds[1][1], 0.01),
+            ),
+        )
 
-    keep = (
-        (bounds[0][0] <= XY[:, 0])
-        & (XY[:, 0] < bounds[1][0])
-        & (bounds[0][1] <= XY[:, 1])
-        & (XY[:, 1] < bounds[1][1])
-    )
-    XY = XY[keep]
-
-    indices = np.argsort(np.linalg.norm(XY - pose_init[0][:2], axis=1))[:10]
-    XY = XY[indices]
+        keep = (
+            (bounds[0][0] <= XY[:, 0])
+            & (XY[:, 0] < bounds[1][0])
+            & (bounds[0][1] <= XY[:, 1])
+            & (XY[:, 1] < bounds[1][1])
+        )
+        XY = XY[keep]
+        indices = np.argsort(np.linalg.norm(XY - pose_init[0][:2], axis=1))[
+            :10
+        ]
+        XY = XY[indices]
+        ABG = itertools.product(
+            np.linspace(-np.pi, np.pi, num=9, endpoint=False),
+            np.linspace(-np.pi, np.pi, num=9, endpoint=False),
+            np.linspace(-np.pi, np.pi, num=9, endpoint=False),
+        )
     for x, y in XY:
         pp.draw_point((x, y, 0.01))
 
     # XY, ABG validation
-    ABG = itertools.product(
-        np.linspace(-np.pi, np.pi, num=9, endpoint=False),
-        np.linspace(-np.pi, np.pi, num=9, endpoint=False),
-        np.linspace(-np.pi, np.pi, num=9, endpoint=False),
-    )
     poses = []
     angles = []
     for (x, y), (a, b, g) in itertools.product(XY, ABG):
@@ -106,6 +118,14 @@ def get_reorient_poses2(env):
         normal /= np.linalg.norm(normal)
         angle = np.arccos(np.dot([0, 0, 1], normal))
         assert angle >= 0
+
+        if static:
+            angle2 = np.arccos(
+                np.dot([-1, 0], mercury.geometry.normalize_vec(normal[:2]))
+            )
+            assert angle2 >= 0
+            if angle2 > np.deg2rad(45):
+                continue
 
         poses.append(np.hstack(c.pose))
         angles.append(angle)

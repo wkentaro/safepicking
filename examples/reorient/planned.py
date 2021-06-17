@@ -359,12 +359,14 @@ def rollout_plan_reorient(
     grasp_num_sample=4,
     min_angle=np.deg2rad(0),
     max_angle=np.deg2rad(10),
+    static=False,
 ):
     from reorient_poses import get_reorient_poses2
 
-    reorient_poses, angles, _, _ = get_reorient_poses2(env)
-    keep = (min_angle <= angles) & (angles < max_angle)
-    reorient_poses = reorient_poses[keep]
+    reorient_poses, angles, _, _ = get_reorient_poses2(env, static=static)
+    if not static:
+        keep = (min_angle <= angles) & (angles < max_angle)
+        reorient_poses = reorient_poses[keep]
 
     grasp_poses = np.array(list(itertools.islice(get_grasp_poses(env), 32)))
 
@@ -421,10 +423,10 @@ def plan_and_execute_place(env, num_sample=5):
     obs = env.obs
 
     normal = -(point_normal_end - point)  # flip
-    eye = point + 0.5 * normal
+    eye = point + 0.1 * normal
 
     T_cam_to_world = mercury.geometry.look_at(eye, target)
-    fovy = np.deg2rad(60)
+    fovy = np.deg2rad(80)
     height = 240
     width = 240
     rgb, depth, segm = mercury.pybullet.get_camera_image(
@@ -512,6 +514,7 @@ def main():
     parser.add_argument("--seed", type=int, default=0, help="seed")
     parser.add_argument("--on-plane", action="store_true", help="on plane")
     parser.add_argument("--timeout", type=float, default=9, help="timeout")
+    parser.add_argument("--static", action="store_true", help="dynamic")
     args = parser.parse_args()
 
     env = Env(class_ids=args.class_ids, mp4=args.mp4)
@@ -537,28 +540,42 @@ def main():
         if plan_and_execute_place(env):
             break
 
-        if i == 2:
+        if i == 1:
             break
 
         env.setj_to_camera_pose()
         env.update_obs()
 
         result = {}
-        for min_angle, max_angle in [(0, 10), (10, 80), (85, 95)]:
-            print(min_angle, max_angle)
+        if args.static:
             t_start = time.time()
             for result in rollout_plan_reorient(
                 env,
                 return_failed=True,
-                min_angle=np.deg2rad(min_angle),
-                max_angle=np.deg2rad(max_angle),
+                grasp_num_sample=16,
+                static=True,
             ):
                 if "js_place_length" in result:
                     break
                 if (time.time() - t_start) > (args.timeout / 3):
                     break
-            if "js_place_length" in result:
-                break
+        else:
+            for min_angle, max_angle in [(0, 10), (10, 80), (85, 95)]:
+                print(min_angle, max_angle)
+                t_start = time.time()
+                for result in rollout_plan_reorient(
+                    env,
+                    return_failed=True,
+                    min_angle=np.deg2rad(min_angle),
+                    max_angle=np.deg2rad(max_angle),
+                    static=False,
+                ):
+                    if "js_place_length" in result:
+                        break
+                    if (time.time() - t_start) > (args.timeout / 3):
+                        break
+                if "js_place_length" in result:
+                    break
         execute_plan(env, result)
 
 
