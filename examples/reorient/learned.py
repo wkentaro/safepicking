@@ -20,8 +20,8 @@ from planned import get_grasp_poses
 from planned import plan_and_execute_place
 from planned import plan_reorient
 from reorient_poses import get_reorient_poses2
-from train import Dataset
-from train import Model
+from train_reorientable import Dataset
+from train_reorientable import Model
 
 
 def plan_and_execute_reorient(env, model, timeout, visualize=True):

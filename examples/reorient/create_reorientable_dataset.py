@@ -182,7 +182,7 @@ def main():
                             time.sleep(0.02)
 
                 if not args.gui:
-                    name = f"class_{'_'.join(str(c) for c in args.class_ids)}"
+                    name = f"reorientable-{'_'.join(str(c) for c in args.class_ids)}"  # NOQA
 
                     while True:
                         pkl_file = (

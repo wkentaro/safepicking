@@ -238,18 +238,13 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--name", required=True, help="name")
-    parser.add_argument(
-        "--dataset",
-        default="class_11",
-        help="dataset",
-    )
     args = parser.parse_args()
 
-    data_train = Dataset(split="train", dataset=args.dataset)
+    data_train = Dataset(split="train", dataset="reorientable-2_3_5_11_12_15")
     loader_train = torch.utils.data.DataLoader(
         data_train, batch_size=256, shuffle=True, drop_last=True
     )
-    data_val = Dataset(split="val", dataset=args.dataset)
+    data_val = Dataset(split="val", dataset="reorientable-2_3_5_11_12_15")
     loader_val = torch.utils.data.DataLoader(
         data_val, batch_size=256, shuffle=False
     )
@@ -261,7 +256,9 @@ def main():
 
     now = datetime.datetime.now(pytz.timezone("Asia/Tokyo"))
     log_dir = (
-        here / "logs" / now.strftime("%Y%m%d_%H%M%S.%f") + "-" + args.name
+        here / "logs/reorientable" / now.strftime("%Y%m%d_%H%M%S.%f")
+        + "-"
+        + args.name
     )
     log_dir.makedirs_p()
 
