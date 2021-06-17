@@ -20,13 +20,11 @@ class DqnModel(torch.nn.Module):
 
         if self._model == "closedloop_pose_net":
             self.module = PoseNet(
-                episode_length=env.episode_length,
-                openloop=False,
+                episode_length=env.episode_length, openloop=False
             )
         elif self._model == "openloop_pose_net":
             self.module = PoseNet(
-                episode_length=env.episode_length,
-                openloop=True,
+                episode_length=env.episode_length, openloop=True
             )
         elif self._model == "conv_net":
             self.module = ConvNet(episode_length=env.episode_length)
@@ -40,18 +38,17 @@ class DqnModel(torch.nn.Module):
 
         if self._model == "closedloop_pose_net":
             kwargs = dict(
-                ee_pose=observation["ee_pose"],
                 grasp_flags=observation["grasp_flags"],
                 object_labels=observation["object_labels"],
                 object_poses=observation["object_poses"],
+                ee_poses=observation["ee_poses"][:, -1:],
             )
         elif self._model == "openloop_pose_net":
             kwargs = dict(
-                ee_pose=observation["ee_pose_init"],
                 grasp_flags=observation["grasp_flags_init"],
                 object_labels=observation["object_labels_init"],
                 object_poses=observation["object_poses_init"],
-                grasped_object_poses=observation["grasped_object_poses"],
+                ee_poses=observation["ee_poses"],
             )
         elif self._model == "conv_net":
             kwargs = dict(

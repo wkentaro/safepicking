@@ -5,16 +5,15 @@ class PoseNet(torch.nn.Module):
     def __init__(self, episode_length, openloop):
         super().__init__()
 
-        self._openloop = openloop
-
-        # ee_pose: 7
         # object_labels: 7
         # object_poses: 7
         # grasp_flags: 1
         # actions: 6
-        in_channels = 7 + 7 + 7 + 1 + 6
-        if self._openloop:
-            in_channels += (episode_length - 1) * 7
+        # ee_poses: episode_length * 7 or 7
+        if openloop:
+            in_channels = 7 + 7 + 1 + 6 + episode_length * 7
+        else:
+            in_channels = 7 + 7 + 1 + 6 + 7
         self.fc_encoder = torch.nn.Sequential(
             torch.nn.Linear(in_channels, 32),
             torch.nn.ReLU(),
@@ -34,7 +33,6 @@ class PoseNet(torch.nn.Module):
 
     def forward(
         self,
-        ee_pose,
         object_labels,
         object_poses,
         grasp_flags,
@@ -44,24 +42,19 @@ class PoseNet(torch.nn.Module):
         B, O = grasp_flags.shape
         A, _ = actions.shape
 
-        h_ee_pose = ee_pose
-        h_object = torch.cat(
+        h = torch.cat(
             [object_labels, object_poses, grasp_flags[:, :, None]], dim=2
         )
-        if self._openloop:
-            grasped_object_poses = kwargs["grasped_object_poses"]
-            grasped_object_poses = grasped_object_poses.reshape(B, -1)[
-                :, None, :
-            ].repeat(1, O, 1)
-            h_object = torch.cat([h_object, grasped_object_poses], dim=2)
+        ee_poses = kwargs["ee_poses"]
+        ee_poses = ee_poses.reshape(B, -1)[:, None, :].repeat(1, O, 1)
+        h = torch.cat([h, ee_poses], dim=2)
         h_action = actions
 
         # B, A, O, C
-        h_ee_pose = h_ee_pose[:, None, None, :].repeat(1, A, O, 1)
-        h_object = h_object[:, None, :, :].repeat(1, A, 1, 1)
+        h = h[:, None, :, :].repeat(1, A, 1, 1)
         h_action = h_action[None, :, None, :].repeat(B, 1, O, 1)
 
-        h = torch.cat([h_ee_pose, h_object, h_action], dim=3)
+        h = torch.cat([h, h_action], dim=3)
 
         h = h.reshape(B * A * O, h.shape[-1])  # B*A*O, C
         h = self.fc_encoder(h)
