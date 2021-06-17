@@ -168,22 +168,36 @@ def main():
                     length=length,
                 )
 
-                name = f"class_{'_'.join(str(c) for c in args.class_ids)}"
+                if args.gui and "js_place" in result:
+                    with pp.WorldSaver():
+                        for j in result["js_place"]:
+                            env.ri.setj(j)
+                            pp.set_pose(
+                                env.fg_object_id,
+                                pp.multiply(
+                                    env.ri.get_pose("tipLink"),
+                                    pp.invert(ee_to_obj),
+                                ),
+                            )
+                            time.sleep(0.02)
 
-                while True:
-                    pkl_file = (
-                        home / f"data/mercury/reorient/{name}/{i:08d}.pkl"
-                    )
-                    if not pkl_file.exists():
-                        break
-                    i += process_num
-                    if i >= args.size:
-                        return
+                if not args.gui:
+                    name = f"class_{'_'.join(str(c) for c in args.class_ids)}"
 
-                pkl_file.parent.makedirs_p()
-                with open(pkl_file, "wb") as f:
-                    pickle.dump(data, f)
-                logger.info(f"Saved to: {pkl_file}")
+                    while True:
+                        pkl_file = (
+                            home / f"data/mercury/reorient/{name}/{i:08d}.pkl"
+                        )
+                        if not pkl_file.exists():
+                            break
+                        i += process_num
+                        if i >= args.size:
+                            return
+
+                    pkl_file.parent.makedirs_p()
+                    with open(pkl_file, "wb") as f:
+                        pickle.dump(data, f)
+                    logger.info(f"Saved to: {pkl_file}")
 
 
 if __name__ == "__main__":
