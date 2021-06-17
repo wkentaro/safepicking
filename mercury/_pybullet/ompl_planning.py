@@ -232,6 +232,7 @@ class PbPlanner:
             path = pdef.getSolutionPath()
             simplifier = og.PathSimplifier(self.si)
             simplifier.simplifyMax(path)
+            path.interpolate(100)
         else:
             # logger.warning("No solution found")
             path = None
