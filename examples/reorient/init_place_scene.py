@@ -7,7 +7,7 @@ import mercury
 
 
 def init_place_scene(class_id):
-    if class_id == 2:
+    if class_id in [2, 3, 5]:
         container, place_pose = init_place_scene_shelf_front(class_id=class_id)
     else:
         container, place_pose = init_place_scene_simple(class_id=class_id)
@@ -34,8 +34,6 @@ def init_place_scene_simple(class_id):
 
 
 def init_place_scene_shelf_front(class_id):
-    assert class_id == 2
-
     lock_renderer = pp.LockRenderer()
 
     W = 0.55
@@ -75,26 +73,105 @@ def init_place_scene_shelf_front(class_id):
 
     set_pose(shelf, c.pose)
 
-    visual_file = mercury.datasets.ycb.get_visual_file(class_id=2)
+    visual_file = mercury.datasets.ycb.get_visual_file(class_id=class_id)
 
-    positions = [
-        [-0.18, 0.7, 0.72],
-        [-0.18, 0.63, 0.72],
-        [-0.18, 0.56, 0.72],
-        [0, 0.7, 0.72],
-        [0, 0.63, 0.72],
-        [0, 0.56, 0.72],
-        [0.18, 0.7, 0.72],
-        [0.18, 0.63, 0.72],
-        [0.18, 0.56, 0.72],
-    ]
-    i_place_pose = 8
+    face = "front"
+    if class_id == 2:
+        if face == "front":
+            positions = [
+                [-0.18, 0.7, 0.72],
+                [-0.18, 0.63, 0.72],
+                [-0.18, 0.56, 0.72],
+                [0, 0.7, 0.72],
+                [0, 0.63, 0.72],
+                [0, 0.56, 0.72],
+                [0.18, 0.7, 0.72],
+                [0.18, 0.63, 0.72],
+                [0.18, 0.56, 0.72],
+            ]
+        elif face == "right":
+            positions = [
+                [-0.23, 0.65, 0.72],
+                [-0.16, 0.65, 0.72],
+                [-0.09, 0.65, 0.72],
+                [-0.02, 0.65, 0.72],
+                [0.05, 0.65, 0.72],
+            ]
+        i_place_pose = len(positions) - 1
+    elif class_id == 3:
+        if face == "front":
+            positions = [
+                [-0.22, 0.72, 0.7],
+                [-0.22, 0.67, 0.7],
+                [-0.22, 0.62, 0.7],
+                [-0.22, 0.57, 0.7],
+                [-0.22, 0.52, 0.7],
+                [-0.12, 0.72, 0.7],
+                [-0.12, 0.67, 0.7],
+                [-0.12, 0.62, 0.7],
+                [-0.12, 0.57, 0.7],
+                [-0.12, 0.52, 0.7],
+                [-0.02, 0.72, 0.7],
+                [-0.02, 0.67, 0.7],
+                [-0.02, 0.62, 0.7],
+                [-0.02, 0.57, 0.7],
+                [-0.02, 0.52, 0.7],
+            ]
+        elif face == "right":
+            positions = [
+                [-0.24, 0.69, 0.7],
+                [-0.24, 0.59, 0.7],
+                [-0.19, 0.69, 0.7],
+                [-0.19, 0.59, 0.7],
+                [-0.14, 0.69, 0.7],
+                [-0.14, 0.59, 0.7],
+                [-0.09, 0.69, 0.7],
+                [-0.09, 0.59, 0.7],
+                [-0.04, 0.69, 0.7],
+                [-0.04, 0.59, 0.7],
+            ]
+        i_place_pose = len(positions) - 1
+    elif class_id == 5:
+        if face == "front":
+            positions = [
+                [-0.21, 0.71, 0.7],
+                [-0.21, 0.64, 0.7],
+                [-0.21, 0.57, 0.7],
+                [-0.21, 0.50, 0.7],
+                [-0.10, 0.71, 0.7],
+                [-0.10, 0.64, 0.7],
+                [-0.10, 0.57, 0.7],
+                [-0.10, 0.50, 0.7],
+                [0.01, 0.71, 0.7],
+                [0.01, 0.64, 0.7],
+                [0.01, 0.57, 0.7],
+                [0.01, 0.50, 0.7],
+            ]
+        elif face == "right":
+            positions = [
+                [-0.24, 0.69, 0.7],
+                [-0.24, 0.58, 0.7],
+                [-0.17, 0.69, 0.7],
+                [-0.17, 0.58, 0.7],
+                [-0.10, 0.69, 0.7],
+                [-0.10, 0.58, 0.7],
+                [-0.03, 0.69, 0.7],
+                [-0.03, 0.58, 0.7],
+            ]
+        i_place_pose = len(positions) - 1
+    else:
+        raise ValueError
 
     for i, position in enumerate(positions):
         c = mercury.geometry.Coordinate(
-            position, common_utils.get_canonical_quaternion(2)
+            position, common_utils.get_canonical_quaternion(class_id=class_id)
         )
-        c.rotate([0, 0, np.deg2rad(-90)], wrt="world")
+        if face == "front":
+            c.rotate([0, 0, np.deg2rad(-90)], wrt="world")
+        elif face == "right":
+            c.rotate([0, 0, np.deg2rad(0)], wrt="world")
+        else:
+            raise ValueError
         if i == i_place_pose:
             place_pose = c.pose
         else:
@@ -124,10 +201,10 @@ def main():
 
     pp.draw_pose(((0, 0, 0), (0, 0, 0, 1)), width=3)
 
-    init_place_scene_shelf_front(class_id=2)
+    init_place_scene(class_id=5)
 
     while True:
-        pass
+        pp.step_simulation()
 
 
 if __name__ == "__main__":
