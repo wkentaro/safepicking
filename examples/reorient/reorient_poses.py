@@ -131,22 +131,7 @@ def main():
     parser.add_argument("--seed", type=int, default=0, help="seed")
     parser.add_argument("--on-plane", action="store_true", help="on plane")
     parser.add_argument("--simulate", action="store_true", help="simulate")
-    parser.add_argument(
-        "--min-angle",
-        type=float,
-        default=0,
-        help="threshold [deg]",
-    )
-    parser.add_argument(
-        "--max-angle",
-        type=float,
-        default=10,
-        help="threshold [deg]",
-    )
     args = parser.parse_args()
-
-    args.min_angle = np.deg2rad(args.min_angle)
-    args.max_angle = np.deg2rad(args.max_angle)
 
     env = Env(class_ids=args.class_ids, mp4=args.mp4)
     env.random_state = np.random.RandomState(args.seed)
@@ -163,9 +148,6 @@ def main():
                 pp.step_simulation()
 
     poses, angles, query_ocs, query_ocs_normal_end = get_reorient_poses2(env)
-
-    keep = (args.min_angle <= angles) & (angles < args.max_angle)
-    poses = poses[keep]
 
     logger.info(f"Generated reorient poses: {len(poses)}")
 
