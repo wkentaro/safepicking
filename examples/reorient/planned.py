@@ -181,9 +181,18 @@ def plan_reorient(env, c_grasp, c_reorient):
     result["grasp_pose"] = np.hstack(c_grasp.pose)
     result["reorient_pose"] = np.hstack(c_reorient.pose)
 
+    obj_af = mercury.pybullet.duplicate(
+        env.fg_object_id,
+        texture=False,
+        rgba_color=(0, 1, 0, 0.5),
+        position=c_reorient.position,
+        quaternion=c_reorient.quaternion,
+    )
+
     def before_return():
         env.ri.attachments = []
         world_saver.restore()
+        pp.remove_body(obj_af)
         # lock_renderer.restore()
 
     result["j_init"] = env.ri.getj()
