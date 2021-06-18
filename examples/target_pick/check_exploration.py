@@ -16,7 +16,12 @@ def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    choices = ["closedloop_pose_net", "openloop_pose_net", "conv_net"]
+    choices = [
+        "closedloop_pose_net",
+        "openloop_pose_net",
+        "conv_net",
+        "semantic_conv_net",
+    ]
     parser.add_argument(
         "--model",
         default=choices[0],

@@ -27,7 +27,13 @@ class DqnModel(torch.nn.Module):
                 episode_length=env.episode_length, openloop=True
             )
         elif self._model == "conv_net":
-            self.module = ConvNet(episode_length=env.episode_length)
+            self.module = ConvNet(
+                episode_length=env.episode_length, semantic=False
+            )
+        elif self._model == "semantic_conv_net":
+            self.module = ConvNet(
+                episode_length=env.episode_length, semantic=True
+            )
         else:
             raise ValueError
 
@@ -50,13 +56,17 @@ class DqnModel(torch.nn.Module):
                 object_poses=observation["object_poses_init"],
                 ee_poses=observation["ee_poses"],
             )
-        elif self._model == "conv_net":
+        elif self._model in ["conv_net", "semantic_conv_net"]:
             kwargs = dict(
                 heightmap=observation["heightmap"],
                 maskmap=observation["maskmap"],
                 grasped_uv=observation["grasped_uv"],
                 ee_poses=observation["ee_poses"],
             )
+            if self._model == "semantic_conv_net":
+                mask = observation["grasp_flags"] == 1
+                kwargs["object_label"] = observation["object_labels"][mask][0]
+                kwargs["object_pose"] = observation["object_poses"][mask][0]
         else:
             raise ValueError
 

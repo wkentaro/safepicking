@@ -2,8 +2,10 @@ import torch
 
 
 class ConvNet(torch.nn.Module):
-    def __init__(self, episode_length):
+    def __init__(self, episode_length, semantic=False):
         super().__init__()
+
+        self._semantic = semantic
 
         # heightmap: 1
         self.encoder_heightmap = torch.nn.Sequential(
@@ -44,8 +46,13 @@ class ConvNet(torch.nn.Module):
         # h: 32
         # actions: 6
         # ee_poses: episode_length * 7
+        # object_label: 7
+        # object_pose: 7
+        in_channels = 4 + 8 + 16 + 32 + 64 + 6 + episode_length * 7
+        if self._semantic:
+            in_channels += 7 + 7
         self.mlp = torch.nn.Sequential(
-            torch.nn.Linear(4 + 8 + 16 + 32 + 64 + 6 + episode_length * 7, 32),
+            torch.nn.Linear(in_channels, 32),
             torch.nn.ReLU(),
             torch.nn.Linear(32, 32),
             torch.nn.ReLU(),
@@ -54,7 +61,16 @@ class ConvNet(torch.nn.Module):
             torch.nn.Linear(32, 2),
         )
 
-    def forward(self, heightmap, maskmap, grasped_uv, ee_poses, actions):
+    def forward(
+        self,
+        heightmap,
+        maskmap,
+        grasped_uv,
+        ee_poses,
+        actions,
+        object_label=None,
+        object_pose=None,
+    ):
         B = heightmap.shape[0]
         A = actions.shape[0]
 
@@ -82,11 +98,17 @@ class ConvNet(torch.nn.Module):
         h = torch.cat([h_conv1, h_conv2, h_conv3, h_conv4, h_conv5], dim=1)
 
         h = h[:, None, :].repeat_interleave(A, dim=1)
-        h_actions = actions[None, :, :].repeat_interleave(B, dim=0)
-        h_ee_poses = ee_poses[:, None, :, :].repeat_interleave(A, dim=1)
-        h_ee_poses = h_ee_poses.reshape(B, A, -1)
+        h_action = actions[None, :, :].repeat_interleave(B, dim=0)
+        h_ee_pose = ee_poses[:, None, :, :].repeat_interleave(A, dim=1)
+        h_ee_pose = h_ee_pose.reshape(B, A, -1)
 
-        h = torch.cat([h, h_actions, h_ee_poses], dim=2)
+        if self._semantic:
+            h_semantic = torch.cat([object_label, object_pose], dim=0)
+            h_semantic = h_semantic[None, :].repeat_interleave(B, dim=0)
+            h_semantic = h_semantic[:, None, :].repeat_interleave(A, dim=1)
+            h = torch.cat([h, h_action, h_ee_pose, h_semantic], dim=2)
+        else:
+            h = torch.cat([h, h_action, h_ee_pose], dim=2)
 
         h = h.reshape(B * A, -1)
 

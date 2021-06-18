@@ -38,7 +38,12 @@ def main():
     parser.add_argument("--name", required=True, help="name")
     parser.add_argument(
         "--model",
-        choices=["closedloop_pose_net", "openloop_pose_net", "conv_net"],
+        choices=[
+            "closedloop_pose_net",
+            "openloop_pose_net",
+            "conv_net",
+            "semantic_conv_net",
+        ],
         help="model",
         required=True,
     )
