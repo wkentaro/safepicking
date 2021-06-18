@@ -10,7 +10,7 @@ import pybullet_planning as pp
 import mercury
 
 import common_utils
-from init_place_scene import init_place_scene
+from legacy.init_place_scene import init_place_scene
 
 
 home = path.Path("~").expanduser()
