@@ -46,6 +46,7 @@ def main():
     else:
         agent = DqnAgent(env=env, model=args.model)
         agent.build(training=False)
+        print(sum(p.nelement() for p in agent.q.parameters()))
 
     while True:
         act_result = agent.act(
