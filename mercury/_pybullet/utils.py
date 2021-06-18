@@ -236,7 +236,15 @@ def draw_camera(
     return lines
 
 
-def duplicate(body_id, visual=True, collision=True, **kwargs):
+def duplicate(
+    body_id,
+    visual=True,
+    collision=True,
+    position=None,
+    quaternion=None,
+    mass=None,
+    **kwargs,
+):
     if visual:
         visual_data = pybullet.getVisualShapeData(body_id)
         assert len(visual_data) == 1
@@ -251,9 +259,21 @@ def duplicate(body_id, visual=True, collision=True, **kwargs):
     else:
         collision_file = None
 
+    if position is None:
+        position = pybullet_planning.get_pose(body_id)[0]
+
+    if quaternion is None:
+        quaternion = pybullet_planning.get_pose(body_id)[1]
+
+    if mass is None:
+        mass = pybullet_planning.get_dynamics_info(body_id).mass
+
     return create_mesh_body(
         visual_file=visual_file,
         collision_file=collision_file,
+        position=position,
+        quaternion=quaternion,
+        mass=mass,
         **kwargs,
     )
 
