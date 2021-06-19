@@ -18,27 +18,33 @@ home = path.Path("~").expanduser()
 
 
 def get_reorient_poses(env):
-    bounds = ((0.1, -0.5, 0.01), (0.8, 0.5, 0.01))
+    bounds = ((0.1, -0.5, 0.01), (0.6, 0.6, 0.01))
     pp.draw_aabb(bounds)
 
-    XY = np.random.uniform(bounds[0][:2], bounds[1][:2], (100, 2))
-    ABG = np.r_[
-        np.array(
-            list(
-                itertools.product(
-                    np.linspace(-np.pi / 2, np.pi / 2, num=9),
-                    np.linspace(-np.pi / 2, np.pi / 2, num=9),
-                    np.linspace(-np.pi, np.pi, num=18, endpoint=False),
-                )
+    XY = np.array(
+        list(
+            itertools.product(
+                np.linspace(bounds[0][0], bounds[1][0], num=10),
+                np.linspace(bounds[0][1], bounds[1][1], num=10),
             )
-        ),
-    ]
+        )
+    )
+    ABG = np.array(
+        list(
+            itertools.product(
+                np.linspace(-np.pi / 2, np.pi / 2, num=5),
+                np.linspace(-np.pi / 2, np.pi / 2, num=5),
+                np.linspace(-np.pi, np.pi, num=9, endpoint=False),
+            )
+        )
+    )
 
     aabb = pp.get_aabb(env.fg_object_id)
-    max_extent = np.sqrt(((aabb[1] - aabb[0]) ** 2).sum())
+    # max_extent = np.sqrt(((aabb[1] - aabb[0]) ** 2).sum())
+    max_extent = max(aabb[1] - aabb[0])
 
-    reorient_poses = []
     with pp.LockRenderer(), pp.WorldSaver():
+        XY_valid = []
         for x, y in XY:
             box = pp.create_box(w=max_extent, l=max_extent, h=0.5)
             with pp.LockRenderer():
@@ -51,8 +57,12 @@ def get_reorient_poses(env):
             pp.remove_body(box)
 
             pp.draw_point((x, y, 0.01), color=(0, 1, 0, 1))
+            XY_valid.append((x, y))
 
-            for a, b, g in ABG[np.random.permutation(ABG.shape[0])][:10]:
+    reorient_poses = []
+    with pp.LockRenderer(), pp.WorldSaver():
+        for x, y in XY_valid:
+            for a, b, g in ABG:
                 c = mercury.geometry.Coordinate(
                     position=(x, y, 0),
                     quaternion=common_utils.get_canonical_quaternion(
