@@ -25,11 +25,11 @@ class PoseEncoder(torch.nn.Module):
     def __init__(self, out_channels, nhead, num_layers):
         super().__init__()
         # object_fg_flags: 1
-        # object_classes: 22
+        # object_labels: 7
         # object_poses: 7
         # grasp_pose: 7
         self.fc_encoder = torch.nn.Sequential(
-            torch.nn.Linear(1 + 22 + 7 + 7, out_channels),
+            torch.nn.Linear(1 + 7 + 7 + 7, out_channels),
             torch.nn.ReLU(),
         )
         self.transformer_encoder = torch.nn.TransformerEncoder(
@@ -45,7 +45,7 @@ class PoseEncoder(torch.nn.Module):
     def forward(
         self,
         object_fg_flags,
-        object_classes,
+        object_labels,
         object_poses,
         grasp_pose,
     ):
@@ -57,7 +57,7 @@ class PoseEncoder(torch.nn.Module):
         h = torch.cat(
             [
                 object_fg_flags,
-                object_classes,
+                object_labels,
                 object_poses,
                 grasp_pose,
             ],
@@ -93,13 +93,13 @@ class Model(torch.nn.Module):
     def forward(
         self,
         object_fg_flags,
-        object_classes,
+        object_labels,
         object_poses,
         grasp_pose,
     ):
         h = self.encoder_object_poses(
             object_fg_flags,
-            object_classes,
+            object_labels,
             object_poses,
             grasp_pose,
         )
@@ -110,23 +110,27 @@ class Model(torch.nn.Module):
 
 class Dataset(torch.utils.data.Dataset):
 
-    ROOT_DIR = home / "data/mercury/reorient"
+    ROOT_DIR = home / "data/mercury/reorient/pickable"
 
-    def __init__(self, split, dataset):
+    def __init__(self, split):
         self._split = split
-        self._dataset = dataset
 
         self._files = {"train": [], "val": []}
-        dataset_dir = self.ROOT_DIR / self._dataset
-        SIZE = 150000
-        for file in sorted(dataset_dir.listdir()):
-            if int(file.stem) < (SIZE - 10000):
-                self._files["train"].append(file)
-            elif (SIZE - 10000) <= int(file.stem) < SIZE:
-                self._files["val"].append(file)
+        for i in range(1000):
+            seed_dir = self.ROOT_DIR / f"s-{i:08d}"
+            if not seed_dir.exists():
+                continue
+            for pkl_file in sorted(seed_dir.walk("*.pkl")):
+                self._files["train"].append(pkl_file)
+        for i in range(100):
+            seed_dir = self.ROOT_DIR / f"s-{i:08d}"
+            if not seed_dir.exists():
+                continue
+            for pkl_file in sorted(seed_dir.walk("*.pkl")):
+                self._files["val"].append(pkl_file)
 
-        for k, v in self._files.items():
-            print(k, len(v))
+        for key, value in self._files.items():
+            print(f"{key}: {len(value)}")
 
     def __len__(self):
         return len(self._files[self._split])
@@ -136,8 +140,15 @@ class Dataset(torch.utils.data.Dataset):
         with open(file, "rb") as f:
             data = pickle.load(f)
 
+        class_ids = [2, 3, 5, 11, 12, 15, 16]
+        object_labels = []
+        for object_class in data["object_classes"]:
+            object_label = np.zeros(7)
+            object_label[class_ids.index(object_class)] = 1
+            object_labels.append(object_label)
+        object_labels = np.array(object_labels, dtype=np.int32)
+
         object_fg_flags = data["object_fg_flags"]
-        object_classes = np.eye(22)[data["object_classes"]]
         object_poses = data["object_poses"]
 
         object_poses[object_fg_flags == 1] = data["reorient_pose"]
@@ -148,7 +159,7 @@ class Dataset(torch.utils.data.Dataset):
 
         return dict(
             object_fg_flags=object_fg_flags,
-            object_classes=object_classes,
+            object_labels=object_labels,
             object_poses=object_poses,
             grasp_pose=grasp_pose,
             pickable=pickable,
@@ -165,6 +176,8 @@ def epoch_loop(
 
     model.train(is_training)
 
+    classes_pred = []
+    classes_true = []
     losses = collections.defaultdict(list)
     for iteration, batch in enumerate(
         tqdm.tqdm(
@@ -176,7 +189,7 @@ def epoch_loop(
     ):
         pickable_pred = model(
             object_fg_flags=batch["object_fg_flags"].float().cuda(),
-            object_classes=batch["object_classes"].float().cuda(),
+            object_labels=batch["object_labels"].float().cuda(),
             object_poses=batch["object_poses"].float().cuda(),
             grasp_pose=batch["grasp_pose"].float().cuda(),
         )
@@ -185,12 +198,12 @@ def epoch_loop(
         if is_training:
             optimizer.zero_grad()
 
-        loss_pickable = torch.nn.functional.binary_cross_entropy(
+        classes_true.extend((pickable_true > 0.5).cpu().numpy().tolist())
+        classes_pred.extend((pickable_pred > 0.5).cpu().numpy().tolist())
+
+        loss = torch.nn.functional.binary_cross_entropy(
             pickable_pred, pickable_true
         )
-        loss = loss_pickable
-
-        losses["loss_pickable"].append(loss_pickable.item())
         losses["loss"].append(loss.item())
 
         if is_training:
@@ -204,6 +217,17 @@ def epoch_loop(
                     global_step=len(data_loader) * epoch + iteration,
                     walltime=time.time(),
                 )
+    classes_pred = np.array(classes_pred)
+    classes_true = np.array(classes_true)
+
+    if not is_training:
+        accuracy = (classes_true == classes_pred).sum() / classes_true.size
+        summary_writer.add_scalar(
+            "val/accuracy",
+            accuracy,
+            global_step=len(data_loader) * epoch + iteration,
+            walltime=time.time(),
+        )
 
     return losses
 
@@ -215,11 +239,11 @@ def main():
     parser.add_argument("--name", required=True, help="name")
     args = parser.parse_args()
 
-    data_train = Dataset(split="train", dataset="pickable-2_3_5_11_12_15")
+    data_train = Dataset(split="train")
     loader_train = torch.utils.data.DataLoader(
         data_train, batch_size=256, shuffle=True, drop_last=True
     )
-    data_val = Dataset(split="val", dataset="pickable-2_3_5_11_12_15")
+    data_val = Dataset(split="val")
     loader_val = torch.utils.data.DataLoader(
         data_val, batch_size=256, shuffle=False
     )
