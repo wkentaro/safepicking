@@ -299,7 +299,7 @@ class Env:
 
         position = pcd_in_ee[y, x]
         quaternion = mercury.geometry.quaternion_from_vec2vec(
-            [0, 0, 1], normals[y, x], flip=False
+            [0, 0, 1], normals[y, x]
         )
 
         T_ee_to_ee_af_in_ee = mercury.geometry.transformation_matrix(
