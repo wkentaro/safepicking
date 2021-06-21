@@ -14,7 +14,7 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 import tqdm
 
-import common_utils
+import mercury
 
 
 home = path.Path("~").expanduser()
@@ -261,7 +261,7 @@ def main():
     )
     log_dir.makedirs_p()
 
-    git_hash = common_utils.git_hash(cwd=here, log_dir=log_dir)
+    git_hash = mercury.utils.git_hash(cwd=here, log_dir=log_dir)
     with open(log_dir / "params.json", "w") as f:
         json.dump({"git_hash": git_hash}, f)
 

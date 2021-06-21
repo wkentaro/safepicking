@@ -1,6 +1,3 @@
-import shlex
-import subprocess
-
 import imgviz
 import numpy as np
 import pybullet as p
@@ -129,21 +126,6 @@ def get_class_id(object_id):
     class_name = visual_shape_data[0][4].decode().split("/")[-2]
     class_id = mercury.datasets.ycb.class_names.tolist().index(class_name)
     return class_id
-
-
-def git_hash(cwd=None, log_dir=None):
-    cmd = "git diff HEAD --"
-    diff = subprocess.check_output(shlex.split(cmd), cwd=cwd).decode()
-    if diff:
-        if log_dir is None:
-            raise RuntimeError(
-                "There're changes in git, please commit them first"
-            )
-        else:
-            with open(log_dir / "git.diff", "w") as f:
-                f.write(diff)
-    cmd = "git log --pretty=format:'%h' -n 1"
-    return subprocess.check_output(shlex.split(cmd), cwd=cwd).decode().strip()
 
 
 def get_canonical_quaternion(class_id):
