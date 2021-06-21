@@ -36,8 +36,8 @@ class PoseNet(torch.nn.Module):
         object_labels,
         object_poses,
         grasp_flags,
+        ee_poses,
         actions,
-        **kwargs,
     ):
         B, O = grasp_flags.shape
         A, _ = actions.shape
@@ -45,7 +45,6 @@ class PoseNet(torch.nn.Module):
         h = torch.cat(
             [object_labels, object_poses, grasp_flags[:, :, None]], dim=2
         )
-        ee_poses = kwargs["ee_poses"]
         ee_poses = ee_poses.reshape(B, -1)[:, None, :].repeat(1, O, 1)
         h = torch.cat([h, ee_poses], dim=2)
         h_action = actions
