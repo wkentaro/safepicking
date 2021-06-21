@@ -7,10 +7,8 @@ import mercury
 
 
 def init_place_scene(class_id):
-    if class_id in [2, 3, 5]:
-        container, place_pose = init_place_scene_shelf_front(class_id=class_id)
-    else:
-        container, place_pose = init_place_scene_simple(class_id=class_id)
+    # container, place_pose = init_place_scene_shelf_front(class_id=class_id)
+    container, place_pose = init_place_scene_simple(class_id=class_id)
     mercury.pybullet.create_mesh_body(
         visual_file=mercury.datasets.ycb.get_visual_file(class_id),
         texture=True,
