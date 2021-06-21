@@ -94,7 +94,7 @@ def get_goal_oriented_reorient_poses(env):
         )
     pickable_pred = pickable_pred.cpu().numpy()
 
-    pickable_pred = pickable_pred.reshape(R, G).sum(axis=1)
+    pickable_pred = pickable_pred.reshape(R, G).mean(axis=1)
     grasp_pose = grasp_pose.reshape(R, G, 7)
 
     return reorient_poses, pickable_pred, grasp_pose[0]
@@ -105,15 +105,29 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--seed", type=int, required=True, help="seed")
+    parser.add_argument("--visualize", action="store_true", help="visualize")
     args = parser.parse_args()
 
     env = Env(class_ids=[2, 3, 5, 11, 12, 15], gui=True)
     env.random_state = np.random.RandomState(args.seed)
+    env.eval = True
     env.reset()
 
     reorient_poses, scores, grasp_poses = get_goal_oriented_reorient_poses(env)
 
-    for reorient_pose in reorient_poses[np.argsort(scores)[::-1]]:
+    reorient_poses = reorient_poses[np.argsort(scores)[::-1]]
+
+    if args.visualize:
+        for reorient_pose in reorient_poses:
+            mercury.pybullet.duplicate(
+                env.fg_object_id,
+                position=reorient_pose[:3],
+                quaternion=reorient_pose[3:],
+                collision=False,
+            )
+        return
+
+    for reorient_pose in reorient_poses:
         mercury.pybullet.pause()
 
         env.ri.setj(env.ri.homej)
