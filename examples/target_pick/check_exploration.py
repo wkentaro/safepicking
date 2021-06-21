@@ -21,6 +21,7 @@ def main():
         "openloop_pose_net",
         "conv_net",
         "semantic_conv_net",
+        "fusion_net",
     ]
     parser.add_argument(
         "--model",

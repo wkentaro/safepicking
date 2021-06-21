@@ -9,6 +9,7 @@ from yarr.agents.agent import Agent
 from yarr.agents.agent import ScalarSummary
 
 from conv_net import ConvNet
+from fusion_net import FusionNet
 from pose_net import PoseNet
 
 
@@ -34,6 +35,8 @@ class DqnModel(torch.nn.Module):
             self.module = ConvNet(
                 episode_length=env.episode_length, semantic=True
             )
+        elif self._model == "fusion_net":
+            self.module = FusionNet(episode_length=env.episode_length)
         else:
             raise ValueError
 
@@ -67,6 +70,16 @@ class DqnModel(torch.nn.Module):
                 mask = observation["grasp_flags"] == 1
                 kwargs["object_label"] = observation["object_labels"][mask][0]
                 kwargs["object_pose"] = observation["object_poses"][mask][0]
+        elif self._model == "fusion_net":
+            kwargs = dict(
+                heightmap=observation["heightmap"],
+                maskmap=observation["maskmap"],
+                grasped_uv=observation["grasped_uv"],
+                grasp_flags=observation["grasp_flags_init"],
+                object_labels=observation["object_labels_init"],
+                object_poses=observation["object_poses_init"],
+                ee_poses=observation["ee_poses"],
+            )
         else:
             raise ValueError
 
