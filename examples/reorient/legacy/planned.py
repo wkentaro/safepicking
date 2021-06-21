@@ -13,7 +13,7 @@ from yarr.agents.agent import ActResult
 
 import mercury
 
-from env import Env
+from _env import Env
 
 
 def get_query_ocs(env):

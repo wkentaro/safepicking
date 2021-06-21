@@ -6,7 +6,7 @@ import time
 import numpy as np
 import pybullet_planning as pp
 
-from env import Env
+from _env import Env
 from planned import plan_and_execute_place
 
 

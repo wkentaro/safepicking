@@ -13,7 +13,7 @@ import pybullet_planning as pp
 import mercury
 
 import _utils
-from env import Env
+from _env import Env
 from planned import get_grasp_poses
 from planned import plan_reorient
 

@@ -10,7 +10,7 @@ import pybullet_planning as pp
 
 import mercury
 
-from env import Env
+from _env import Env
 from planned import get_query_ocs
 
 

@@ -12,7 +12,7 @@ import torch
 
 import mercury
 
-from env import Env
+from _env import Env
 
 import _utils
 from planned import execute_plan

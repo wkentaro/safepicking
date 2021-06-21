@@ -12,7 +12,7 @@ import trimesh
 import mercury
 
 import _utils
-from env import Env
+from _env import Env
 
 from pickable_reorient_poses import get_reorient_poses
 

@@ -11,7 +11,7 @@ import pybullet_planning as pp
 import _utils
 import mercury
 
-from env import Env
+from _env import Env
 
 
 home = path.Path("~").expanduser()
