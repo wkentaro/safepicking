@@ -8,18 +8,9 @@ class ConvNet(torch.nn.Module):
         self._semantic = semantic
 
         # heightmap: 1
-        self.encoder_heightmap = torch.nn.Sequential(
-            torch.nn.Conv2d(1, 4, kernel_size=3, stride=1, padding=1),
-            torch.nn.ReLU(),
-        )
         # maskmap: 1
-        self.encoder_maskmap = torch.nn.Sequential(
-            torch.nn.Conv2d(1, 4, kernel_size=3, stride=1, padding=1),
-            torch.nn.ReLU(),
-        )
-
         self.conv1 = torch.nn.Sequential(
-            torch.nn.Conv2d(4 + 4, 4, kernel_size=3, stride=1, padding=1),
+            torch.nn.Conv2d(1 + 1, 4, kernel_size=3, stride=1, padding=1),
             torch.nn.ReLU(),
         )
         self.conv2 = torch.nn.Sequential(
@@ -74,10 +65,9 @@ class ConvNet(torch.nn.Module):
         B = heightmap.shape[0]
         A = actions.shape[0]
 
-        h_heightmap = self.encoder_heightmap(heightmap[:, None, :, :])
-        h_maskmap = self.encoder_maskmap(maskmap[:, None, :, :].float())
-        h = torch.cat([h_heightmap, h_maskmap], dim=1)
-
+        h = torch.cat(
+            [heightmap[:, None, :, :], maskmap[:, None, :, :].float()], dim=1
+        )
         h_conv1 = self.conv1(h)
         h_conv2 = self.conv2(h_conv1)
         h_conv3 = self.conv3(h_conv2)
