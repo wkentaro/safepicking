@@ -51,20 +51,23 @@ def get_query_ocs(env):
         normals_in_world = mercury.geometry.normals_from_pointcloud(
             pcd_in_world
         )
-        pcd_normal_ends_in_world = pcd_in_world + normals_in_world
+        normals_in_world *= -1  # flip normals
 
         world_to_obj = pp.invert(pp.get_pose(env.fg_object_id))
         mask = segm == env.fg_object_id
-        query_ocs = mercury.geometry.transform_points(
+        pcd_in_obj = mercury.geometry.transform_points(
             pcd_in_world[mask],
             mercury.geometry.transformation_matrix(*world_to_obj),
         )
-        query_ocs_normal_ends = mercury.geometry.transform_points(
-            pcd_normal_ends_in_world[mask],
-            mercury.geometry.transformation_matrix(*world_to_obj),
+        normals_in_obj = (
+            mercury.geometry.transform_points(
+                pcd_in_world[mask] + normals_in_world[mask],
+                mercury.geometry.transformation_matrix(*world_to_obj),
+            )
+            - pcd_in_obj
         )
 
-    return query_ocs, query_ocs_normal_ends
+    return pcd_in_obj, normals_in_obj
 
 
 def get_reorient_poses(
