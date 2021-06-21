@@ -14,7 +14,7 @@ import mercury
 
 from env import Env
 
-import common_utils
+import _utils
 from planned import execute_plan
 from planned import get_grasp_poses
 from planned import plan_and_execute_place
@@ -59,7 +59,7 @@ def plan_and_execute_reorient(env, model, timeout, visualize=True):
     object_poses = []
     for object_id in env.object_ids:
         object_fg_flags.append(object_id == env.fg_object_id)
-        object_classes.append(np.eye(22)[common_utils.get_class_id(object_id)])
+        object_classes.append(np.eye(22)[_utils.get_class_id(object_id)])
         object_poses.append(np.hstack(pp.get_pose(object_id)))
     object_fg_flags = np.stack(object_fg_flags, axis=0).astype(np.float32)
     object_classes = np.stack(object_classes, axis=0).astype(np.float32)
@@ -180,7 +180,7 @@ def main():
     with pp.LockRenderer():
         env.reset()
 
-    common_utils.pause(args.pause)
+    _utils.pause(args.pause)
 
     model = Model()
     model_file = sorted(args.log_dir.glob("models/model_best-epoch_*.pth"))[-1]

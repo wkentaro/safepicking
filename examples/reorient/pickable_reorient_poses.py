@@ -8,7 +8,7 @@ import numpy as np
 import path
 import pybullet_planning as pp
 
-import common_utils
+import _utils
 import mercury
 
 from env import Env
@@ -65,8 +65,8 @@ def get_reorient_poses(env):
             for a, b, g in ABG:
                 c = mercury.geometry.Coordinate(
                     position=(x, y, 0),
-                    quaternion=common_utils.get_canonical_quaternion(
-                        class_id=common_utils.get_class_id(env.fg_object_id)
+                    quaternion=_utils.get_canonical_quaternion(
+                        class_id=_utils.get_class_id(env.fg_object_id)
                     ),
                 )
                 c.rotate((a, b, g), wrt="world")

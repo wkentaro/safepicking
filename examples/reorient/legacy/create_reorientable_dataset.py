@@ -12,7 +12,7 @@ import pybullet_planning as pp
 
 import mercury
 
-import common_utils
+import _utils
 from env import Env
 from planned import get_grasp_poses
 from planned import plan_reorient
@@ -138,7 +138,7 @@ def main():
                 object_poses = []
                 for object_id in env.object_ids:
                     object_fg_flags.append(object_id == env.fg_object_id)
-                    object_classes.append(common_utils.get_class_id(object_id))
+                    object_classes.append(_utils.get_class_id(object_id))
                     object_poses.append(np.hstack(pp.get_pose(object_id)))
                 object_fg_flags = np.array(object_fg_flags, dtype=bool)
                 object_classes = np.array(object_classes, dtype=np.int32)

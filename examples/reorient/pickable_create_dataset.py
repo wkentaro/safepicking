@@ -11,7 +11,7 @@ import trimesh
 
 import mercury
 
-import common_utils
+import _utils
 from env import Env
 
 from pickable_reorient_poses import get_reorient_poses
@@ -44,7 +44,7 @@ def main():
     object_poses = []
     for object_id in env.object_ids:
         object_fg_flags.append(object_id == env.fg_object_id)
-        object_classes.append(common_utils.get_class_id(object_id))
+        object_classes.append(_utils.get_class_id(object_id))
         object_poses.append(np.hstack(pp.get_pose(object_id)))
     object_fg_flags = np.array(object_fg_flags, dtype=bool)
     object_classes = np.array(object_classes, dtype=np.int32)
@@ -52,7 +52,7 @@ def main():
 
     reorient_poses = get_reorient_poses(env)
 
-    class_id = common_utils.get_class_id(env.fg_object_id)
+    class_id = _utils.get_class_id(env.fg_object_id)
     visual_file = mercury.datasets.ycb.get_visual_file(class_id=class_id)
     mesh = trimesh.load_mesh(visual_file)
     pcd_in_obj = mesh.vertices

@@ -2,7 +2,7 @@ import numpy as np
 import pybullet as p
 import pybullet_planning as pp
 
-import common_utils
+import _utils
 import mercury
 
 
@@ -25,7 +25,7 @@ def init_place_scene_simple(class_id):
     c.rotate([np.pi / 2, 0, 0])
     pp.set_pose(bin, c.pose)
 
-    c.quaternion = common_utils.get_canonical_quaternion(class_id)
+    c.quaternion = _utils.get_canonical_quaternion(class_id)
     c.rotate([0, 0, np.deg2rad(-90)], wrt="world")
     place_pose = c.pose
     return [bin], place_pose
@@ -162,7 +162,7 @@ def init_place_scene_shelf_front(class_id):
 
     for i, position in enumerate(positions):
         c = mercury.geometry.Coordinate(
-            position, common_utils.get_canonical_quaternion(class_id=class_id)
+            position, _utils.get_canonical_quaternion(class_id=class_id)
         )
         if face == "front":
             c.rotate([0, 0, np.deg2rad(-90)], wrt="world")

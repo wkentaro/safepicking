@@ -9,7 +9,7 @@ import pybullet_planning as pp
 
 import mercury
 
-import common_utils
+import _utils
 from legacy.init_place_scene import init_place_scene
 
 
@@ -190,7 +190,7 @@ class Env:
 
         # create container
         self.containers, self._place_pose = init_place_scene(
-            class_id=common_utils.get_class_id(self.fg_object_id)
+            class_id=_utils.get_class_id(self.fg_object_id)
         )
 
         for _ in range(int(1 / pp.get_time_step())):

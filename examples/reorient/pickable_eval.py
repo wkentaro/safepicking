@@ -9,8 +9,8 @@ import torch
 
 import mercury
 
-import common_utils
-from env import Env
+from _env import Env
+import _utils
 
 from legacy.planned import get_query_ocs
 from pickable_reorient_poses import get_reorient_poses
@@ -37,7 +37,7 @@ def get_goal_oriented_reorient_poses(env):
     for object_id in env.object_ids:
         object_fg_flags.append(object_id == env.fg_object_id)
         object_label = np.zeros(7)
-        object_label[class_ids.index(common_utils.get_class_id(object_id))] = 1
+        object_label[class_ids.index(_utils.get_class_id(object_id))] = 1
         object_labels.append(object_label)
         object_poses.append(np.hstack(pp.get_pose(object_id)))
     object_fg_flags = np.array(object_fg_flags, dtype=bool)

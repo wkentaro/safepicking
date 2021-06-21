@@ -11,7 +11,7 @@ import pybullet_planning as pp
 
 import mercury
 
-import common_utils
+import _utils
 from env import Env
 
 
@@ -70,7 +70,7 @@ def view_pkl_file(pkl_file):
     j = ri.solve_ik((data["grasp_pose"][:3], data["grasp_pose"][3:]))
     ri.setj(j)
 
-    common_utils.pause(enabled=True)
+    _utils.pause(enabled=True)
 
 
 def main():
