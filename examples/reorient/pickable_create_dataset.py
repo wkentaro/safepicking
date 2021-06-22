@@ -2,6 +2,7 @@
 
 import argparse
 import pickle
+import time
 
 from loguru import logger
 import numpy as np
@@ -11,8 +12,8 @@ import trimesh
 
 import mercury
 
-import _utils
 from _env import Env
+import _utils
 
 from pickable_reorient_poses import get_reorient_poses
 
@@ -95,9 +96,11 @@ def main():
 
             pickable = True
 
-            j = env.ri.solve_ik(ee_af_to_world, rotation_axis="z")
+            j = env.ri.solve_ik(c.pose, rotation_axis="z")
             if j is not None:
                 env.ri.setj(j)
+                if args.gui:
+                    time.sleep(0.1)
 
                 obstacles = env.bg_objects + env.object_ids
                 obstacles.remove(env.fg_object_id)
@@ -109,13 +112,15 @@ def main():
                     j = None
             pickable &= j is not None
 
-            for _ in range(10):
+            for _ in range(5):
                 if not pickable:
                     break
-                c.translate([0, 0, 0.01])
-                j = env.ri.solve_ik(ee_af_to_world, rotation_axis=True)
+                c.translate([0, 0, 0.02])
+                j = env.ri.solve_ik(c.pose, rotation_axis=True)
                 if j is not None:
                     env.ri.setj(j)
+                    if args.gui:
+                        time.sleep(0.1)
 
                     obstacles = env.bg_objects + env.object_ids
                     obstacles.remove(env.fg_object_id)
