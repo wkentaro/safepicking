@@ -21,8 +21,9 @@ from yarr.replay_buffer.wrappers.pytorch_replay_buffer import (
 from yarr.runners.env_runner import EnvRunner
 from yarr.runners.pytorch_train_runner import PyTorchTrainRunner
 
+import mercury
+
 from agent import DqnAgent
-import common_utils
 from env import PickFromPileEnv
 from rollout_generator import RolloutGenerator
 from stat_accumulator import SimpleAccumulator
@@ -92,7 +93,7 @@ def main():
     log_dir = here / "logs" / log_dir
     log_dir.makedirs_p()
 
-    hparams["git_hash"] = common_utils.git_hash(cwd=here, log_dir=log_dir)
+    hparams["git_hash"] = mercury.utils.git_hash(cwd=here, log_dir=log_dir)
     hparams["hostname"] = socket.gethostname()
 
     with open(log_dir / "hparams.json", "w") as f:
