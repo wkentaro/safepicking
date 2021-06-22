@@ -1,6 +1,6 @@
 import time
 
-import imgviz
+# import imgviz
 from loguru import logger
 import numpy as np
 import path
@@ -217,11 +217,11 @@ class Env:
 
     def update_obs(self):
         rgb, depth, segm = self.ri.get_camera_image()
-        if pp.has_gui():
-            imgviz.io.cv_imshow(
-                np.hstack((rgb, imgviz.depth2rgb(depth))), "update_obs"
-            )
-            imgviz.io.cv_waitkey(100)
+        # if pp.has_gui():
+        #     imgviz.io.cv_imshow(
+        #         np.hstack((rgb, imgviz.depth2rgb(depth))), "update_obs"
+        #     )
+        #     imgviz.io.cv_waitkey(100)
         fg_mask = segm == self.fg_object_id
         K = self.ri.get_opengl_intrinsic_matrix()
         pcd_in_camera = mercury.geometry.pointcloud_from_depth(

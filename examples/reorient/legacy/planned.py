@@ -4,7 +4,7 @@ import argparse
 import itertools
 import time
 
-import imgviz
+# import imgviz
 from loguru import logger
 import numpy as np
 import pybullet_planning as pp
@@ -36,11 +36,11 @@ def get_query_ocs(env):
         rgb, depth, segm = mercury.pybullet.get_camera_image(
             T_camera_to_world, fovy, height, width
         )
-        if pp.has_gui():
-            imgviz.io.cv_imshow(
-                np.hstack((rgb, imgviz.depth2rgb(depth))), "get_query_ocs"
-            )
-            imgviz.io.cv_waitkey(100)
+        # if pp.has_gui():
+        #     imgviz.io.cv_imshow(
+        #         np.hstack((rgb, imgviz.depth2rgb(depth))), "get_query_ocs"
+        #     )
+        #     imgviz.io.cv_waitkey(100)
         K = mercury.geometry.opengl_intrinsic_matrix(fovy, height, width)
         pcd_in_camera = mercury.geometry.pointcloud_from_depth(
             depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
@@ -448,11 +448,12 @@ def plan_and_execute_place(env, num_sample=5):
         height,
         width,
     )
-    if pp.has_gui():
-        imgviz.io.cv_imshow(
-            np.hstack((rgb, imgviz.depth2rgb(depth))), "plan_and_execute_place"
-        )
-        imgviz.io.cv_waitkey(100)
+    # if pp.has_gui():
+    #     imgviz.io.cv_imshow(
+    #         np.hstack((rgb, imgviz.depth2rgb(depth))),
+    #         "plan_and_execute_place",
+    #     )
+    #     imgviz.io.cv_waitkey(100)
 
     fg_mask = segm == env.fg_object_id
     K = env.ri.get_opengl_intrinsic_matrix()
