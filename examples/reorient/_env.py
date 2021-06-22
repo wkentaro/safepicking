@@ -415,23 +415,7 @@ class Env:
 
         assert self.ri.attachments[0].child == self.fg_object_id
 
-        self.ri.setj(result["j_grasp"])
-        self.ri.attachments[0].assign()
-
-        js = self.ri.planj(
-            self.ri.homej,
-            obstacles=obstacles,
-            min_distances_start_goal={
-                (self.ri.attachments[0].child, -1): -0.01
-            },
-        )
-        if js is None:
-            logger.error(f"Failed to solve homing path: {act_result.action}")
-            before_return()
-            return False, result
-        result["js_home"] = js
-
-        self.ri.setj(js[-1])
+        self.ri.setj(self.ri.homej)
         self.ri.attachments[0].assign()
 
         js = self.ri.planj(
@@ -515,8 +499,7 @@ class Env:
             pp.Attachment(self.ri.robot, self.ri.ee, obj_to_ee, object_id)
         ]
 
-        js = validation_result["js_home"]
-        for _ in (_ for j in js for _ in self.ri.movej(j)):
+        for _ in self.ri.movej(self.ri.homej, speed=0.005):
             pp.step_simulation()
             time.sleep(pp.get_time_step())
 
