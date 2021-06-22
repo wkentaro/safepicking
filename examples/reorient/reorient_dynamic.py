@@ -164,7 +164,6 @@ def main():
     reorient_poses = reorient_poses[reorient_scores > 0.7]
     indices = np.random.permutation(reorient_poses.shape[0])[:1000]
     reorient_poses = reorient_poses[indices]
-    reorient_scores = reorient_scores[indices]
 
     grasp_poses = np.array(
         list(itertools.islice(_reorient.get_grasp_poses(env), 100))

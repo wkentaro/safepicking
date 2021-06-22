@@ -119,12 +119,15 @@ def main():
     env.eval = True
     env.reset()
 
-    reorient_poses, scores, grasp_poses = get_goal_oriented_reorient_poses(env)
+    (
+        reorient_poses,
+        reorient_scores,
+        grasp_poses,
+    ) = get_goal_oriented_reorient_poses(env)
 
-    reorient_poses = reorient_poses[scores > 0.7]
-    reorient_poses = reorient_poses[
-        np.random.permutation(reorient_poses.shape[0])
-    ]
+    reorient_poses = reorient_poses[reorient_scores > 0.7]
+    indices = np.random.permutation(reorient_poses.shape[0])[:1000]
+    reorient_poses = reorient_poses[indices]
 
     if args.visualize:
         for reorient_pose in reorient_poses:
