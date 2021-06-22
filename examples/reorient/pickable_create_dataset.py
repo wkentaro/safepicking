@@ -59,7 +59,9 @@ def main():
     normals_in_obj = mesh.vertex_normals
 
     n_saved = 0
-    for reorient_pose in reorient_poses:
+    for reorient_pose in reorient_poses[
+        np.random.permutation(reorient_poses.shape[0])
+    ]:
         world_saver = pp.WorldSaver()
 
         pp.set_pose(env.fg_object_id, (reorient_pose[:3], reorient_pose[3:]))
