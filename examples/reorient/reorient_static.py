@@ -6,8 +6,6 @@ import itertools
 import numpy as np
 import pybullet_planning as pp
 
-import mercury
-
 from _env import Env
 import _reorient
 
@@ -40,19 +38,11 @@ def main():
     )
 
     for reorient_pose in reorient_poses:
-        c_reorient = mercury.geometry.Coordinate(
-            *np.hsplit(reorient_pose, [3])
-        )
-
         p = np.random.permutation(grasp_poses.shape[0])[:3]
         for grasp_pose in grasp_poses[p]:
-            c_grasp = mercury.geometry.Coordinate(*np.hsplit(grasp_pose, [3]))
-
-            result = _reorient.plan_reorient(env, c_grasp, c_reorient)
-
+            result = _reorient.plan_reorient(env, grasp_pose, reorient_pose)
             if "js_place" in result:
                 break
-
         if "js_place" in result:
             break
 

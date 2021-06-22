@@ -225,7 +225,10 @@ def get_grasp_poses(env):
         yield np.hstack(pose)
 
 
-def plan_reorient(env, c_grasp, c_reorient):
+def plan_reorient(env, grasp_pose, reorient_pose):
+    c_grasp = mercury.geometry.Coordinate(*np.hsplit(grasp_pose, [3]))
+    c_reorient = mercury.geometry.Coordinate(*np.hsplit(reorient_pose, [3]))
+
     T_ee_af_to_world = c_grasp.matrix
     T_obj_af_to_world = c_reorient.matrix
 

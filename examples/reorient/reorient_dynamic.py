@@ -96,9 +96,7 @@ def plan_and_execute_reorient(
             lock_renderer = pp.LockRenderer()
 
         result = _reorient.plan_reorient(
-            env,
-            mercury.geometry.Coordinate(*ee_to_world),
-            mercury.geometry.Coordinate(*obj_af_to_world),
+            env, np.hstack(ee_to_world), np.hstack(obj_af_to_world)
         )
 
         if visualize:
