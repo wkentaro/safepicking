@@ -296,7 +296,7 @@ def plan_reorient(env, c_grasp, c_reorient):
     if not env.ri.validatej(
         j,
         obstacles=bg_object_ids,
-        min_distances={(env.ri.attachments[0].child, -1): -0.02},
+        min_distances={(env.ri.attachments[0].child, -1): -0.01},
     ):
         logger.warning("j_place is invalid")
         before_return()
@@ -349,7 +349,6 @@ def plan_reorient(env, c_grasp, c_reorient):
     js = env.ri.planj(
         result["j_place"],
         obstacles=obstacles,
-        min_distances={(env.ri.attachments[0].child, -1): -0.01},
         min_distances_start_goal={(env.ri.attachments[0].child, -1): -0.01},
     )
     if js is None:
