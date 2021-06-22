@@ -100,9 +100,7 @@ class Env:
             suction_max_force=None,
             suction_surface_threshold=np.inf,
             suction_surface_alignment=False,
-            # SBL gives larger margin from obstacles than RRTConnect
-            planner="SBL",
-            # planner="RRTConnect",
+            planner="RRTConnect",
         )
         c_cam_to_ee = mercury.geometry.Coordinate()
         c_cam_to_ee.translate([0, -0.1, -0.1])

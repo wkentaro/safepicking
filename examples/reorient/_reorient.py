@@ -376,7 +376,7 @@ def plan_reorient(env, c_grasp, c_reorient):
 
 def execute_plan(env, result):
     js = result["js_pre_grasp"]
-    for _ in (_ for j in js for _ in env.ri.movej(j)):
+    for _ in (_ for j in js for _ in env.ri.movej(j, timeout=1)):
         pp.step_simulation()
         time.sleep(pp.get_time_step())
 
@@ -387,7 +387,7 @@ def execute_plan(env, result):
         time.sleep(pp.get_time_step())
 
     js = result["js_place"]
-    for _ in (_ for j in js for _ in env.ri.movej(j, speed=0.005)):
+    for _ in (_ for j in js for _ in env.ri.movej(j, timeout=1, speed=0.005)):
         pp.step_simulation()
         time.sleep(pp.get_time_step())
 
@@ -408,14 +408,13 @@ def execute_plan(env, result):
             min_distances_start_goal=mercury.utils.StaticDict(-0.02),
         )
         if js is not None:
-            for _ in (_ for j in js for _ in env.ri.movej(j, speed=0.005)):
+            for _ in (
+                _ for j in js for _ in env.ri.movej(j, timeout=1, speed=0.005)
+            ):
                 pp.step_simulation()
                 time.sleep(pp.get_time_step())
 
-    for _ in env.ri.move_to_homej(
-        bg_object_ids=env.bg_objects,
-        object_ids=env.object_ids,
-    ):
+    for _ in env.ri.movej(env.ri.homej):
         pp.step_simulation()
         time.sleep(pp.get_time_step())
 
