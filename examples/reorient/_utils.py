@@ -33,14 +33,21 @@ def get_canonical_quaternion(class_id):
     return c.quaternion
 
 
-def init_place_scene(class_id):
+def init_place_scene(class_id, face="front"):
     bin = mercury.pybullet.create_bin(0.3, 0.4, 0.2, color=(0.8, 0.8, 0.8, 1))
     c = mercury.geometry.Coordinate([0, 0.6, 0.8])
     c.rotate([np.pi / 2, 0, 0])
     pp.set_pose(bin, c.pose)
 
     c.quaternion = _utils.get_canonical_quaternion(class_id)
-    c.rotate([0, 0, np.deg2rad(-90)], wrt="world")
+    if face == "front":
+        c.rotate([0, 0, np.deg2rad(-90)], wrt="world")
+    elif face == "right":
+        c.rotate([0, 0, np.deg2rad(0)], wrt="world")
+    elif face == "left":
+        c.rotate([0, 0, np.deg2rad(180)], wrt="world")
+    else:
+        raise ValueError
     place_pose = c.pose
 
     mercury.pybullet.create_mesh_body(

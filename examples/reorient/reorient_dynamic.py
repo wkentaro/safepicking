@@ -127,10 +127,16 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--seed", type=int, help="seed", required=True)
+    parser.add_argument(
+        "--face",
+        choices=["front", "right", "left"],
+        default="front",
+        help="face",
+    )
     parser.add_argument("--mp4", help="mp4")
     args = parser.parse_args()
 
-    env = Env(class_ids=[2, 3, 5, 11, 12, 15], mp4=args.mp4)
+    env = Env(class_ids=[2, 3, 5, 11, 12, 15], mp4=args.mp4, face=args.face)
     env.random_state = np.random.RandomState(args.seed)
     env.eval = True
     env.reset()
@@ -150,6 +156,12 @@ def main():
         pp.draw_pose(np.hsplit(grasp_pose, [3]), length=0.05)
 
     plan_and_execute_reorient(env, grasp_poses, reorient_poses)
+
+    for _ in range(480):
+        pp.step_simulation()
+
+    if _reorient.plan_and_execute_place(env):
+        return
 
 
 if __name__ == "__main__":

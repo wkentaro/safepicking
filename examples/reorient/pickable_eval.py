@@ -105,10 +105,16 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--seed", type=int, required=True, help="seed")
+    parser.add_argument(
+        "--face",
+        choices=["front", "right", "left"],
+        default="front",
+        help="face",
+    )
     parser.add_argument("--visualize", action="store_true", help="visualize")
     args = parser.parse_args()
 
-    env = Env(class_ids=[2, 3, 5, 11, 12, 15], gui=True)
+    env = Env(class_ids=[2, 3, 5, 11, 12, 15], gui=True, face=args.face)
     env.random_state = np.random.RandomState(args.seed)
     env.eval = True
     env.reset()

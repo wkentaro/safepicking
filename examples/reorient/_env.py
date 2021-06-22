@@ -39,7 +39,13 @@ class Env:
         return c.pose
 
     def __init__(
-        self, class_ids, gui=True, retime=1, step_callback=None, mp4=None
+        self,
+        class_ids,
+        gui=True,
+        retime=1,
+        step_callback=None,
+        mp4=None,
+        face="front",
     ):
         super().__init__()
 
@@ -48,6 +54,7 @@ class Env:
         self._retime = retime
         self._step_callback = step_callback
         self._mp4 = mp4
+        self._face = face
 
         self.eval = False
         self.random_state = np.random.RandomState()
@@ -94,8 +101,8 @@ class Env:
             suction_surface_threshold=np.inf,
             suction_surface_alignment=False,
             # SBL gives larger margin from obstacles than RRTConnect
-            # planner="SBL",
-            planner="RRTConnect",
+            planner="SBL",
+            # planner="RRTConnect",
         )
         c_cam_to_ee = mercury.geometry.Coordinate()
         c_cam_to_ee.translate([0, -0.1, -0.1])
@@ -190,7 +197,8 @@ class Env:
 
         # create container
         self.containers, self._place_pose = _utils.init_place_scene(
-            class_id=_utils.get_class_id(self.fg_object_id)
+            class_id=_utils.get_class_id(self.fg_object_id),
+            face=self._face,
         )
 
         for _ in range(int(1 / pp.get_time_step())):
