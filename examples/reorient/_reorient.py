@@ -482,3 +482,122 @@ def get_static_reorient_poses(env):
     lock_renderer.restore()
 
     return poses
+
+
+def plan_place(env, target_grasp_poses):
+    obj_to_world = pp.get_pose(env.fg_object_id)
+
+    result = {}
+    for grasp_pose in target_grasp_poses:
+        with pp.LockRenderer(), pp.WorldSaver():
+            ee_to_obj = np.hsplit(grasp_pose, [3])
+            ee_to_world = pp.multiply(obj_to_world, ee_to_obj)
+            j = env.ri.solve_ik(ee_to_world, rotation_axis="z")
+            if j is None:
+                logger.warning("j_grasp is not found")
+                continue
+            if not env.ri.validatej(
+                j,
+                obstacles=env.bg_objects,
+                min_distances=mercury.utils.StaticDict(-0.01),
+            ):
+                logger.warning("j_grasp is invalid")
+                continue
+            result["j_grasp"] = j
+
+            env.ri.setj(j)
+
+            c = mercury.geometry.Coordinate(*ee_to_world)
+            c.translate([0, 0, -0.1])
+            j = env.ri.solve_ik(c.pose)
+            if j is None:
+                logger.warning("j_pre_grasp is not found")
+                continue
+            if not env.ri.validatej(
+                j,
+                obstacles=env.bg_objects,
+                min_distances=mercury.utils.StaticDict(-0.01),
+            ):
+                logger.warning("j_pre_grasp is invalid")
+                continue
+            result["j_pre_grasp"] = j
+
+            env.ri.setj(env.ri.homej)
+            js = env.ri.planj(
+                result["j_pre_grasp"],
+                obstacles=env.bg_objects + env.object_ids,
+                min_distances=mercury.utils.StaticDict(-0.01),
+            )
+            if js is None:
+                logger.warning("js_pre_grasp is not found")
+                continue
+            result["js_pre_grasp"] = js
+
+            env.ri.setj(result["j_grasp"])
+            env.ri.attachments = [
+                pp.Attachment(
+                    env.ri.robot,
+                    env.ri.ee,
+                    pp.invert(ee_to_obj),
+                    env.fg_object_id,
+                )
+            ]
+            env.ri.attachments[0].assign()
+
+            with env.ri.enabling_attachments():
+                j = env.ri.solve_ik(
+                    env.PRE_PLACE_POSE,
+                    move_target=env.ri.robot_model.attachment_link0,
+                )
+                if j is None:
+                    continue
+                result["j_pre_place"] = j
+
+                env.ri.setj(j)
+                env.ri.attachments[0].assign()
+
+                js = []
+                for pose in pp.interpolate_poses(
+                    env.PRE_PLACE_POSE, env.PLACE_POSE
+                ):
+                    j = env.ri.solve_ik(
+                        pose,
+                        move_target=env.ri.robot_model.attachment_link0,
+                        n_init=1,
+                    )
+                    if j is None:
+                        logger.warning("js_place is not found")
+                        break
+                    if not env.ri.validatej(j, obstacles=env.bg_objects):
+                        j = None
+                        logger.warning("js_place is invalid")
+                        break
+                    js.append(j)
+                if j is None:
+                    continue
+                result["js_place"] = js
+    return result
+
+
+def execute_place(env, result):
+    for _ in (_ for j in result["js_pre_grasp"] for _ in env.ri.movej(j)):
+        pp.step_simulation()
+        time.sleep(pp.get_time_step())
+
+    for _ in env.ri.grasp(min_dz=0.08, max_dz=0.12, rotation_axis=True):
+        pp.step_simulation()
+        time.sleep(pp.get_time_step())
+
+    for _ in env.ri.movej(env.ri.homej):
+        pp.step_simulation()
+        time.sleep(pp.get_time_step())
+
+    for _ in env.ri.movej(result["j_pre_place"]):
+        pp.step_simulation()
+        time.sleep(pp.get_time_step())
+
+    for _ in (
+        _ for j in result["js_place"] for _ in env.ri.movej(j, speed=0.005)
+    ):
+        pp.step_simulation()
+        time.sleep(pp.get_time_step())

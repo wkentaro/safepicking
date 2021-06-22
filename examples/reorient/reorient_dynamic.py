@@ -139,19 +139,32 @@ def main():
     env.eval = True
     env.reset()
 
-    # if _reorient.plan_and_execute_place(env):
-    #     return
+    if 0:
+        pcd_in_obj, normals_in_obj = _reorient.get_query_ocs(env)
+        quaternion_in_obj = mercury.geometry.quaternion_from_vec2vec(
+            [0, 0, -1], normals_in_obj
+        )
+        target_grasp_poses = np.hstack([pcd_in_obj, quaternion_in_obj])
+        target_grasp_poses = target_grasp_poses[
+            np.random.permutation(target_grasp_poses.shape[0])
+        ][:10]
+
+        result = _reorient.plan_place(env, target_grasp_poses)
+        if "js_place" not in result:
+            logger.error("Failed to plan pick-and-place")
+        else:
+            _reorient.execute_place(env, result)
 
     (
         reorient_poses,
-        scores,
+        reorient_scores,
         target_grasp_poses,
     ) = get_goal_oriented_reorient_poses(env)
 
-    reorient_poses = reorient_poses[scores > 0.7]
-    reorient_poses = reorient_poses[
-        np.random.permutation(reorient_poses.shape[0])
-    ]
+    reorient_poses = reorient_poses[reorient_scores > 0.7]
+    indices = np.random.permutation(reorient_poses.shape[0])[:1000]
+    reorient_poses = reorient_poses[indices]
+    reorient_scores = reorient_scores[indices]
 
     grasp_poses = np.array(
         list(itertools.islice(_reorient.get_grasp_poses(env), 100))
@@ -163,121 +176,11 @@ def main():
         pp.step_simulation()
         time.sleep(pp.get_time_step())
 
-    obj_to_world = pp.get_pose(env.fg_object_id)
-    result = {}
-    for grasp_pose in target_grasp_poses:
-        with pp.LockRenderer(), pp.WorldSaver():
-            ee_to_obj = np.hsplit(grasp_pose, [3])
-            ee_to_world = pp.multiply(obj_to_world, ee_to_obj)
-            j = env.ri.solve_ik(ee_to_world, rotation_axis="z")
-            if j is None:
-                logger.warning("j_grasp is not found")
-                continue
-            if not env.ri.validatej(
-                j,
-                obstacles=env.bg_objects,
-                min_distances=mercury.utils.StaticDict(-0.01),
-            ):
-                logger.warning("j_grasp is invalid")
-                continue
-            result["j_grasp"] = j
-
-            env.ri.setj(j)
-
-            c = mercury.geometry.Coordinate(*ee_to_world)
-            c.translate([0, 0, -0.1])
-            j = env.ri.solve_ik(c.pose)
-            if j is None:
-                logger.warning("j_pre_grasp is not found")
-                continue
-            if not env.ri.validatej(
-                j,
-                obstacles=env.bg_objects,
-                min_distances=mercury.utils.StaticDict(-0.01),
-            ):
-                logger.warning("j_pre_grasp is invalid")
-                continue
-            result["j_pre_grasp"] = j
-
-            env.ri.setj(env.ri.homej)
-            js = env.ri.planj(
-                result["j_pre_grasp"],
-                obstacles=env.bg_objects + env.object_ids,
-                min_distances=mercury.utils.StaticDict(-0.01),
-            )
-            if js is None:
-                logger.warning("js_pre_grasp is not found")
-                continue
-            result["js_pre_grasp"] = js
-
-            env.ri.setj(result["j_grasp"])
-            env.ri.attachments = [
-                pp.Attachment(
-                    env.ri.robot,
-                    env.ri.ee,
-                    pp.invert(ee_to_obj),
-                    env.fg_object_id,
-                )
-            ]
-            env.ri.attachments[0].assign()
-
-            with env.ri.enabling_attachments():
-                j = env.ri.solve_ik(
-                    env.PRE_PLACE_POSE,
-                    move_target=env.ri.robot_model.attachment_link0,
-                )
-                if j is None:
-                    continue
-                result["j_pre_place"] = j
-
-                env.ri.setj(j)
-                env.ri.attachments[0].assign()
-
-                js = []
-                for pose in pp.interpolate_poses(
-                    env.PRE_PLACE_POSE, env.PLACE_POSE
-                ):
-                    j = env.ri.solve_ik(
-                        pose,
-                        move_target=env.ri.robot_model.attachment_link0,
-                        n_init=1,
-                    )
-                    if j is None:
-                        logger.warning("js_place is not found")
-                        break
-                    if not env.ri.validatej(j, obstacles=env.bg_objects):
-                        j = None
-                        logger.warning("js_place is invalid")
-                        break
-                    js.append(j)
-                if j is None:
-                    continue
-                result["js_place"] = js
-
+    result = _reorient.plan_place(env, target_grasp_poses)
     if "js_place" not in result:
         logger.error("Failed to plan pick-and-place")
     else:
-        for _ in (_ for j in result["js_pre_grasp"] for _ in env.ri.movej(j)):
-            pp.step_simulation()
-            time.sleep(pp.get_time_step())
-
-        for _ in env.ri.grasp(min_dz=0.08, max_dz=0.12, rotation_axis=True):
-            pp.step_simulation()
-            time.sleep(pp.get_time_step())
-
-        for _ in env.ri.movej(env.ri.homej):
-            pp.step_simulation()
-            time.sleep(pp.get_time_step())
-
-        for _ in env.ri.movej(result["j_pre_place"]):
-            pp.step_simulation()
-            time.sleep(pp.get_time_step())
-
-        for _ in (
-            _ for j in result["js_place"] for _ in env.ri.movej(j, speed=0.005)
-        ):
-            pp.step_simulation()
-            time.sleep(pp.get_time_step())
+        _reorient.execute_place(env, result)
 
 
 if __name__ == "__main__":
