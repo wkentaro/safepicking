@@ -10,10 +10,9 @@ import path
 
 import mercury
 
+import _utils
 from agent import DqnAgent
 from env import PickFromPileEnv
-
-import common_utils
 
 
 here = path.Path(__file__).abspath().parent
@@ -90,7 +89,7 @@ def main():
     for object_id in env.object_ids:
         if object_id == env.target_object_id:
             continue
-        class_id = common_utils.get_class_id(object_id)
+        class_id = _utils.get_class_id(object_id)
         class_name = mercury.datasets.ycb.class_names[class_id]
         logger.info(
             f"[{object_id:2d}] {class_name:20s}: "

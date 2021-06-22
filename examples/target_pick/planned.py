@@ -13,7 +13,7 @@ import pybullet_planning as pp
 
 import mercury
 
-import common_utils
+import _utils
 from env import PickFromPileEnv
 
 
@@ -111,7 +111,7 @@ def main():
     for object_id in object_ids:
         if object_id == target_object_id:
             continue
-        class_id = common_utils.get_class_id(object_id)
+        class_id = _utils.get_class_id(object_id)
         class_name = mercury.datasets.ycb.class_names[class_id]
         logger.info(
             f"[{object_id}] {class_name:20s}: "

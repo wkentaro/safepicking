@@ -18,7 +18,7 @@ from yarr.utils.transition import Transition
 
 import mercury
 
-import common_utils
+import _utils
 from get_heightmap import get_heightmap
 
 
@@ -468,7 +468,7 @@ class PickFromPileEnv(Env):
         for i, object_id in enumerate(object_ids):
             grasp_flags[i] = object_id == target_object_id
             object_to_world = pp.get_pose(object_id)
-            class_id = common_utils.get_class_id(object_id)
+            class_id = _utils.get_class_id(object_id)
             object_label = self.CLASS_IDS.index(class_id)
             object_labels[i] = np.eye(len(self.CLASS_IDS))[object_label]
             if pose_noise:
