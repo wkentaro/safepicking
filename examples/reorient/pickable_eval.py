@@ -10,9 +10,9 @@ import torch
 import mercury
 
 from _env import Env
+import _reorient
 import _utils
 
-from legacy.planned import get_query_ocs
 from pickable_reorient_poses import get_reorient_poses
 from pickable_train import Model
 
@@ -47,7 +47,7 @@ def get_goal_oriented_reorient_poses(env):
     reorient_poses = get_reorient_poses(env)
 
     # target grasp_pose
-    pcd_in_obj, normals_in_obj = get_query_ocs(env)
+    pcd_in_obj, normals_in_obj = _reorient.get_query_ocs(env)
     indices = np.random.permutation(pcd_in_obj.shape[0])[:10]
 
     pcd_in_obj = pcd_in_obj[indices]
