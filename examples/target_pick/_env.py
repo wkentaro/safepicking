@@ -18,8 +18,8 @@ from yarr.utils.transition import Transition
 
 import mercury
 
+from _get_heightmap import get_heightmap
 import _utils
-from get_heightmap import get_heightmap
 
 
 home = path.Path("~").expanduser()

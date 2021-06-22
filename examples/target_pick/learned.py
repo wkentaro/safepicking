@@ -10,9 +10,9 @@ import path
 
 import mercury
 
+from _agent import DqnAgent
+from _env import PickFromPileEnv
 import _utils
-from agent import DqnAgent
-from env import PickFromPileEnv
 
 
 here = path.Path(__file__).abspath().parent

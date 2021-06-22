@@ -13,8 +13,8 @@ import pybullet_planning as pp
 
 import mercury
 
+from _env import PickFromPileEnv
 import _utils
-from env import PickFromPileEnv
 
 
 here = path.Path(__file__).abspath().parent
