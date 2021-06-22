@@ -1,7 +1,10 @@
 import numpy as np
 import pybullet as p
+import pybullet_planning as pp
 
 import mercury
+
+import _utils
 
 
 def get_class_id(object_id):
@@ -28,3 +31,24 @@ def get_canonical_quaternion(class_id):
     else:
         pass
     return c.quaternion
+
+
+def init_place_scene(class_id):
+    bin = mercury.pybullet.create_bin(0.3, 0.4, 0.2, color=(0.8, 0.8, 0.8, 1))
+    c = mercury.geometry.Coordinate([0, 0.6, 0.8])
+    c.rotate([np.pi / 2, 0, 0])
+    pp.set_pose(bin, c.pose)
+
+    c.quaternion = _utils.get_canonical_quaternion(class_id)
+    c.rotate([0, 0, np.deg2rad(-90)], wrt="world")
+    place_pose = c.pose
+
+    mercury.pybullet.create_mesh_body(
+        visual_file=mercury.datasets.ycb.get_visual_file(class_id),
+        texture=True,
+        position=place_pose[0],
+        quaternion=place_pose[1],
+        rgba_color=(0.2, 0.8, 0.2, 0.8),
+    )
+
+    return [bin], place_pose

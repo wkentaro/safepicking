@@ -10,7 +10,6 @@ import pybullet_planning as pp
 import mercury
 
 import _utils
-from legacy.init_place_scene import init_place_scene
 
 
 home = path.Path("~").expanduser()
@@ -190,7 +189,7 @@ class Env:
         )
 
         # create container
-        self.containers, self._place_pose = init_place_scene(
+        self.containers, self._place_pose = _utils.init_place_scene(
             class_id=_utils.get_class_id(self.fg_object_id)
         )
 
