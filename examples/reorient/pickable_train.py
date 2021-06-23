@@ -116,13 +116,13 @@ class Dataset(torch.utils.data.Dataset):
         self._split = split
 
         self._files = {"train": [], "val": []}
-        for i in range(5000):
+        for i in range(0, 5000):
             seed_dir = self.ROOT_DIR / f"s-{i:08d}"
             if not seed_dir.exists():
                 continue
             for pkl_file in sorted(seed_dir.walk("*.pkl")):
                 self._files["train"].append(pkl_file)
-        for i in range(500):
+        for i in range(5000, 5500):
             seed_dir = self.ROOT_DIR / f"s-{i:08d}"
             if not seed_dir.exists():
                 continue
@@ -309,7 +309,7 @@ def main():
             eval_loss = np.mean(losses["loss"])
             if eval_loss_init is None:
                 eval_loss_init = eval_loss
-            if eval_loss < eval_loss_min:
+            if eval_loss < eval_loss_min and epoch >= 0:
                 model_file = (
                     log_dir / f"models/model_best-epoch_{epoch:04d}.pth"
                 )
