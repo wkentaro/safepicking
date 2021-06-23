@@ -16,15 +16,14 @@ import _reorient
 import _utils
 
 from pickable_eval import get_goal_oriented_reorient_poses
+from reorientable_train import Model
 
 
 def plan_and_execute_reorient(
     env, grasp_poses, reorient_poses, visualize=True
 ):
-    from legacy.train_reorientable import Model
-
     model = Model()
-    model_file = "logs/reorientable/20210614_152113.921925-class_2_3_5_11_12_15-train_with_arbitrary_reorient_poses/models/model_best-epoch_0081.pth"  # NOQA
+    model_file = "logs/reorientable/20210623_212329.303585-train_size_900/models/model_best-epoch_0010.pth"  # NOQA
     logger.info(f"Loading {model_file}")
     model.load_state_dict(torch.load(model_file, map_location="cpu"))
     model.eval()
@@ -50,33 +49,36 @@ def plan_and_execute_reorient(
     grasp_poses = grasp_poses.reshape(B, -1).astype(np.float32)
     reorient_poses = reorient_poses.reshape(B, -1).astype(np.float32)
 
+    class_ids = [2, 3, 5, 11, 12, 15, 16]
+
     object_fg_flags = []
-    object_classes = []
+    object_labels = []
     object_poses = []
     for object_id in env.object_ids:
         object_fg_flags.append(object_id == env.fg_object_id)
-        object_classes.append(np.eye(22)[_utils.get_class_id(object_id)])
+        object_label = np.zeros(7)
+        object_label[class_ids.index(_utils.get_class_id(object_id))] = 1
+        object_labels.append(object_label)
         object_poses.append(np.hstack(pp.get_pose(object_id)))
     object_fg_flags = np.stack(object_fg_flags, axis=0).astype(np.float32)
-    object_classes = np.stack(object_classes, axis=0).astype(np.float32)
+    object_labels = np.stack(object_labels, axis=0).astype(np.float32)
     object_poses = np.stack(object_poses, axis=0).astype(np.float32)
 
     object_fg_flags = np.tile(object_fg_flags[None], (B, 1))
-    object_classes = np.tile(object_classes[None], (B, 1, 1))
+    object_labels = np.tile(object_labels[None], (B, 1, 1))
     object_poses = np.tile(object_poses[None], (B, 1, 1))
 
     with torch.no_grad():
-        solved_pred, length_pred = model(
+        reorientable_pred = model(
             object_fg_flags=torch.as_tensor(object_fg_flags).cuda(),
-            object_classes=torch.as_tensor(object_classes).cuda(),
+            object_labels=torch.as_tensor(object_labels).cuda(),
             object_poses=torch.as_tensor(object_poses).cuda(),
             grasp_pose=torch.as_tensor(grasp_poses).cuda(),
             reorient_pose=torch.as_tensor(reorient_poses).cuda(),
         )
-    solved_pred = solved_pred.cpu().numpy()
-    solved_pred = solved_pred.sum(axis=1) / solved_pred.shape[1]
+    reorientable_pred = reorientable_pred.cpu().numpy()[:, 2]
 
-    indices = np.argsort(solved_pred)[::-1]
+    indices = np.argsort(reorientable_pred)[::-1]
 
     result = {}
     for index in indices:
@@ -105,10 +107,10 @@ def plan_and_execute_reorient(
             lock_renderer.restore()
 
         if "js_place" in result:
-            logger.success(f"solved_pred={solved_pred[index]:.1%}")
+            logger.success(f"reorientable_pred={reorientable_pred[index]:.1%}")
             break
         else:
-            logger.warning(f"solved_pred={solved_pred[index]:.1%}")
+            logger.warning(f"reorientable_pred={reorientable_pred[index]:.1%}")
 
     if "js_place" not in result:
         logger.error("No solution is found")
