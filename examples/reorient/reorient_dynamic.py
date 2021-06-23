@@ -159,15 +159,25 @@ def main():
         target_grasp_poses,
     ) = get_goal_oriented_reorient_poses(env)
 
-    reorient_poses = reorient_poses[reorient_scores > 0.7]
-    indices = np.random.permutation(reorient_poses.shape[0])[:1000]
-    reorient_poses = reorient_poses[indices]
-
     grasp_poses = np.array(
         list(itertools.islice(_reorient.get_grasp_poses(env), 100))
     )
 
-    plan_and_execute_reorient(env, grasp_poses, reorient_poses)
+    if 0:
+        for reorient_pose in reorient_poses[np.argsort(reorient_scores)[::-1]]:
+            grasp_pose = grasp_poses[
+                np.random.permutation(grasp_poses.shape[0])[0]
+            ]
+            result = _reorient.plan_reorient(env, grasp_pose, reorient_pose)
+            if "js_place" in result:
+                break
+        _reorient.execute_plan(env, result)
+    else:
+        reorient_poses = reorient_poses[reorient_scores > 0.7]
+        indices = np.random.permutation(reorient_poses.shape[0])[:1000]
+        reorient_poses = reorient_poses[indices]
+
+        plan_and_execute_reorient(env, grasp_poses, reorient_poses)
 
     for _ in range(480):
         pp.step_simulation()

@@ -24,7 +24,7 @@ def get_goal_oriented_reorient_poses(env):
     model = Model()
     model.load_state_dict(
         torch.load(
-            "./logs/pickable/20210619_025859.533125-train_size_1000/models/model_best-epoch_0191.pth"  # NOQA
+            "./logs/pickable/20210623_153153.836693-fixed_dataset/models/model_best-epoch_0137.pth"  # NOQA
         )
     )
     model.cuda()
