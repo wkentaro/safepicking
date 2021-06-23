@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
+import time
 
 import numpy as np
 import path
@@ -24,7 +25,7 @@ def get_goal_oriented_reorient_poses(env):
     model = Model()
     model.load_state_dict(
         torch.load(
-            "./logs/pickable/20210623_212249.209636-fixed_dataset/models/model_best-epoch_0132.pth"  # NOQA
+            "./logs/pickable/20210624_011631.797127-train_size_900/models/model_best-epoch_0044.pth"  # NOQA
         )
     )
     model.cuda()
@@ -55,49 +56,51 @@ def get_goal_oriented_reorient_poses(env):
     quaternion_in_obj = mercury.geometry.quaternion_from_vec2vec(
         [0, 0, -1], normals_in_obj
     )
-    grasp_pose = np.hstack([pcd_in_obj, quaternion_in_obj])
+    grasp_poses = np.hstack([pcd_in_obj, quaternion_in_obj])
 
-    for pose in grasp_pose:
+    for grasp_pose in grasp_poses:
         pp.draw_pose(
-            np.hsplit(pose, [3]),
+            np.hsplit(grasp_pose, [3]),
             parent=env.fg_object_id,
             length=0.05,
             width=3,
         )
 
     R = reorient_poses.shape[0]
-    G = grasp_pose.shape[0]
+    G = grasp_poses.shape[0]
     O = object_fg_flags.shape[0]
 
     object_fg_flags = object_fg_flags[None].repeat(R, axis=0)
     object_labels = object_labels[None].repeat(R, axis=0)
     object_poses = object_poses[None].repeat(R, axis=0)
 
-    object_poses[object_fg_flags] = reorient_poses
-
     object_fg_flags = object_fg_flags[:, None].repeat(G, axis=1)
     object_labels = object_labels[:, None].repeat(G, axis=1)
     object_poses = object_poses[:, None].repeat(G, axis=1)
-    grasp_pose = grasp_pose[None].repeat(R, axis=0)
+    reorient_poses = reorient_poses[:, None].repeat(G, axis=1)
+    grasp_poses = grasp_poses[None].repeat(R, axis=0)
 
     object_fg_flags = object_fg_flags.reshape(R * G, O)
     object_labels = object_labels.reshape(R * G, O, 7)
     object_poses = object_poses.reshape(R * G, O, 7)
-    grasp_pose = grasp_pose.reshape(R * G, 7)
+    reorient_poses = reorient_poses.reshape(R * G, 7)
+    grasp_poses = grasp_poses.reshape(R * G, 7)
 
     with torch.no_grad():
         pickable_pred = model(
             object_fg_flags=torch.as_tensor(object_fg_flags).float().cuda(),
             object_labels=torch.as_tensor(object_labels).float().cuda(),
             object_poses=torch.as_tensor(object_poses).float().cuda(),
-            grasp_pose=torch.as_tensor(grasp_pose).float().cuda(),
+            grasp_pose=torch.as_tensor(grasp_poses).float().cuda(),
+            reorient_pose=torch.as_tensor(reorient_poses).float().cuda(),
         )
     pickable_pred = pickable_pred.cpu().numpy()
 
     pickable_pred = pickable_pred.reshape(R, G).mean(axis=1)
-    grasp_pose = grasp_pose.reshape(R, G, 7)
+    grasp_poses = grasp_poses.reshape(R, G, 7)
+    reorient_poses = reorient_poses.reshape(R, G, 7)
 
-    return reorient_poses, pickable_pred, grasp_pose[0]
+    return reorient_poses[:, 0, :], pickable_pred, grasp_poses[0, :, :]
 
 
 def main():
@@ -119,14 +122,15 @@ def main():
     env.eval = True
     env.reset()
 
-    (
-        reorient_poses,
-        reorient_scores,
-        grasp_poses,
-    ) = get_goal_oriented_reorient_poses(env)
+    reorient_poses, pickable, grasp_poses = get_goal_oriented_reorient_poses(
+        env
+    )
 
-    reorient_poses = reorient_poses[reorient_scores > 0.9]
-    indices = np.random.permutation(reorient_poses.shape[0])[:1000]
+    if 1:
+        reorient_poses = reorient_poses[pickable > 0.9]
+        indices = np.random.permutation(reorient_poses.shape[0])[:1000]
+    else:
+        indices = np.argsort(pickable)[::-1][:1000]
     reorient_poses = reorient_poses[indices]
 
     if args.visualize:
@@ -147,27 +151,30 @@ def main():
         obj_af_to_world = np.hsplit(reorient_pose, [3])
         pp.set_pose(env.fg_object_id, obj_af_to_world)
 
+        time.sleep(0.5)
+
         for _ in range(480):
             pp.step_simulation()
 
-        for ee_af_to_obj in grasp_poses:
-            ee_af_to_obj = np.hsplit(ee_af_to_obj, [3])
-            ee_af_to_world = pp.multiply(
-                pp.get_pose(env.fg_object_id), ee_af_to_obj
-            )
-            j = env.ri.solve_ik(
-                ee_af_to_world, rotation_axis="z", rthre=np.deg2rad(10)
-            )
-            if j is not None:
-                obstacles = [env.plane] + env.object_ids
-                obstacles.remove(env.fg_object_id)
-                if not env.ri.validatej(j, obstacles=obstacles):
-                    j = None
-            if j is not None:
-                env.ri.setj(j)
-                break
-        else:
-            print("Failed to solve IK")
+        if 0:
+            for ee_af_to_obj in grasp_poses:
+                ee_af_to_obj = np.hsplit(ee_af_to_obj, [3])
+                ee_af_to_world = pp.multiply(
+                    pp.get_pose(env.fg_object_id), ee_af_to_obj
+                )
+                j = env.ri.solve_ik(
+                    ee_af_to_world, rotation_axis="z", rthre=np.deg2rad(10)
+                )
+                if j is not None:
+                    obstacles = [env.plane] + env.object_ids
+                    obstacles.remove(env.fg_object_id)
+                    if not env.ri.validatej(j, obstacles=obstacles):
+                        j = None
+                if j is not None:
+                    env.ri.setj(j)
+                    break
+            else:
+                print("Failed to solve IK")
 
 
 if __name__ == "__main__":
