@@ -75,15 +75,18 @@ def main():
         grasp_pose = grasp_poses[index]
 
         result = _reorient.plan_reorient(env, grasp_pose, reorient_pose)
+
+        graspable = "j_grasp" in result
+        placable = "j_place" in result
         reorientable = "js_place" in result
+
+        if args.gui:
+            continue
 
         ee_to_world = np.hsplit(grasp_pose, [3])
         obj_to_world = np.hsplit(object_poses[object_fg_flags][0], [3])
         world_to_obj = pp.invert(obj_to_world)
         ee_to_obj = pp.multiply(world_to_obj, ee_to_world)
-
-        if args.gui:
-            continue
 
         data = dict(
             object_fg_flags=object_fg_flags,
@@ -92,6 +95,8 @@ def main():
             reorient_pose=reorient_pose,
             grasp_pose=grasp_pose,  # wrt world
             grasp_pose_wrt_obj=np.hstack(ee_to_obj),  # wrt obj
+            graspable=graspable,
+            placable=placable,
             reorientable=reorientable,
         )
 

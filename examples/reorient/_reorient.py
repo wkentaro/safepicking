@@ -226,19 +226,14 @@ def get_grasp_poses(env):
 
 
 def plan_reorient(env, grasp_pose, reorient_pose):
-    c_grasp = mercury.geometry.Coordinate(*np.hsplit(grasp_pose, [3]))
     c_reorient = mercury.geometry.Coordinate(*np.hsplit(reorient_pose, [3]))
 
-    T_ee_af_to_world = c_grasp.matrix
     T_obj_af_to_world = c_reorient.matrix
 
     # lock_renderer = pp.LockRenderer()
     world_saver = pp.WorldSaver()
 
     result = {}
-
-    result["grasp_pose"] = np.hstack(c_grasp.pose)
-    result["reorient_pose"] = np.hstack(c_reorient.pose)
 
     obj_af = mercury.pybullet.duplicate(
         env.fg_object_id,
@@ -259,25 +254,20 @@ def plan_reorient(env, grasp_pose, reorient_pose):
     bg_object_ids = env.bg_objects + env.object_ids
     bg_object_ids.remove(env.fg_object_id)
 
-    # solve j_grasp
-    c = mercury.geometry.Coordinate(
-        *mercury.geometry.pose_from_matrix(T_ee_af_to_world)
-    )
-    j = env.ri.solve_ik(c.pose)
-    if j is None:
-        logger.warning("j_grasp is not found")
-        before_return()
-        return result
-    if not env.ri.validatej(j, obstacles=bg_object_ids):
-        logger.warning("j_grasp is invalid")
-        before_return()
-        return result
-    result["j_grasp"] = j
+    ee_to_world = np.hsplit(grasp_pose, [3])
 
-    env.ri.setj(result["j_grasp"])
+    # solve j_grasp
+    j = env.ri.solve_ik(ee_to_world)
+    if j is not None:
+        if not env.ri.validatej(j, obstacles=bg_object_ids):
+            logger.warning("j_grasp is invalid")
+            j = None
+    else:
+        logger.warning("j_grasp is not found")
+    if j is not None:
+        result["j_grasp"] = j
 
     obj_to_world = pp.get_pose(env.fg_object_id)
-    ee_to_world = env.ri.get_pose("tipLink")
     obj_to_ee = pp.multiply(pp.invert(ee_to_world), obj_to_world)
     attachments = [
         pp.Attachment(env.ri.robot, env.ri.ee, obj_to_ee, env.fg_object_id)
@@ -292,25 +282,30 @@ def plan_reorient(env, grasp_pose, reorient_pose):
             thre=0.01,
             rthre=np.deg2rad(10),
         )
-    if j is None:
+    if j is not None:
+        if not env.ri.validatej(
+            j,
+            obstacles=bg_object_ids,
+            min_distances={(env.ri.attachments[0].child, -1): -0.01},
+        ):
+            logger.warning("j_place is invalid")
+            j = None
+    else:
         logger.warning("j_place is not found")
+    if j is not None:
+        result["j_place"] = j
+
+    if "j_grasp" not in result or "j_place" not in result:
         before_return()
         return result
-    if not env.ri.validatej(
-        j,
-        obstacles=bg_object_ids,
-        min_distances={(env.ri.attachments[0].child, -1): -0.01},
-    ):
-        logger.warning("j_place is invalid")
-        before_return()
-        return result
-    result["j_place"] = j
-    env.ri.attachments = []
 
     # solve js_grasp
+    env.ri.setj(result["j_grasp"])
+    env.ri.attachments = []
+    c = mercury.geometry.Coordinate(*ee_to_world)
     js = []
-    for _ in range(10):
-        c.translate([0, 0, -0.01])
+    for _ in range(5):
+        c.translate([0, 0, -0.02])
         j = env.ri.solve_ik(c.pose, n_init=1)
         if j is None:
             break

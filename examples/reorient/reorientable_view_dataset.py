@@ -58,10 +58,13 @@ def main():
         ee_to_obj = np.hsplit(data["grasp_pose_wrt_obj"], [3])
         obj_af_to_world = np.hsplit(data["reorient_pose"], [3])
 
-        if data["reorientable"]:
-            logger.success(pkl_file)
-        else:
-            logger.info(pkl_file)
+        logger.info(pkl_file)
+        print(
+            {
+                key: data[key]
+                for key in ["graspable", "placable", "reorientable"]
+            }
+        )
 
         mercury.pybullet.duplicate(
             target_obj,
