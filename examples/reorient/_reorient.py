@@ -226,10 +226,6 @@ def get_grasp_poses(env):
 
 
 def plan_reorient(env, grasp_pose, reorient_pose):
-    c_reorient = mercury.geometry.Coordinate(*np.hsplit(reorient_pose, [3]))
-
-    T_obj_af_to_world = c_reorient.matrix
-
     # lock_renderer = pp.LockRenderer()
     world_saver = pp.WorldSaver()
 
@@ -239,8 +235,8 @@ def plan_reorient(env, grasp_pose, reorient_pose):
         env.fg_object_id,
         texture=False,
         rgba_color=(0, 1, 0, 0.5),
-        position=c_reorient.position,
-        quaternion=c_reorient.quaternion,
+        position=reorient_pose[:3],
+        quaternion=reorient_pose[3:],
     )
 
     def before_return():
@@ -254,10 +250,11 @@ def plan_reorient(env, grasp_pose, reorient_pose):
     bg_object_ids = env.bg_objects + env.object_ids
     bg_object_ids.remove(env.fg_object_id)
 
-    ee_to_world = np.hsplit(grasp_pose, [3])
+    ee_af_to_world = np.hsplit(grasp_pose, [3])
+    obj_af_to_world = np.hsplit(reorient_pose, [3])
 
     # solve j_grasp
-    j = env.ri.solve_ik(ee_to_world)
+    j = env.ri.solve_ik(ee_af_to_world)
     if j is not None:
         if not env.ri.validatej(j, obstacles=bg_object_ids):
             logger.warning("j_grasp is invalid")
@@ -267,17 +264,28 @@ def plan_reorient(env, grasp_pose, reorient_pose):
     if j is not None:
         result["j_grasp"] = j
 
+    if j is not None:
+        env.ri.setj(j)
+        c = mercury.geometry.Coordinate(*env.ri.get_pose("tipLink"))
+        c.translate([0, 0, 0.1], wrt="world")
+        j = env.ri.solve_ik(c.pose, n_init=1)
+        if j is None:
+            del result["j_grasp"]
+        else:
+            result["j_post_grasp"] = j
+
     obj_to_world = pp.get_pose(env.fg_object_id)
-    obj_to_ee = pp.multiply(pp.invert(ee_to_world), obj_to_world)
+    obj_to_ee = pp.multiply(pp.invert(ee_af_to_world), obj_to_world)
     attachments = [
         pp.Attachment(env.ri.robot, env.ri.ee, obj_to_ee, env.fg_object_id)
     ]
 
     # solve j_place
+    env.ri.setj(env.ri.homej)
     env.ri.attachments = attachments
     with env.ri.enabling_attachments():
         j = env.ri.solve_ik(
-            mercury.geometry.pose_from_matrix(T_obj_af_to_world),
+            obj_af_to_world,
             move_target=env.ri.robot_model.attachment_link0,
             thre=0.01,
             rthre=np.deg2rad(10),
@@ -295,6 +303,16 @@ def plan_reorient(env, grasp_pose, reorient_pose):
     if j is not None:
         result["j_place"] = j
 
+    if j is not None:
+        env.ri.setj(j)
+        c = mercury.geometry.Coordinate(*env.ri.get_pose("tipLink"))
+        c.translate([0, 0, 0.1], wrt="world")
+        j = env.ri.solve_ik(c.pose, n_init=1, rthre=np.deg2rad(30), thre=0.01)
+        if j is None:
+            del result["j_place"]
+        else:
+            result["j_pre_place"] = j
+
     if "j_grasp" not in result or "j_place" not in result:
         before_return()
         return result
@@ -302,7 +320,7 @@ def plan_reorient(env, grasp_pose, reorient_pose):
     # solve js_grasp
     env.ri.setj(result["j_grasp"])
     env.ri.attachments = []
-    c = mercury.geometry.Coordinate(*ee_to_world)
+    c = mercury.geometry.Coordinate(*ee_af_to_world)
     js = []
     for _ in range(5):
         c.translate([0, 0, -0.02])
@@ -337,7 +355,7 @@ def plan_reorient(env, grasp_pose, reorient_pose):
         return result
     result["js_pre_grasp"] = js
 
-    env.ri.setj(result["j_grasp"])
+    env.ri.setj(result["j_post_grasp"])
     env.ri.attachments = attachments
     env.ri.attachments[0].assign()
 
@@ -345,7 +363,7 @@ def plan_reorient(env, grasp_pose, reorient_pose):
     obstacles = env.bg_objects + env.object_ids
     obstacles.remove(env.ri.attachments[0].child)
     js = env.ri.planj(
-        result["j_place"],
+        result["j_pre_place"],
         obstacles=obstacles,
         min_distances_start_goal={(env.ri.attachments[0].child, -1): -0.01},
     )
@@ -353,20 +371,14 @@ def plan_reorient(env, grasp_pose, reorient_pose):
         logger.warning("js_place is not found")
         before_return()
         return result
-    result["js_place"] = js
+    result["js_place"] = np.r_[js, [result["j_place"]]]
 
-    result["js_place_length"] = 0
-    j_prev = result["j_grasp"]
-    for j in result["js_place"]:
-        result["js_place_length"] += np.linalg.norm(j_prev - j)
-        j_prev = j
-
-    before_return()
-
-    if "js_place_length" in result:
+    if "js_place" in result:
         logger.success("Found the solution for reorientation")
     else:
         logger.error("Cannot find the solution for reorientation")
+
+    before_return()
 
     return result
 

@@ -80,6 +80,10 @@ def main():
         placable = "j_place" in result
         reorientable = "js_place" in result
 
+        if args.gui and reorientable:
+            with pp.WorldSaver():
+                _reorient.execute_plan(env, result)
+
         if args.gui:
             continue
 
