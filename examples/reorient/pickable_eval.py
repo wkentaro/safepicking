@@ -125,7 +125,7 @@ def main():
         grasp_poses,
     ) = get_goal_oriented_reorient_poses(env)
 
-    reorient_poses = reorient_poses[reorient_scores > 0.7]
+    reorient_poses = reorient_poses[reorient_scores > 0.9]
     indices = np.random.permutation(reorient_poses.shape[0])[:1000]
     reorient_poses = reorient_poses[indices]
 

@@ -173,7 +173,7 @@ def main():
                 break
         _reorient.execute_plan(env, result)
     else:
-        reorient_poses = reorient_poses[reorient_scores > 0.7]
+        reorient_poses = reorient_poses[reorient_scores > 0.9]
         indices = np.random.permutation(reorient_poses.shape[0])[:1000]
         reorient_poses = reorient_poses[indices]
 
