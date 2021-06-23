@@ -264,25 +264,38 @@ def plan_reorient(env, grasp_pose, reorient_pose):
     if j is not None:
         result["j_grasp"] = j
 
-    if j is not None:
-        env.ri.setj(j)
-        c = mercury.geometry.Coordinate(*env.ri.get_pose("tipLink"))
-        c.translate([0, 0, 0.1], wrt="world")
-        j = env.ri.solve_ik(c.pose, n_init=1)
-        if j is None:
-            del result["j_grasp"]
-        else:
-            result["j_post_grasp"] = j
-
     obj_to_world = pp.get_pose(env.fg_object_id)
     obj_to_ee = pp.multiply(pp.invert(ee_af_to_world), obj_to_world)
     attachments = [
         pp.Attachment(env.ri.robot, env.ri.ee, obj_to_ee, env.fg_object_id)
     ]
 
+    env.ri.attachments = attachments
+
+    if j is not None:
+        env.ri.setj(j)
+        for wrt in ["world", "local"]:
+            c = mercury.geometry.Coordinate(*env.ri.get_pose("tipLink"))
+            if wrt == "world":
+                c.translate([0, 0, 0.1], wrt="world")
+            else:
+                c.translate([0, 0, -0.1], wrt="local")
+            j = env.ri.solve_ik(c.pose, n_init=1)
+            obstacles = env.bg_objects + env.object_ids
+            obstacles.remove(env.fg_object_id)
+            if j is not None:
+                if not env.ri.validatej(j, obstacles=obstacles):
+                    j = None
+            if j is not None:
+                break
+        if j is None:
+            logger.warning("j_post_grasp is not found")
+            del result["j_grasp"]
+        else:
+            result["j_post_grasp"] = j
+
     # solve j_place
     env.ri.setj(env.ri.homej)
-    env.ri.attachments = attachments
     with env.ri.enabling_attachments():
         j = env.ri.solve_ik(
             obj_af_to_world,
@@ -309,6 +322,7 @@ def plan_reorient(env, grasp_pose, reorient_pose):
         c.translate([0, 0, 0.1], wrt="world")
         j = env.ri.solve_ik(c.pose, n_init=1, rthre=np.deg2rad(30), thre=0.01)
         if j is None:
+            logger.warning("j_pre_place is not found")
             del result["j_place"]
         else:
             result["j_pre_place"] = j
