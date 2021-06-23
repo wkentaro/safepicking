@@ -8,10 +8,10 @@ import numpy as np
 import path
 import pybullet_planning as pp
 
-import _utils
 import mercury
 
 from _env import Env
+import _utils
 
 
 home = path.Path("~").expanduser()
@@ -32,9 +32,9 @@ def get_reorient_poses(env):
     ABG = np.array(
         list(
             itertools.product(
-                np.linspace(-np.pi / 2, np.pi / 2, num=5),
-                np.linspace(-np.pi / 2, np.pi / 2, num=5),
-                np.linspace(-np.pi, np.pi, num=9, endpoint=False),
+                np.linspace(-np.pi, np.pi, num=8, endpoint=False),
+                np.linspace(-np.pi, np.pi, num=8, endpoint=False),
+                np.linspace(-np.pi, np.pi, num=8, endpoint=False),
             )
         )
     )
@@ -69,7 +69,7 @@ def get_reorient_poses(env):
                         class_id=_utils.get_class_id(env.fg_object_id)
                     ),
                 )
-                c.rotate((a, b, g), wrt="world")
+                c.rotate([a, b, g], wrt="world")
                 pp.set_pose(env.fg_object_id, c.pose)
 
                 c.position[2] = -pp.get_aabb(env.fg_object_id)[0][2]
@@ -92,15 +92,9 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--seed", type=int, required=True, help="seed")
-    parser.add_argument(
-        "--face",
-        choices=["front", "right", "left"],
-        default="front",
-        help="face",
-    )
     args = parser.parse_args()
 
-    env = Env(class_ids=[2, 3, 5, 11, 12, 15], gui=True, face=args.face)
+    env = Env(class_ids=[2, 3, 5, 11, 12, 15], gui=True)
     env.random_state = np.random.RandomState(args.seed)
     env.eval = True
     env.launch()
