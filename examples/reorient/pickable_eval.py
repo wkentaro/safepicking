@@ -144,8 +144,6 @@ def main():
         return
 
     for reorient_pose in reorient_poses:
-        mercury.pybullet.pause()
-
         env.ri.setj(env.ri.homej)
 
         obj_af_to_world = np.hsplit(reorient_pose, [3])
