@@ -284,7 +284,11 @@ def plan_reorient(env, grasp_pose, reorient_pose):
             obstacles = env.bg_objects + env.object_ids
             obstacles.remove(env.fg_object_id)
             if j is not None:
-                if not env.ri.validatej(j, obstacles=obstacles):
+                if not env.ri.validatej(
+                    j,
+                    obstacles=obstacles,
+                    min_distances=mercury.utils.StaticDict(-0.01),
+                ):
                     j = None
             if j is not None:
                 break
