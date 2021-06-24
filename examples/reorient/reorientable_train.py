@@ -27,10 +27,10 @@ class PoseEncoder(torch.nn.Module):
         # object_fg_flags: 1
         # object_labels: 7
         # object_poses: 7
-        # grasp_pose: 7
+        # grasp_pose: 3
         # reorient_pose: 7
         self.fc_encoder = torch.nn.Sequential(
-            torch.nn.Linear(1 + 7 + 7 + 7 + 7, out_channels),
+            torch.nn.Linear(1 + 7 + 7 + 3 + 7, out_channels),
             torch.nn.ReLU(),
         )
         self.transformer_encoder = torch.nn.TransformerEncoder(
@@ -52,6 +52,8 @@ class PoseEncoder(torch.nn.Module):
         reorient_pose,
     ):
         B, O = object_fg_flags.shape
+
+        grasp_pose = grasp_pose[:, :3]
 
         object_fg_flags = object_fg_flags[:, :, None]
         grasp_pose = grasp_pose[:, None, :].repeat_interleave(O, dim=1)
@@ -231,13 +233,24 @@ def epoch_loop(
     classes_true = np.array(classes_true)
 
     if not is_training:
-        accuracy = (classes_true == classes_pred).sum() / classes_true.size
-        summary_writer.add_scalar(
-            "val/accuracy",
-            accuracy,
-            global_step=len(data_loader) * epoch + iteration,
-            walltime=time.time(),
+        tp = (classes_true & classes_pred).sum()
+        fp = (~classes_true & classes_pred).sum()
+        tn = (~classes_true & ~classes_pred).sum()
+        fn = (classes_true & ~classes_pred).sum()
+        metrics = dict(
+            accuracy=(tp + tn) / (tp + fp + tn + fn),
+            precision=tp / (tp + fp),
+            recall=tp / (tp + fn),
+            specificity=tn / (tn + fp),
         )
+        metrics["balanced"] = (metrics["recall"] + metrics["specificity"]) / 2
+        for key, value in metrics.items():
+            summary_writer.add_scalar(
+                f"val/{key}",
+                value,
+                global_step=len(data_loader) * epoch + iteration,
+                walltime=time.time(),
+            )
 
     return losses
 
