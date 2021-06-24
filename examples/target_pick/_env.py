@@ -114,12 +114,6 @@ class PickFromPileEnv(Env):
             shape=(8, 7),
             dtype=np.float32,
         )
-        grasped_object_poses = gym.spaces.Box(
-            low=-np.inf,
-            high=np.inf,
-            shape=(self.episode_length, 7),
-            dtype=np.float32,
-        )
         # heightmap
         heightmap = gym.spaces.Box(
             low=0,
@@ -155,7 +149,6 @@ class PickFromPileEnv(Env):
                 grasp_flags_init=grasp_flags_init,
                 object_labels_init=object_labels_init,
                 object_poses_init=object_poses_init,
-                grasped_object_poses=grasped_object_poses,
                 heightmap=heightmap,
                 maskmap=maskmap,
                 grasped_uv=grasped_uv,
@@ -409,13 +402,6 @@ class PickFromPileEnv(Env):
             self.ee_poses[1:],
             np.hstack(ee_to_world).astype(np.float32)[None],
         ]
-        self.grasped_object_poses = np.zeros(
-            (self.episode_length, 7), dtype=np.float32
-        )
-        self.grasped_object_poses = np.r_[
-            self.grasped_object_poses[1:],
-            np.hstack(obj_to_world).astype(np.float32)[None],
-        ]
 
         self.i = 0
         self.translations = collections.defaultdict(float)
@@ -499,7 +485,6 @@ class PickFromPileEnv(Env):
             grasp_flags_init=grasp_flags_init,
             object_labels_init=object_labels_init,
             object_poses_init=object_poses_init,
-            grasped_object_poses=self.grasped_object_poses,
             heightmap=heightmap,
             maskmap=maskmap,
             grasped_uv=grasped_uv,
@@ -665,13 +650,7 @@ class PickFromPileEnv(Env):
         if terminal:
             info["max_velocity"] = sum(self.max_velocities.values())
 
-        obj_to_ee = self.ri.attachments[0].grasp_pose
         ee_to_world = self.ri.get_pose("tipLink")
-        obj_to_world = pp.multiply(ee_to_world, obj_to_ee)
-        self.grasped_object_poses = np.r_[
-            self.grasped_object_poses[1:],
-            np.hstack(obj_to_world).astype(np.float32)[None],
-        ]
         self.ee_poses = np.r_[
             self.ee_poses[1:],
             np.hstack(ee_to_world).astype(np.float32)[None],
