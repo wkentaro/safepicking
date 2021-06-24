@@ -362,7 +362,9 @@ class PickFromPileEnv(Env):
         )
 
         grasp_flags, _, object_poses = self.object_state
-        obj_to_world = pp.get_pose(target_object_id)
+        obj_to_world = object_poses[grasp_flags == 1][0]
+        obj_to_world = np.hsplit(obj_to_world, [3])
+        # obj_to_world = pp.get_pose(target_object_id)
         ee_to_world = self.ri.get_pose("tipLink")
         obj_to_ee = pp.multiply(pp.invert(ee_to_world), obj_to_world)
 
@@ -510,14 +512,14 @@ class PickFromPileEnv(Env):
 
         assert self.target_object_id == self.ri.attachments[0].child
 
-        c = mercury.geometry.Coordinate(
-            *mercury.pybullet.get_pose(self.target_object_id)
-        )
-        c.translate([dx, dy, dz], wrt="world")
-        c.rotate([da, db, dg], wrt="world")
-
         with pp.LockRenderer(), pp.WorldSaver():
             with self.ri.enabling_attachments():
+                c = mercury.geometry.Coordinate(
+                    *self.ri.get_pose("attachment_link0")
+                )
+                c.translate([dx, dy, dz], wrt="world")
+                c.rotate([da, db, dg], wrt="world")
+
                 j = self.ri.solve_ik(
                     c.pose,
                     move_target=self.ri.robot_model.attachment_link0,
