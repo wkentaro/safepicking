@@ -225,13 +225,24 @@ def epoch_loop(
     classes_true = np.array(classes_true)
 
     if not is_training:
-        accuracy = (classes_true == classes_pred).sum() / classes_true.size
-        summary_writer.add_scalar(
-            "val/accuracy",
-            accuracy,
-            global_step=len(data_loader) * epoch + iteration,
-            walltime=time.time(),
+        tp = (classes_true & classes_pred).sum()
+        fp = (~classes_true & classes_pred).sum()
+        tn = (~classes_true & ~classes_pred).sum()
+        fn = (classes_true & ~classes_pred).sum()
+        metrics = dict(
+            accuracy=(tp + tn) / (tp + fp + tn + fn),
+            precision=tp / (tp + fp),
+            recall=tp / (tp + fn),
+            specificity=tn / (tn + fp),
         )
+        metrics["balanced"] = (metrics["recall"] + metrics["specificity"]) / 2
+        for key, value in metrics.items():
+            summary_writer.add_scalar(
+                f"val/{key}",
+                value,
+                global_step=len(data_loader) * epoch + iteration,
+                walltime=time.time(),
+            )
 
     return losses
 
