@@ -33,7 +33,7 @@ def main():
     parser.add_argument("--draw-obs", action="store_true", help="draw obs")
     args = parser.parse_args()
 
-    env = PickFromPileEnv(gui=not args.nogui)
+    env = PickFromPileEnv(gui=not args.nogui, action_frame="ee")
     obs = env.reset()
 
     if args.draw_obs:

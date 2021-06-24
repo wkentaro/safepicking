@@ -82,6 +82,12 @@ def main():
     parser.add_argument(
         "--episode-length", type=int, default=5, help="episode length"
     )
+    parser.add_argument(
+        "--action-frame",
+        choices=["object", "ee"],
+        default="object",
+        help="action frame",
+    )
     args = parser.parse_args()
 
     hparams = args.__dict__.copy()
@@ -120,6 +126,7 @@ def main():
         use_reward_translation=hparams["use_reward_translation"],
         use_reward_max_velocity=hparams["use_reward_max_velocity"],
         episode_length=hparams["episode_length"],
+        action_frame=hparams["action_frame"],
     )
 
     # Setup replay buffer
