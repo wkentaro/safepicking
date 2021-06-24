@@ -23,7 +23,7 @@ def plan_and_execute_reorient(
     env, grasp_poses, reorient_poses, pickable, visualize=True
 ):
     model = Model()
-    model_file = "logs/reorientable/20210624_091016.078867-fixed_dataset/models/model_best-epoch_0008.pth"  # NOQA
+    model_file = "logs/reorientable/20210624_113236.597091-grasp_pose_xyz/models/model_best-epoch_0062.pth"  # NOQA
     logger.info(f"Loading {model_file}")
     model.load_state_dict(torch.load(model_file, map_location="cpu"))
     model.eval()
@@ -183,11 +183,7 @@ def main():
                 break
         _reorient.execute_plan(env, result)
     else:
-        keep = pickable > 0.9
-        reorient_poses = reorient_poses[keep]
-        pickable = pickable[keep]
-
-        indices = np.random.permutation(reorient_poses.shape[0])[:1000]
+        indices = np.argsort(pickable)[::-1][:1000]
         reorient_poses = reorient_poses[indices]
         pickable = pickable[indices]
 

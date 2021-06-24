@@ -23,11 +23,8 @@ home = path.Path("~").expanduser()
 
 def get_goal_oriented_reorient_poses(env):
     model = Model()
-    model.load_state_dict(
-        torch.load(
-            "./logs/pickable/20210624_090136.770361-fixed_dataset/models/model_best-epoch_0039.pth"  # NOQA
-        )
-    )
+    model_file = "./logs/pickable/20210624_113147.480657-grasp_pose_xyz/models/model_best-epoch_0050.pth"  # NOQA
+    model.load_state_dict(torch.load(model_file))
     model.cuda()
 
     class_ids = [2, 3, 5, 11, 12, 15, 16]
@@ -126,11 +123,7 @@ def main():
         env
     )
 
-    if 1:
-        reorient_poses = reorient_poses[pickable > 0.9]
-        indices = np.random.permutation(reorient_poses.shape[0])[:1000]
-    else:
-        indices = np.argsort(pickable)[::-1][:1000]
+    indices = np.argsort(pickable)[::-1][:1000]
     reorient_poses = reorient_poses[indices]
 
     if args.visualize:
