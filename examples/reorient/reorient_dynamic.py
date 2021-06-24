@@ -20,7 +20,7 @@ from reorientable_train import Model
 
 
 def plan_and_execute_reorient(
-    env, grasp_poses, reorient_poses, visualize=True
+    env, grasp_poses, reorient_poses, pickable, visualize=True
 ):
     model = Model()
     model_file = "logs/reorientable/20210624_091016.078867-fixed_dataset/models/model_best-epoch_0008.pth"  # NOQA
@@ -45,9 +45,11 @@ def plan_and_execute_reorient(
 
     grasp_poses = grasp_poses[:, None, :].repeat(N_reorient, axis=1)
     reorient_poses = reorient_poses[None, :, :].repeat(N_grasp, axis=0)
+    pickable = pickable[None, :].repeat(N_grasp, axis=0)
 
     grasp_poses = grasp_poses.reshape(B, -1).astype(np.float32)
     reorient_poses = reorient_poses.reshape(B, -1).astype(np.float32)
+    pickable = pickable.reshape(B).astype(np.float32)
 
     class_ids = [2, 3, 5, 11, 12, 15, 16]
 
@@ -107,10 +109,16 @@ def plan_and_execute_reorient(
             lock_renderer.restore()
 
         if "js_place" in result:
-            logger.success(f"reorientable_pred={reorientable_pred[index]:.1%}")
+            logger.success(
+                f"reorientable_pred={reorientable_pred[index]:.1%}, "
+                f"pickable={pickable[index]:.1%}"
+            )
             break
         else:
-            logger.warning(f"reorientable_pred={reorientable_pred[index]:.1%}")
+            logger.warning(
+                f"reorientable_pred={reorientable_pred[index]:.1%}, "
+                f"pickable={pickable[index]:.1%}"
+            )
 
     if "js_place" not in result:
         logger.error("No solution is found")
@@ -157,7 +165,7 @@ def main():
 
     (
         reorient_poses,
-        reorient_scores,
+        pickable,
         target_grasp_poses,
     ) = get_goal_oriented_reorient_poses(env)
 
@@ -166,7 +174,7 @@ def main():
     )
 
     if 0:
-        for reorient_pose in reorient_poses[np.argsort(reorient_scores)[::-1]]:
+        for reorient_pose in reorient_poses[np.argsort(pickable)[::-1]]:
             grasp_pose = grasp_poses[
                 np.random.permutation(grasp_poses.shape[0])[0]
             ]
@@ -175,11 +183,15 @@ def main():
                 break
         _reorient.execute_plan(env, result)
     else:
-        reorient_poses = reorient_poses[reorient_scores > 0.9]
+        keep = pickable > 0.9
+        reorient_poses = reorient_poses[keep]
+        pickable = pickable[keep]
+
         indices = np.random.permutation(reorient_poses.shape[0])[:1000]
         reorient_poses = reorient_poses[indices]
+        pickable = pickable[indices]
 
-        plan_and_execute_reorient(env, grasp_poses, reorient_poses)
+        plan_and_execute_reorient(env, grasp_poses, reorient_poses, pickable)
 
     for _ in range(480):
         pp.step_simulation()
