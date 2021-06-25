@@ -1,10 +1,11 @@
+import itertools
+
 import numpy as np
 import pybullet as p
 import pybullet_planning as pp
+import trimesh
 
 import mercury
-
-import _utils
 
 
 def get_class_id(object_id):
@@ -33,192 +34,192 @@ def get_canonical_quaternion(class_id):
     return c.quaternion
 
 
-def init_place_scene(class_id, face="front"):
-    bin = mercury.pybullet.create_bin(0.3, 0.4, 0.2, color=(0.8, 0.8, 0.8, 1))
-    c = mercury.geometry.Coordinate([0, 0.7, 0.8])
-    c.rotate([np.pi / 2, 0, 0])
-    pp.set_pose(bin, c.pose)
+cached_mesh = {}
 
-    c.quaternion = _utils.get_canonical_quaternion(class_id)
-    if face == "front":
-        c.rotate([0, 0, np.deg2rad(-90)], wrt="world")
-    elif face == "right":
-        c.rotate([0, 0, np.deg2rad(0)], wrt="world")
-    elif face == "left":
-        c.rotate([0, 0, np.deg2rad(180)], wrt="world")
-    else:
-        raise ValueError
-    place_pose = c.pose
 
-    mercury.pybullet.create_mesh_body(
-        visual_file=mercury.datasets.ycb.get_visual_file(class_id),
-        texture=True,
-        position=place_pose[0],
-        quaternion=place_pose[1],
-        rgba_color=(0.2, 0.8, 0.2, 0.8),
+def get_aabb(obj):
+    class_id = get_class_id(obj)
+    if class_id not in cached_mesh:
+        visual_file = mercury.datasets.ycb.get_visual_file(class_id=class_id)
+        cached_mesh[class_id] = trimesh.load_mesh(visual_file)
+
+    visual = cached_mesh[class_id].copy()
+    obj_to_world = pp.get_pose(obj)
+    visual.apply_transform(
+        mercury.geometry.transformation_matrix(*obj_to_world)
+    )
+    return visual.bounds
+
+
+def create_shelf(X, Y, Z):
+    color = (0.8, 0.8, 0.8, 1)
+
+    def get_parts(origin, X, Y, Z, T=0.01):
+        extents = np.array(
+            [
+                # [X, Y, T],
+                [X, Y, T],
+                [X, T, Z],
+                [X, T, Z],
+                # [T, Y, Z],
+                [T, Y, Z],
+            ]
+        )
+        positions = (
+            np.array(
+                [
+                    # [0, 0, Z / 2],
+                    [0, 0, -Z / 2],
+                    [0, Y / 2, 0],
+                    [0, -Y / 2, 0],
+                    # [X / 2, 0, 0],
+                    [-X / 2, 0, 0],
+                ]
+            )
+            + origin
+        )
+        return extents, positions
+
+    extents = []
+    positions = []
+    for origin in [[0, 0, -Z], [0, 0, 0], [0, 0, Z]]:
+        parts = get_parts(origin, X, Y, Z)
+        extents.extend(parts[0])
+        positions.extend(parts[1])
+
+    halfExtents = np.array(extents) / 2
+    shapeTypes = [p.GEOM_BOX] * len(extents)
+    rgbaColors = [color] * len(extents)
+    visual_shape_id = p.createVisualShapeArray(
+        shapeTypes=shapeTypes,
+        halfExtents=halfExtents,
+        visualFramePositions=positions,
+        rgbaColors=rgbaColors,
+    )
+    collision_shape_id = p.createCollisionShapeArray(
+        shapeTypes=shapeTypes,
+        halfExtents=halfExtents,
+        collisionFramePositions=positions,
     )
 
-    return [bin], place_pose
+    position = [0, 0, 0]
+    quaternion = [0, 0, 0, 1]
+    unique_id = p.createMultiBody(
+        baseMass=0,
+        basePosition=position,
+        baseOrientation=quaternion,
+        baseVisualShapeIndex=visual_shape_id,
+        baseCollisionShapeIndex=collision_shape_id,
+        baseInertialFramePosition=[0, 0, 0],
+        baseInertialFrameOrientation=[0, 0, 0, 1],
+    )
+    return unique_id
 
 
-def init_place_scene_shelf(class_id, face="front"):
+def init_place_scene(class_id, face="front"):
     lock_renderer = pp.LockRenderer()
 
-    W = 0.55
-    H = 0.3
-    D = 0.3
-    create = [True, True, True, False, True]
-    bin_middle = mercury.pybullet.create_bin(
-        H, W, D, color=(0.8, 0.8, 0.8, 1), create=create
+    place_aabb_extents = [0.3, 0.6, 0.3]
+
+    shelf = create_shelf(*place_aabb_extents)
+
+    place_aabb = (
+        np.array([[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]]) * place_aabb_extents
     )
-    pp.set_pose(bin_middle, ((0, 0, 0), (0, 0, 0, 1)))
-    bin_top = mercury.pybullet.create_bin(
-        H, W, D, color=(0.8, 0.8, 0.8, 1), create=create
-    )
-    pp.set_pose(bin_top, ([0.3, 0, 0], [0, 0, 0, 1]))
-    bin_bottom = mercury.pybullet.create_bin(
-        H, W, D, color=(0.8, 0.8, 0.8, 1), create=create
-    )
-    pp.set_pose(bin_bottom, ([-0.3, 0, 0], [0, 0, 0, 1]))
-
-    shelf = [bin_middle, bin_top, bin_bottom]
-
-    c = mercury.geometry.Coordinate()
-    c.rotate([np.deg2rad(90), 0, np.deg2rad(90)])
-    c.translate([0, 0.7, 0.45], wrt="world")
-
-    def set_pose(objs, pose):
-        obj_base_af_to_world = pose
-        obj_base_to_world = pp.get_pose(objs[0])
-        for obj in objs:
-            obj_to_world = pp.get_pose(obj)
-            obj_to_obj_base = pp.multiply(
-                pp.invert(obj_base_to_world), obj_to_world
-            )
-            pp.set_pose(
-                obj, pp.multiply(obj_base_af_to_world, obj_to_obj_base)
-            )
-
-    set_pose(shelf, c.pose)
+    place_aabb_offset = np.array([0, 0, 1]) * place_aabb_extents
+    place_aabb += place_aabb_offset
+    pp.draw_aabb(place_aabb, width=5, color=(1, 0, 0, 1), parent=shelf)
 
     visual_file = mercury.datasets.ycb.get_visual_file(class_id=class_id)
 
-    if class_id == 2:
-        if face == "front":
-            positions = [
-                [-0.18, 0.7, 0.72],
-                [-0.18, 0.63, 0.72],
-                [-0.18, 0.56, 0.72],
-                [0, 0.7, 0.72],
-                [0, 0.63, 0.72],
-                [0, 0.56, 0.72],
-                [0.18, 0.7, 0.72],
-                [0.18, 0.63, 0.72],
-                [0.18, 0.56, 0.72],
-            ]
-        elif face == "right":
-            positions = [
-                [-0.23, 0.65, 0.72],
-                [-0.16, 0.65, 0.72],
-                [-0.09, 0.65, 0.72],
-                [-0.02, 0.65, 0.72],
-                [0.05, 0.65, 0.72],
-            ]
-        i_place_pose = len(positions) - 1
-    elif class_id == 3:
-        if face == "front":
-            positions = [
-                [-0.22, 0.72, 0.7],
-                [-0.22, 0.67, 0.7],
-                [-0.22, 0.62, 0.7],
-                [-0.22, 0.57, 0.7],
-                [-0.22, 0.52, 0.7],
-                [-0.12, 0.72, 0.7],
-                [-0.12, 0.67, 0.7],
-                [-0.12, 0.62, 0.7],
-                [-0.12, 0.57, 0.7],
-                [-0.12, 0.52, 0.7],
-                [-0.02, 0.72, 0.7],
-                [-0.02, 0.67, 0.7],
-                [-0.02, 0.62, 0.7],
-                [-0.02, 0.57, 0.7],
-                [-0.02, 0.52, 0.7],
-            ]
-        elif face == "right":
-            positions = [
-                [-0.24, 0.69, 0.7],
-                [-0.24, 0.59, 0.7],
-                [-0.19, 0.69, 0.7],
-                [-0.19, 0.59, 0.7],
-                [-0.14, 0.69, 0.7],
-                [-0.14, 0.59, 0.7],
-                [-0.09, 0.69, 0.7],
-                [-0.09, 0.59, 0.7],
-                [-0.04, 0.69, 0.7],
-                [-0.04, 0.59, 0.7],
-            ]
-        i_place_pose = len(positions) - 1
-    elif class_id == 5:
-        if face == "front":
-            positions = [
-                [-0.21, 0.71, 0.7],
-                [-0.21, 0.64, 0.7],
-                [-0.21, 0.57, 0.7],
-                [-0.21, 0.50, 0.7],
-                [-0.10, 0.71, 0.7],
-                [-0.10, 0.64, 0.7],
-                [-0.10, 0.57, 0.7],
-                [-0.10, 0.50, 0.7],
-                [0.01, 0.71, 0.7],
-                [0.01, 0.64, 0.7],
-                [0.01, 0.57, 0.7],
-                [0.01, 0.50, 0.7],
-            ]
-        elif face == "right":
-            positions = [
-                [-0.24, 0.69, 0.7],
-                [-0.24, 0.58, 0.7],
-                [-0.17, 0.69, 0.7],
-                [-0.17, 0.58, 0.7],
-                [-0.10, 0.69, 0.7],
-                [-0.10, 0.58, 0.7],
-                [-0.03, 0.69, 0.7],
-                [-0.03, 0.58, 0.7],
-            ]
-        i_place_pose = len(positions) - 1
+    c = mercury.geometry.Coordinate(
+        quaternion=get_canonical_quaternion(class_id=class_id)
+    )
+    if face == "front":
+        c.rotate([0, 0, 0], wrt="world")
+    elif face == "right":
+        c.rotate([0, 0, np.deg2rad(90)], wrt="world")
+    elif face == "left":
+        c.rotate([0, 0, np.deg2rad(-90)], wrt="world")
+    elif face == "back":
+        c.rotate([0, 0, np.deg2rad(180)], wrt="world")
     else:
         raise ValueError
+    canonical_quaternion = c.quaternion
 
-    for i, position in enumerate(positions):
-        c = mercury.geometry.Coordinate(
-            np.array(position) + [0, 0.1, 0],
-            _utils.get_canonical_quaternion(class_id=class_id),
-        )
-        if face == "front":
-            c.rotate([0, 0, np.deg2rad(-90)], wrt="world")
-        elif face == "right":
-            c.rotate([0, 0, np.deg2rad(0)], wrt="world")
-        else:
-            raise ValueError
-        if i == i_place_pose:
-            place_pose = c.pose
-        else:
-            mercury.pybullet.create_mesh_body(
+    # find the initial corner
+    obj = mercury.pybullet.create_mesh_body(
+        visual_file=visual_file,
+        collision_file=mercury.pybullet.get_collision_file(visual_file),
+        quaternion=canonical_quaternion,
+    )
+    aabb_min, aabb_max = get_aabb(obj)
+    for x, y, z in itertools.product(
+        np.linspace(-0.5, 0.5, num=50),
+        np.linspace(-0.5, 0.5, num=50),
+        np.linspace(-0.5, -0.4, num=5),
+    ):
+        position = np.array([x, y, z]) * place_aabb_extents + place_aabb_offset
+        obj_to_world = (position - [0, 0, aabb_min[2]], canonical_quaternion)
+        pp.set_pose(obj, obj_to_world)
+        if not mercury.pybullet.is_colliding(
+            obj, [shelf]
+        ) and pp.aabb_contains_aabb(get_aabb(obj), place_aabb):
+            pp.remove_body(obj)
+            break
+
+    # spawn all objects
+    aabb_extents = aabb_max - aabb_min + 0.01
+    ixs = []
+    objects = []
+    for iy in itertools.count():
+        for ix in itertools.count():
+            obj = mercury.pybullet.create_mesh_body(
                 visual_file=visual_file,
                 collision_file=mercury.pybullet.get_collision_file(
                     visual_file
                 ),
-                position=c.position,
-                quaternion=c.quaternion,
             )
-    lock_renderer.restore()
+            c = mercury.geometry.Coordinate(*obj_to_world)
+            c.translate(
+                [aabb_extents[0] * ix, aabb_extents[1] * iy, 0], wrt="world"
+            )
+            pp.set_pose(obj, c.pose)
+            if pp.aabb_contains_aabb(get_aabb(obj), place_aabb):
+                ixs.append(ix)
+                objects.append(obj)
+            else:
+                pp.remove_body(obj)
+                break
+        if ix == 0:
+            break
+    ixs = np.array(ixs)
 
+    stop_index = np.random.choice(np.where(ixs == ixs.max())[0])
+    for obj in objects[stop_index + 1 :]:
+        pp.remove_body(obj)
+    objects = objects[: stop_index + 1]
+
+    # apply transform
+    c = mercury.geometry.Coordinate()
+    c.rotate([0, 0, np.deg2rad(-90)])
+    c.translate([0, 0.7, 0.45], wrt="world")
+    shelf_to_world = c.pose
+    for obj in [shelf] + objects:
+        obj_to_shelf = pp.get_pose(obj)
+        obj_to_world = pp.multiply(shelf_to_world, obj_to_shelf)
+        pp.set_pose(obj, obj_to_world)
+
+    place_pose = pp.get_pose(objects[-1])
+    pp.remove_body(objects[-1])
     mercury.pybullet.create_mesh_body(
-        visual_file=mercury.datasets.ycb.get_visual_file(class_id),
-        texture=True,
+        visual_file=visual_file,
+        texture=False,
         position=place_pose[0],
         quaternion=place_pose[1],
-        rgba_color=(0.2, 0.8, 0.2, 0.8),
+        rgba_color=[0, 1, 0, 0.5],
     )
+
+    lock_renderer.restore()
 
     return shelf, place_pose

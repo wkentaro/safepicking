@@ -1,6 +1,5 @@
 import time
 
-# import imgviz
 from loguru import logger
 import numpy as np
 import path
@@ -68,7 +67,7 @@ class Env:
 
     @property
     def bg_objects(self):
-        return [self.plane] + self.containers
+        return [self.plane, self._shelf]
 
     def reset(self, pile_file=None):
         raise_on_error = pile_file is not None
@@ -193,8 +192,7 @@ class Env:
             width=2,
         )
 
-        # create container
-        self.containers, self._place_pose = _utils.init_place_scene_shelf(
+        self._shelf, self._place_pose = _utils.init_place_scene(
             class_id=_utils.get_class_id(self.fg_object_id),
             face=self._face,
         )
@@ -223,6 +221,8 @@ class Env:
     def update_obs(self):
         rgb, depth, segm = self.ri.get_camera_image()
         # if pp.has_gui():
+        #     import imgviz
+        #
         #     imgviz.io.cv_imshow(
         #         np.hstack((rgb, imgviz.depth2rgb(depth))), "update_obs"
         #     )
@@ -534,3 +534,14 @@ class Env:
         for _ in self.ri.movej(self.ri.homej):
             pp.step_simulation()
             time.sleep(pp.get_time_step())
+
+
+def main():
+    env = Env(class_ids=[2, 3, 5, 11, 12, 15])
+    while True:
+        env.reset()
+        mercury.pybullet.pause()
+
+
+if __name__ == "__main__":
+    main()

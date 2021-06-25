@@ -1,7 +1,6 @@
 import itertools
 import time
 
-# import imgviz
 from loguru import logger
 import numpy as np
 import pybullet_planning as pp
@@ -32,6 +31,8 @@ def get_query_ocs(env):
             T_camera_to_world, fovy, height, width
         )
         # if pp.has_gui():
+        #     import imgviz
+        #
         #     imgviz.io.cv_imshow(
         #         np.hstack((rgb, imgviz.depth2rgb(depth))), "get_query_ocs"
         #     )
@@ -96,6 +97,8 @@ def plan_and_execute_place(env, num_sample=5):
         width,
     )
     # if pp.has_gui():
+    #     import imgviz
+    #
     #     imgviz.io.cv_imshow(
     #         np.hstack((rgb, imgviz.depth2rgb(depth))),
     #         "plan_and_execute_place",
