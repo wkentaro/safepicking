@@ -191,9 +191,9 @@ class PickFromPileEnv(Env):
             random_state = np.random.RandomState()
         if pile_file is None:
             if self.eval:
-                i = random_state.randint(1000, 1200)
+                i = random_state.randint(9000, 10000)
             else:
-                i = random_state.randint(0, 1000)
+                i = random_state.randint(0, 9000)
             pile_file = self.PILES_DIR / f"{i:08d}.npz"
 
         if not pp.is_connected():
