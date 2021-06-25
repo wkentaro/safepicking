@@ -116,7 +116,7 @@ def create_shelf(X, Y, Z):
     return unique_id
 
 
-def init_place_scene(class_id, face="front"):
+def init_place_scene(class_id, random_state, face="front"):
     lock_renderer = pp.LockRenderer()
 
     place_aabb_extents = [0.3, 0.6, 0.3]
@@ -195,7 +195,7 @@ def init_place_scene(class_id, face="front"):
             break
     ixs = np.array(ixs)
 
-    stop_index = np.random.choice(np.where(ixs == ixs.max())[0])
+    stop_index = random_state.choice(np.where(ixs == ixs.max())[0])
     for obj in objects[stop_index + 1 :]:
         pp.remove_body(obj)
     objects = objects[: stop_index + 1]

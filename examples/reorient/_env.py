@@ -1,3 +1,4 @@
+import copy
 import time
 
 from loguru import logger
@@ -194,6 +195,7 @@ class Env:
 
         self._shelf, self._place_pose = _utils.init_place_scene(
             class_id=_utils.get_class_id(self.fg_object_id),
+            random_state=copy.deepcopy(self.random_state),
             face=self._face,
         )
 
