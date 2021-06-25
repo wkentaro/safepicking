@@ -638,8 +638,26 @@ def execute_place(env, result):
         pp.step_simulation()
         time.sleep(pp.get_time_step())
 
-    for _ in (
-        _ for j in result["js_place"] for _ in env.ri.movej(j, speed=0.005)
-    ):
+    js = result["js_place"]
+    for _ in (_ for j in js for _ in env.ri.movej(j, speed=0.005)):
+        pp.step_simulation()
+        time.sleep(pp.get_time_step())
+
+    for _ in range(240):
+        pp.step_simulation()
+        time.sleep(pp.get_time_step())
+
+    env.ri.ungrasp()
+
+    for _ in range(240):
+        pp.step_simulation()
+        time.sleep(pp.get_time_step())
+
+    js = result["js_place"][::-1]
+    for _ in (_ for j in js for _ in env.ri.movej(j, speed=0.005)):
+        pp.step_simulation()
+        time.sleep(pp.get_time_step())
+
+    for _ in env.ri.movej(env.ri.homej):
         pp.step_simulation()
         time.sleep(pp.get_time_step())

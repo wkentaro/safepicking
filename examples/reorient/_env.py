@@ -194,7 +194,7 @@ class Env:
         )
 
         # create container
-        self.containers, self._place_pose = _utils.init_place_scene(
+        self.containers, self._place_pose = _utils.init_place_scene_shelf(
             class_id=_utils.get_class_id(self.fg_object_id),
             face=self._face,
         )
