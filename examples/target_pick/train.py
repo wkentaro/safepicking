@@ -88,6 +88,11 @@ def main():
         default="object",
         help="action frame",
     )
+    parser.add_argument(
+        "--pose-noise",
+        action="store_true",
+        help="pose noise",
+    )
     args = parser.parse_args()
 
     hparams = args.__dict__.copy()
@@ -126,6 +131,7 @@ def main():
         use_reward_translation=hparams["use_reward_translation"],
         use_reward_max_velocity=hparams["use_reward_max_velocity"],
         episode_length=hparams["episode_length"],
+        pose_noise=hparams["pose_noise"],
         action_frame=hparams["action_frame"],
     )
 
