@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
+import collections
 import datetime
 import json
 import pickle
@@ -89,6 +90,7 @@ class Model(torch.nn.Module):
             torch.nn.Linear(32, 3),
             torch.nn.Sigmoid(),
         )
+        self.fc_trajectory_length = torch.nn.Linear(32, 1)
 
     def forward(
         self,
@@ -106,8 +108,9 @@ class Model(torch.nn.Module):
             reorient_pose,
         )
         reorientable = self.fc_reorientable(h)
+        trajectory_length = self.fc_trajectory_length(h)[:, 0]
 
-        return reorientable
+        return reorientable, trajectory_length
 
 
 class Dataset(torch.utils.data.Dataset):
@@ -164,6 +167,7 @@ class Dataset(torch.utils.data.Dataset):
         reorientable = np.r_[
             data["graspable"], data["placable"], data["reorientable"]
         ]
+        trajectory_length = data["trajectory_length"]
 
         return dict(
             object_fg_flags=object_fg_flags,
@@ -172,11 +176,18 @@ class Dataset(torch.utils.data.Dataset):
             grasp_pose=grasp_pose,
             reorient_pose=reorient_pose,
             reorientable=reorientable,
+            trajectory_length=trajectory_length,
         )
 
 
 def epoch_loop(
-    epoch, is_training, model, data_loader, summary_writer, optimizer=None
+    epoch,
+    is_training,
+    model,
+    data_loader,
+    summary_writer,
+    optimizer=None,
+    no_trajectory_length=False,
 ):
     if is_training:
         assert optimizer is not None
@@ -187,7 +198,7 @@ def epoch_loop(
 
     classes_pred = []
     classes_true = []
-    losses = []
+    losses = collections.defaultdict(list)
     for iteration, batch in enumerate(
         tqdm.tqdm(
             data_loader,
@@ -196,7 +207,7 @@ def epoch_loop(
             ncols=100,
         )
     ):
-        reorientable_pred = model(
+        reorientable_pred, trajectory_length_pred = model(
             object_fg_flags=batch["object_fg_flags"].float().cuda(),
             object_labels=batch["object_labels"].float().cuda(),
             object_poses=batch["object_poses"].float().cuda(),
@@ -204,6 +215,7 @@ def epoch_loop(
             reorient_pose=batch["reorient_pose"].float().cuda(),
         )
         reorientable_true = batch["reorientable"].float().cuda()
+        trajectory_length_true = batch["trajectory_length"].float().cuda()
 
         if is_training:
             optimizer.zero_grad()
@@ -215,27 +227,39 @@ def epoch_loop(
             (reorientable_pred > 0.5).cpu().numpy().all(axis=1).tolist()
         )
 
-        loss = torch.nn.functional.binary_cross_entropy(
+        loss_reorientable = torch.nn.functional.binary_cross_entropy(
             reorientable_pred, reorientable_true
         )
-        losses.append(loss.item())
+        loss_trajectory_length = torch.nn.functional.l1_loss(
+            trajectory_length_pred[reorientable_true[:, 2] == 1],
+            trajectory_length_true[reorientable_true[:, 2] == 1],
+        )
+        if no_trajectory_length:
+            loss = loss_reorientable
+        else:
+            loss = loss_reorientable + loss_trajectory_length
+        losses["loss_reorientable"].append(loss_reorientable.item())
+        losses["loss_trajectory_length"].append(loss_trajectory_length.item())
+        losses["loss"].append(loss.item())
 
         if is_training:
             loss.backward()
             optimizer.step()
 
-            summary_writer.add_scalar(
-                "train/loss",
-                loss.item(),
-                global_step=len(data_loader) * epoch + iteration,
-                walltime=time.time(),
-            )
+            for name, values in losses.items():
+                summary_writer.add_scalar(
+                    f"train/{name}",
+                    values[-1],
+                    global_step=len(data_loader) * epoch + iteration,
+                    walltime=time.time(),
+                )
     classes_pred = np.array(classes_pred)
     classes_true = np.array(classes_true)
 
     metrics = dict()
     if not is_training:
-        metrics["loss"] = np.mean(losses)
+        for name, values in losses.items():
+            metrics[name] = np.mean(values)
         tp = (classes_true & classes_pred).sum()
         fp = (~classes_true & classes_pred).sum()
         tn = (~classes_true & ~classes_pred).sum()
@@ -262,6 +286,11 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--name", required=True, help="name")
+    parser.add_argument(
+        "--no-trajectory-length",
+        action="store_true",
+        help="no trajectory length",
+    )
     args = parser.parse_args()
 
     data_train = Dataset(split="train")
@@ -309,6 +338,7 @@ def main():
                     data_loader=loader_train,
                     summary_writer=writer,
                     optimizer=optimizer,
+                    no_trajectory_length=args.no_trajectory_length,
                 )
 
             # val epoch
@@ -320,6 +350,7 @@ def main():
                     data_loader=loader_val,
                     summary_writer=writer,
                     optimizer=optimizer,
+                    no_trajectory_length=args.no_trajectory_length,
                 )
             if epoch >= 0 and metrics["f1"] > max_metric[1]:
                 model_file = (
