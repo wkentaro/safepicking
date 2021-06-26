@@ -23,7 +23,7 @@ def plan_and_execute_reorient(
     env, grasp_poses, reorient_poses, pickable, visualize=True
 ):
     model = Model()
-    model_file = "logs/reorientable/20210624_113236.597091-grasp_pose_xyz/models/model_best-epoch_0062.pth"  # NOQA
+    model_file = "logs/reorientable/20210626_180300.485308-grasp_point_normal/models/model_best-epoch_0063.pth"  # NOQA
     logger.info(f"Loading {model_file}")
     model.load_state_dict(torch.load(model_file, map_location="cpu"))
     model.eval()
@@ -38,16 +38,36 @@ def plan_and_execute_reorient(
         ]
     )  # wrt world -> wrt obj
 
-    N_grasp = grasp_poses.shape[0]
+    # pose representation -> point-normal representation
+    grasp_points = []
+    for grasp_pose in grasp_poses:
+        ee_to_obj = np.hsplit(grasp_pose, [3])
+        grasp_point_start = ee_to_obj[0]
+        grasp_point_end = mercury.geometry.transform_points(
+            [[0, 0, 1]], mercury.geometry.transformation_matrix(*ee_to_obj)
+        )[0]
+        grasp_points.append(np.hstack([grasp_point_start, grasp_point_end]))
+
+        # pp.draw_pose(
+        #     np.hsplit(grasp_pose, [3]),
+        #     parent=env.fg_object_id,
+        #     length=0.05,
+        #     width=3,
+        # )
+    grasp_points = np.array(grasp_points)
+
+    N_grasp = grasp_points.shape[0]
     N_reorient = reorient_poses.shape[0]
     B = N_grasp * N_reorient
     logger.info(f"N_grasp: {N_grasp}, N_reorient: {N_reorient}, B: {B}")
 
     grasp_poses = grasp_poses[:, None, :].repeat(N_reorient, axis=1)
+    grasp_points = grasp_points[:, None, :].repeat(N_reorient, axis=1)
     reorient_poses = reorient_poses[None, :, :].repeat(N_grasp, axis=0)
     pickable = pickable[None, :].repeat(N_grasp, axis=0)
 
     grasp_poses = grasp_poses.reshape(B, -1).astype(np.float32)
+    grasp_points = grasp_points.reshape(B, -1).astype(np.float32)
     reorient_poses = reorient_poses.reshape(B, -1).astype(np.float32)
     pickable = pickable.reshape(B).astype(np.float32)
 
@@ -75,7 +95,7 @@ def plan_and_execute_reorient(
             object_fg_flags=torch.as_tensor(object_fg_flags).cuda(),
             object_labels=torch.as_tensor(object_labels).cuda(),
             object_poses=torch.as_tensor(object_poses).cuda(),
-            grasp_pose=torch.as_tensor(grasp_poses).cuda(),
+            grasp_pose=torch.as_tensor(grasp_points).cuda(),
             reorient_pose=torch.as_tensor(reorient_poses).cuda(),
         )
     reorientable_pred = reorientable_pred.cpu().numpy()[:, 2]

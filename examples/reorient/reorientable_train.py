@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import argparse
-import collections
 import datetime
 import json
 import pickle
@@ -27,10 +26,10 @@ class PoseEncoder(torch.nn.Module):
         # object_fg_flags: 1
         # object_labels: 7
         # object_poses: 7
-        # grasp_pose: 3
+        # grasp_pose: 6
         # reorient_pose: 7
         self.fc_encoder = torch.nn.Sequential(
-            torch.nn.Linear(1 + 7 + 7 + 3 + 7, out_channels),
+            torch.nn.Linear(1 + 7 + 7 + 6 + 7, out_channels),
             torch.nn.ReLU(),
         )
         self.transformer_encoder = torch.nn.TransformerEncoder(
@@ -52,8 +51,6 @@ class PoseEncoder(torch.nn.Module):
         reorient_pose,
     ):
         B, O = object_fg_flags.shape
-
-        grasp_pose = grasp_pose[:, :3]
 
         object_fg_flags = object_fg_flags[:, :, None]
         grasp_pose = grasp_pose[:, None, :].repeat_interleave(O, dim=1)
@@ -156,9 +153,14 @@ class Dataset(torch.utils.data.Dataset):
         object_fg_flags = data["object_fg_flags"]
         object_poses = data["object_poses"]
 
-        grasp_pose = data["grasp_pose_wrt_obj"]
-        reorient_pose = data["reorient_pose"]
+        ee_to_obj = np.hsplit(data["grasp_pose_wrt_obj"], [3])
+        grasp_point_start = ee_to_obj[0]
+        grasp_point_end = mercury.geometry.transform_points(
+            [[0, 0, 1]], mercury.geometry.transformation_matrix(*ee_to_obj)
+        )[0]
+        grasp_pose = np.hstack([grasp_point_start, grasp_point_end])
 
+        reorient_pose = data["reorient_pose"]
         reorientable = np.r_[
             data["graspable"], data["placable"], data["reorientable"]
         ]
@@ -185,7 +187,7 @@ def epoch_loop(
 
     classes_pred = []
     classes_true = []
-    losses = collections.defaultdict(list)
+    losses = []
     for iteration, batch in enumerate(
         tqdm.tqdm(
             data_loader,
@@ -216,34 +218,34 @@ def epoch_loop(
         loss = torch.nn.functional.binary_cross_entropy(
             reorientable_pred, reorientable_true
         )
-        losses["loss"].append(loss.item())
+        losses.append(loss.item())
 
         if is_training:
             loss.backward()
             optimizer.step()
 
-            for key, values in losses.items():
-                summary_writer.add_scalar(
-                    f"train/{key}",
-                    values[-1],
-                    global_step=len(data_loader) * epoch + iteration,
-                    walltime=time.time(),
-                )
+            summary_writer.add_scalar(
+                "train/loss",
+                loss.item(),
+                global_step=len(data_loader) * epoch + iteration,
+                walltime=time.time(),
+            )
     classes_pred = np.array(classes_pred)
     classes_true = np.array(classes_true)
 
+    metrics = dict()
     if not is_training:
+        metrics["loss"] = np.mean(losses)
         tp = (classes_true & classes_pred).sum()
         fp = (~classes_true & classes_pred).sum()
         tn = (~classes_true & ~classes_pred).sum()
         fn = (classes_true & ~classes_pred).sum()
-        metrics = dict(
-            accuracy=(tp + tn) / (tp + fp + tn + fn),
-            precision=tp / (tp + fp),
-            recall=tp / (tp + fn),
-            specificity=tn / (tn + fp),
-        )
+        metrics["accuracy"] = (tp + tn) / (tp + fp + tn + fn)
+        metrics["precision"] = tp / (tp + fp)
+        metrics["recall"] = tp / (tp + fn)
+        metrics["specificity"] = tn / (tn + fp)
         metrics["balanced"] = (metrics["recall"] + metrics["specificity"]) / 2
+        metrics["f1"] = 2 / (1 / metrics["precision"] + 1 / metrics["recall"])
         for key, value in metrics.items():
             summary_writer.add_scalar(
                 f"val/{key}",
@@ -252,7 +254,7 @@ def epoch_loop(
                 walltime=time.time(),
             )
 
-    return losses
+    return metrics
 
 
 def main():
@@ -290,14 +292,11 @@ def main():
 
     writer = SummaryWriter(log_dir=log_dir)
 
-    eval_loss_init = None
-    eval_loss_min_epoch = -1
-    eval_loss_min = np.inf
+    max_metric = (-1, -np.inf)
     with tqdm.trange(-1, 200, ncols=100) as pbar:
         for epoch in pbar:
             pbar.set_description(
-                "Epoch loop "
-                f"(eval_loss_min={eval_loss_min:.3f} @{eval_loss_min_epoch})"
+                f"Epoch loop ({max_metric[1]:.3f} @{max_metric[0]})"
             )
             pbar.refresh()
 
@@ -314,7 +313,7 @@ def main():
 
             # val epoch
             with torch.no_grad():
-                losses = epoch_loop(
+                metrics = epoch_loop(
                     epoch=epoch,
                     is_training=False,
                     model=model,
@@ -322,26 +321,13 @@ def main():
                     summary_writer=writer,
                     optimizer=optimizer,
                 )
-            for key, values in losses.items():
-                writer.add_scalar(
-                    f"val/{key}",
-                    np.mean(values),
-                    global_step=len(loader_train) * (epoch + 1),
-                    walltime=time.time(),
-                )
-            eval_loss = np.mean(losses["loss"])
-            if eval_loss_init is None:
-                eval_loss_init = eval_loss
-            if eval_loss < eval_loss_min and epoch >= 0:
+            if epoch >= 0 and metrics["f1"] > max_metric[1]:
                 model_file = (
                     log_dir / f"models/model_best-epoch_{epoch:04d}.pth"
                 )
                 model_file.parent.makedirs_p()
                 torch.save(model.state_dict(), model_file)
-                eval_loss_min_epoch = epoch
-                eval_loss_min = eval_loss
-            if eval_loss > eval_loss_init:
-                break
+                max_metric = (epoch, metrics["f1"])
 
 
 if __name__ == "__main__":
