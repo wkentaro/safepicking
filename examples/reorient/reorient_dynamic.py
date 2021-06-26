@@ -98,9 +98,11 @@ def plan_and_execute_reorient(
             grasp_pose=torch.as_tensor(grasp_points).cuda(),
             reorient_pose=torch.as_tensor(reorient_poses).cuda(),
         )
-    reorientable_pred = reorientable_pred.cpu().numpy()[:, 2]
+    reorientable_pred = reorientable_pred.cpu().numpy()
 
-    indices = np.argsort(reorientable_pred)[::-1]
+    keep = (reorientable_pred[:, 0] > 0.5) & (reorientable_pred[:, 1] > 0.5)
+    reorientable_pred = reorientable_pred[:, 2]
+    indices = np.argsort(reorientable_pred)[keep][::-1]
 
     result = {}
     for index in indices:
