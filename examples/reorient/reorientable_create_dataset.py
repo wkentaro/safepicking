@@ -79,6 +79,7 @@ def main():
         graspable = "j_grasp" in result
         placable = "j_place" in result
         reorientable = "js_place" in result
+        trajectory_length = result.get("js_place_length", np.nan)
 
         if args.gui and reorientable:
             with pp.WorldSaver():
@@ -102,6 +103,7 @@ def main():
             graspable=graspable,
             placable=placable,
             reorientable=reorientable,
+            trajectory_length=trajectory_length,
         )
 
         while True:

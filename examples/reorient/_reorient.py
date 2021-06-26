@@ -392,15 +392,19 @@ def plan_reorient(env, grasp_pose, reorient_pose):
         logger.warning("js_place is not found")
         before_return()
         return result
-    result["js_place"] = np.r_[js, [result["j_place"]]]
+    result["js_place"] = np.r_[
+        [result["j_post_grasp"]], js, [result["j_place"]]
+    ]
 
-    if "js_place" in result:
-        logger.success("Found the solution for reorientation")
-    else:
-        logger.error("Cannot find the solution for reorientation")
+    logger.success("Found the solution for reorientation")
+    j_prev = result["js_place"][0]
+    trajectory_length = 0
+    for j in result["js_place"][1:]:
+        trajectory_length += np.linalg.norm(j - j_prev)
+        j_prev = j
+    result["js_place_length"] = trajectory_length
 
     before_return()
-
     return result
 
 
