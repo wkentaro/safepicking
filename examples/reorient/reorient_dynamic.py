@@ -109,6 +109,12 @@ def plan_and_execute_reorient(
     reorientable_pred = reorientable_pred[:, 2]
     indices = np.argsort(reorientable_pred)[-100:]
 
+    grasp_poses = grasp_poses[indices]
+    reorientable_pred = reorientable_pred[indices]
+    trajectory_length_pred = trajectory_length_pred[indices]
+
+    indices = np.argsort(trajectory_length_pred)
+
     result = {}
     for index in indices:
         ee_to_obj = grasp_poses[index, :3], grasp_poses[index, 3:]
