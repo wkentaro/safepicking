@@ -39,8 +39,8 @@ def main():
     if args.draw_obs:
         viz = imgviz.tile(
             [
-                obs["colormap"],
                 imgviz.depth2rgb(obs["heightmap"]),
+                np.uint8(obs["maskmap"]) * 255,
             ],
             shape=(1, 2),
         )
@@ -94,17 +94,10 @@ def main():
                 visual_file = mercury.datasets.ycb.get_visual_file(
                     class_id=class_id
                 )
-                for pose in obs["grasped_object_poses"]:
+                for pose in obs["ee_poses"]:
                     if (pose == 0).all():
                         continue
-                    mercury.pybullet.create_mesh_body(
-                        visual_file=visual_file,
-                        texture=False,
-                        rgba_color=(0.5, 0.5, 0.5, 0.5),
-                        position=pose[:3],
-                        quaternion=pose[3:],
-                        mesh_scale=(1.05, 1.05, 1.05),
-                    )
+                    pp.draw_pose(np.hsplit(pose, [3]))
                 while True:
                     pp.step_simulation()
 
