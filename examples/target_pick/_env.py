@@ -75,12 +75,6 @@ class PickFromPileEnv(Env):
         self.actions = list(itertools.product(dxs, dys, dzs, das, dbs, dgs))
 
         # closed-loop
-        ee_pose = gym.spaces.Box(
-            low=-np.inf,
-            high=np.inf,
-            shape=(7,),
-            dtype=np.float32,
-        )
         grasp_flags = gym.spaces.Box(low=0, high=1, shape=(8,), dtype=np.uint8)
         object_labels = gym.spaces.Box(
             low=0,
@@ -95,12 +89,6 @@ class PickFromPileEnv(Env):
             dtype=np.float32,
         )
         # open-loop
-        ee_pose_init = gym.spaces.Box(
-            low=-np.inf,
-            high=np.inf,
-            shape=(7,),
-            dtype=np.float32,
-        )
         grasp_flags_init = gym.spaces.Box(
             low=0, high=1, shape=(8,), dtype=np.uint8
         )
@@ -129,12 +117,6 @@ class PickFromPileEnv(Env):
             shape=(self.HEIGHTMAP_IMAGE_SIZE, self.HEIGHTMAP_IMAGE_SIZE),
             dtype=np.uint8,
         )
-        grasped_uv = gym.spaces.Box(
-            low=0,
-            high=300,
-            shape=(2,),
-            dtype=np.int32,
-        )
         ee_poses = gym.spaces.Box(
             low=-np.inf,
             high=np.inf,
@@ -143,17 +125,14 @@ class PickFromPileEnv(Env):
         )
         self.observation_space = gym.spaces.Dict(
             dict(
-                ee_pose=ee_pose,
                 grasp_flags=grasp_flags,
                 object_labels=object_labels,
                 object_poses=object_poses,
-                ee_pose_init=ee_pose_init,
                 grasp_flags_init=grasp_flags_init,
                 object_labels_init=object_labels_init,
                 object_poses_init=object_poses_init,
                 heightmap=heightmap,
                 maskmap=maskmap,
-                grasped_uv=grasped_uv,
                 ee_poses=ee_poses,
             )
         )
@@ -274,12 +253,33 @@ class PickFromPileEnv(Env):
                 else:
                     return self.reset()
 
-        # grasping
+        # get centroid of the target object's visible surface
+        fovy = np.deg2rad(60)
+        height = 128
+        width = 128
+        c = mercury.geometry.Coordinate(
+            (self.PILE_CENTER[0], self.PILE_CENTER[1], 0.7)
+        )
+        c.rotate([0, np.pi, 0])
+        c.rotate([0, 0, -np.pi / 2])
+        _, depth, segm = mercury.pybullet.get_camera_image(
+            c.matrix, fovy=fovy, height=height, width=width
+        )
+        K = mercury.geometry.opengl_intrinsic_matrix(fovy, height, width)
+        pcd_in_camera = mercury.geometry.pointcloud_from_depth(
+            depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
+        )
+        points_in_camera = pcd_in_camera[segm == target_object_id]
+        centroid_in_camera = points_in_camera.mean(axis=0)
+        centroid_in_world = mercury.geometry.transform_points(
+            [centroid_in_camera], c.matrix
+        )[0]
+        pp.draw_pose((centroid_in_world, [0, 0, 0, 1]))
+        del depth, segm, pcd_in_camera, K, points_in_camera
 
+        # capture target-centered image
         c = mercury.geometry.Coordinate(*self.ri.get_pose("camera_link"))
-        c.position = pp.get_pose(target_object_id)[0]
-        c.position[2] += 0.5
-
+        c.position = (centroid_in_world[0], centroid_in_world[1], 0.7)
         j = self.ri.solve_ik(
             c.pose, move_target=self.ri.robot_model.camera_link
         )
@@ -288,14 +288,12 @@ class PickFromPileEnv(Env):
                 raise RuntimeError("IK failed to capture object")
             else:
                 return self.reset()
-
         self.ri.setj(j)
-
         rgb, depth, segm = self.ri.get_camera_image()
+        K = self.ri.get_opengl_intrinsic_matrix()
         camera_to_world = self.ri.get_pose("camera_link")
 
-        K = self.ri.get_opengl_intrinsic_matrix()
-
+        # grasping
         pcd_in_camera = mercury.geometry.pointcloud_from_depth(
             depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
         )
@@ -303,30 +301,27 @@ class PickFromPileEnv(Env):
             pcd_in_camera
         )
 
-        mask = segm == target_object_id
-
         T_camera_to_world = mercury.geometry.transformation_matrix(
             *camera_to_world
         )
         pcd_in_world = mercury.geometry.transform_points(
-            pcd_in_camera[mask], T_camera_to_world
+            pcd_in_camera, T_camera_to_world
         )
         normals_in_world = (
             mercury.geometry.transform_points(
-                pcd_in_camera[mask] + normals_in_camera[mask],
-                T_camera_to_world,
+                pcd_in_camera + normals_in_camera, T_camera_to_world
             )
             - pcd_in_world
         )
         quaternion_in_world = mercury.geometry.quaternion_from_vec2vec(
-            [0, 0, 1], normals_in_world
-        )
+            [0, 0, 1], normals_in_world.reshape(-1, 3)
+        ).reshape(normals_in_world.shape[0], normals_in_world.shape[1], 4)
+        poses = np.concatenate((pcd_in_world, quaternion_in_world), axis=2)[
+            segm == target_object_id
+        ]
 
-        for index in random_state.permutation(pcd_in_world.shape[0]):
-            position = pcd_in_world[index]
-            quaternion = quaternion_in_world[index]
-            ee_af_to_world = (position, quaternion)
-
+        for index in random_state.permutation(poses.shape[0])[:10]:
+            ee_af_to_world = np.hsplit(poses[index], [3])
             j = self.ri.solve_ik(ee_af_to_world, rotation_axis="z")
             if j is None:
                 continue
@@ -364,9 +359,12 @@ class PickFromPileEnv(Env):
             else:
                 return self.reset()
 
+        self.object_ids = object_ids
+        self.target_object_id = target_object_id
+        self.target_object_class = data["class_id"][target_index]
+        self.target_object_visibility = data["visibility"][target_index]
+
         self.object_state = self.get_object_state(
-            object_ids=object_ids,
-            target_object_id=target_object_id,
             pose_noise=self._pose_noise,
             random_state=random_state,
         )
@@ -389,26 +387,15 @@ class PickFromPileEnv(Env):
             self.ri.attachments[0].assign()
             self._z_min_init = pp.get_aabb(self.ri.attachments[0].child)[0][2]
 
-        pcd_in_world = mercury.geometry.transform_points(
-            pcd_in_camera,
-            mercury.geometry.transformation_matrix(*camera_to_world),
-        )
+        self.ee_pose_init = np.hstack(ee_to_world).astype(np.float32)
         self.visual_state = self.get_visual_state(
             rgb=rgb,
             pcd_in_world=pcd_in_world,
             segm=segm,
-            target_object_id=target_object_id,
-            ee_to_world=ee_to_world,
         )
 
         # ---------------------------------------------------------------------
 
-        self.object_ids = object_ids
-        self.target_object_id = target_object_id
-        self.target_object_class = data["class_id"][target_index]
-        self.target_object_visibility = data["visibility"][target_index]
-
-        self.ee_pose_init = np.hstack(ee_to_world).astype(np.float32)
         self.ee_poses = np.zeros((self.episode_length, 7), dtype=np.float32)
         self.ee_poses = np.r_[
             self.ee_poses[1:],
@@ -421,21 +408,15 @@ class PickFromPileEnv(Env):
 
         return self.get_obs()
 
-    def get_visual_state(
-        self,
-        rgb,
-        pcd_in_world,
-        segm,
-        target_object_id,
-        ee_to_world,
-    ):
-        position = np.array(pp.get_pose(target_object_id)[0])
+    def get_visual_state(self, rgb, pcd_in_world, segm):
         aabb = np.array(
             [
-                position - self.HEIGHTMAP_SIZE / 2,
-                position + self.HEIGHTMAP_SIZE / 2,
+                self.ee_pose_init[:3] - self.HEIGHTMAP_SIZE / 2,
+                self.ee_pose_init[:3] + self.HEIGHTMAP_SIZE / 2,
             ]
         )
+        aabb[0][2] = -0.05
+        aabb[1][2] = 0.5
         heightmap, colormap, segmmap = get_heightmap(
             points=pcd_in_world,
             colors=rgb,
@@ -443,28 +424,19 @@ class PickFromPileEnv(Env):
             aabb=aabb,
             pixel_size=self.HEIGHTMAP_PIXEL_SIZE,
         )
-        maskmap = (segmmap == target_object_id).astype(np.uint8)
-        u = np.floor(
-            (ee_to_world[0][0] - aabb[0, 0]) / self.HEIGHTMAP_PIXEL_SIZE
-        )
-        v = np.floor(
-            (ee_to_world[0][1] - aabb[0, 1]) / self.HEIGHTMAP_PIXEL_SIZE
-        )
-        grasped_uv = np.array([u, v], dtype=np.int32)
-        return heightmap, colormap, maskmap, grasped_uv
+        maskmap = (segmmap == self.target_object_id).astype(np.uint8)
+        return heightmap, colormap, maskmap
 
-    def get_object_state(
-        self, object_ids, target_object_id, pose_noise=False, random_state=None
-    ):
+    def get_object_state(self, pose_noise=False, random_state=None):
         if pose_noise:
             random_state = copy.deepcopy(random_state)
-        grasp_flags = np.zeros((len(object_ids),), dtype=np.uint8)
+        grasp_flags = np.zeros((len(self.object_ids),), dtype=np.uint8)
         object_labels = np.zeros(
-            (len(object_ids), len(self.CLASS_IDS)), dtype=np.uint8
+            (len(self.object_ids), len(self.CLASS_IDS)), dtype=np.uint8
         )
-        object_poses = np.zeros((len(object_ids), 7), dtype=np.float32)
-        for i, object_id in enumerate(object_ids):
-            grasp_flags[i] = object_id == target_object_id
+        object_poses = np.zeros((len(self.object_ids), 7), dtype=np.float32)
+        for i, object_id in enumerate(self.object_ids):
+            grasp_flags[i] = object_id == self.target_object_id
             object_to_world = pp.get_pose(object_id)
             class_id = _utils.get_class_id(object_id)
             object_label = self.CLASS_IDS.index(class_id)
@@ -478,29 +450,35 @@ class PickFromPileEnv(Env):
         return grasp_flags, object_labels, object_poses
 
     def get_obs(self):
-        ee_pose = np.hstack(self.ri.get_pose("tipLink")).astype(np.float32)
-        grasp_flags, object_labels, object_poses = self.get_object_state(
-            self.object_ids, self.target_object_id
-        )
+        grasp_flags, object_labels, object_poses = self.get_object_state()
+        object_poses[:, :3] -= [self.ee_pose_init[0], self.ee_pose_init[1], 0]
         (
             grasp_flags_init,
             object_labels_init,
             object_poses_init,
-        ) = self.object_state
-        heightmap, colormap, maskmap, grasped_uv = self.visual_state
+        ) = copy.deepcopy(self.object_state)
+        object_poses_init[:, :3] -= [
+            self.ee_pose_init[0],
+            self.ee_pose_init[1],
+            0,
+        ]
+        heightmap, colormap, maskmap = self.visual_state
+        ee_poses = copy.deepcopy(self.ee_poses)
+        ee_poses[:, :3] -= [
+            self.ee_pose_init[0],
+            self.ee_pose_init[1],
+            0,
+        ]
         obs = dict(
-            ee_pose=ee_pose,
             grasp_flags=grasp_flags,
             object_labels=object_labels,
             object_poses=object_poses,
-            ee_pose_init=self.ee_pose_init,
             grasp_flags_init=grasp_flags_init,
             object_labels_init=object_labels_init,
             object_poses_init=object_poses_init,
             heightmap=heightmap,
             maskmap=maskmap,
-            grasped_uv=grasped_uv,
-            ee_poses=self.ee_poses,
+            ee_poses=ee_poses,
         )
 
         for key, space in self.observation_space.spaces.items():

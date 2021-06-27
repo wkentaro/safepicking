@@ -55,7 +55,7 @@ def main():
         pose_noise=args.pose_noise,
     )
     env.eval = True
-    obs = env.reset(
+    env.reset(
         random_state=np.random.RandomState(args.seed),
         pile_file=args.pile_file,
     )
@@ -68,9 +68,7 @@ def main():
     ri.planner = args.planner
 
     with pp.LockRenderer(), pp.WorldSaver():
-        for object_id, object_pose in zip(
-            object_ids, obs["object_poses_init"]
-        ):
+        for object_id, object_pose in zip(object_ids, env.object_state[2]):
             pp.set_pose(object_id, (object_pose[:3], object_pose[3:]))
         steps = ri.move_to_homej(
             bg_object_ids=[plane],

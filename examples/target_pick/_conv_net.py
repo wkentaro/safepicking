@@ -56,7 +56,6 @@ class ConvNet(torch.nn.Module):
         self,
         heightmap,
         maskmap,
-        grasped_uv,
         ee_poses,
         actions,
         object_label=None,
@@ -74,16 +73,16 @@ class ConvNet(torch.nn.Module):
         h_conv4 = self.conv4(h_conv3)
         h_conv5 = self.conv5(h_conv4)
 
-        uv = grasped_uv.long()
-        h_conv1 = h_conv1[torch.arange(B), :, uv[:, 1], uv[:, 0]]
-        uv = torch.floor(uv.float() / 2).long()
-        h_conv2 = h_conv2[torch.arange(B), :, uv[:, 1], uv[:, 0]]
-        uv = torch.floor(uv.float() / 2).long()
-        h_conv3 = h_conv3[torch.arange(B), :, uv[:, 1], uv[:, 0]]
-        uv = torch.floor(uv.float() / 2).long()
-        h_conv4 = h_conv4[torch.arange(B), :, uv[:, 1], uv[:, 0]]
-        uv = torch.floor(uv.float() / 2).long()
-        h_conv5 = h_conv5[torch.arange(B), :, uv[:, 1], uv[:, 0]]
+        yx = torch.tensor(h_conv1.shape[2:]) // 2
+        h_conv1 = h_conv1[:, :, yx[0], yx[1]]
+        yx = torch.tensor(h_conv2.shape[2:]) // 2
+        h_conv2 = h_conv2[:, :, yx[0], yx[1]]
+        yx = torch.tensor(h_conv3.shape[2:]) // 2
+        h_conv3 = h_conv3[:, :, yx[0], yx[1]]
+        yx = torch.tensor(h_conv4.shape[2:]) // 2
+        h_conv4 = h_conv4[:, :, yx[0], yx[1]]
+        yx = torch.tensor(h_conv5.shape[2:]) // 2
+        h_conv5 = h_conv5[:, :, yx[0], yx[1]]
 
         h = torch.cat([h_conv1, h_conv2, h_conv3, h_conv4, h_conv5], dim=1)
 

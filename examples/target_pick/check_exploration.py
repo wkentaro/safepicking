@@ -64,11 +64,16 @@ def main():
         transition = env.step(act_result)
         if transition.terminal:
             if args.draw_obs:
-                ee_pose = obs["ee_pose_init"]
-                pp.draw_pose((ee_pose[:3], ee_pose[3:]))
+                pp.draw_pose(np.hsplit(env.ee_pose_init, [3]))
                 grasp_flags = obs["grasp_flags_init"]
                 object_labels = obs["object_labels_init"]
                 object_poses = obs["object_poses_init"]
+
+                object_poses[:, :3] += [
+                    env.ee_pose_init[0],
+                    env.ee_pose_init[1],
+                    0,
+                ]
 
                 for grasp_flag, object_label, object_pose in zip(
                     grasp_flags, object_labels, object_poses
@@ -88,13 +93,13 @@ def main():
                         mesh_scale=(1.05, 1.05, 1.05),
                     )
 
-                class_id = env.CLASS_IDS[
-                    np.argwhere(object_labels[grasp_flags == 1][0])[0, 0]
+                ee_poses = obs["ee_poses"]
+                ee_poses[:, :3] += [
+                    env.ee_pose_init[0],
+                    env.ee_pose_init[1],
+                    0,
                 ]
-                visual_file = mercury.datasets.ycb.get_visual_file(
-                    class_id=class_id
-                )
-                for pose in obs["ee_poses"]:
+                for pose in ee_poses:
                     if (pose == 0).all():
                         continue
                     pp.draw_pose(np.hsplit(pose, [3]))

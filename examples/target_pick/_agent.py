@@ -43,7 +43,7 @@ class DqnModel(torch.nn.Module):
         self._actions = torch.as_tensor(env.actions, dtype=torch.float)
 
     def forward(self, observation):
-        device = observation["ee_pose"].device
+        device = observation["grasp_flags"].device
 
         if self._model == "closedloop_pose_net":
             kwargs = dict(
@@ -63,7 +63,6 @@ class DqnModel(torch.nn.Module):
             kwargs = dict(
                 heightmap=observation["heightmap"],
                 maskmap=observation["maskmap"],
-                grasped_uv=observation["grasped_uv"],
                 ee_poses=observation["ee_poses"],
             )
             if self._model == "semantic_conv_net":
@@ -74,7 +73,6 @@ class DqnModel(torch.nn.Module):
             kwargs = dict(
                 heightmap=observation["heightmap"],
                 maskmap=observation["maskmap"],
-                grasped_uv=observation["grasped_uv"],
                 grasp_flags=observation["grasp_flags_init"],
                 object_labels=observation["object_labels_init"],
                 object_poses=observation["object_poses_init"],
