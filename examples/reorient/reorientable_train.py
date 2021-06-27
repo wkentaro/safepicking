@@ -189,6 +189,8 @@ def epoch_loop(
     data_loader,
     summary_writer,
     optimizer=None,
+    lambda1=1,
+    lambda2=1,
 ):
     if is_training:
         assert optimizer is not None
@@ -231,11 +233,11 @@ def epoch_loop(
         loss_reorientable = torch.nn.functional.binary_cross_entropy(
             reorientable_pred, reorientable_true
         )
-        loss_trajectory_length = torch.nn.functional.l1_loss(
+        loss_trajectory_length = torch.nn.functional.smooth_l1_loss(
             trajectory_length_pred[reorientable_true[:, 2] == 1],
             trajectory_length_true[reorientable_true[:, 2] == 1],
         )
-        loss = loss_reorientable + loss_trajectory_length
+        loss = lambda1 * loss_reorientable + lambda2 * loss_trajectory_length
         losses["loss_reorientable"].append(loss_reorientable.item())
         losses["loss_trajectory_length"].append(loss_trajectory_length.item())
         losses["loss"].append(loss.item())
@@ -284,6 +286,8 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--name", required=True, help="name")
+    parser.add_argument("--lambda1", type=float, default=1, help="lambda1")
+    parser.add_argument("--lambda2", type=float, default=1, help="lambda2")
     args = parser.parse_args()
 
     data_train = Dataset(split="train")
@@ -315,7 +319,7 @@ def main():
     writer = SummaryWriter(log_dir=log_dir)
 
     max_metric = (-1, -np.inf)
-    with tqdm.trange(-1, 200, ncols=100) as pbar:
+    with tqdm.trange(-1, 100, ncols=100) as pbar:
         for epoch in pbar:
             pbar.set_description(
                 f"Epoch loop ({max_metric[1]:.3f} @{max_metric[0]})"
@@ -331,6 +335,8 @@ def main():
                     data_loader=loader_train,
                     summary_writer=writer,
                     optimizer=optimizer,
+                    lambda1=args.lambda1,
+                    lambda2=args.lambda2,
                 )
 
             # val epoch
@@ -342,6 +348,8 @@ def main():
                     data_loader=loader_val,
                     summary_writer=writer,
                     optimizer=optimizer,
+                    lambda1=args.lambda1,
+                    lambda2=args.lambda2,
                 )
             if epoch >= 0 and metrics["f1"] > max_metric[1]:
                 model_file = (
