@@ -597,7 +597,21 @@ def plan_place(env, target_grasp_poses):
                 continue
             result["j_pre_place"] = j
 
-            env.ri.setj(j)
+            env.ri.setj(env.ri.homej)
+            env.ri.attachments[0].assign()
+
+            js = env.ri.planj(
+                result["j_pre_place"],
+                obstacles=env.bg_objects,
+            )
+            if js is None:
+                logger.warning("js_pre_place is not found")
+                world_saver.restore()
+                env.ri.attachments = []
+                continue
+            result["js_pre_place"] = js
+
+            env.ri.setj(result["j_pre_place"])
             env.ri.attachments[0].assign()
 
             js = []
@@ -612,7 +626,11 @@ def plan_place(env, target_grasp_poses):
                 if j is None:
                     logger.warning("js_place is not found")
                     break
-                if not env.ri.validatej(j, obstacles=env.bg_objects):
+                if not env.ri.validatej(
+                    j,
+                    obstacles=env.bg_objects,
+                    min_distances=mercury.utils.StaticDict(-0.01),
+                ):
                     j = None
                     logger.warning("js_place is invalid")
                     break
@@ -642,7 +660,8 @@ def execute_place(env, result):
         pp.step_simulation()
         time.sleep(pp.get_time_step())
 
-    for _ in env.ri.movej(result["j_pre_place"]):
+    js = result["js_pre_place"]
+    for _ in (_ for j in js for _ in env.ri.movej(j)):
         pp.step_simulation()
         time.sleep(pp.get_time_step())
 
