@@ -353,7 +353,7 @@ def main():
                 )
             if epoch >= 0 and metrics["f1"] > max_metric[1]:
                 model_file = (
-                    log_dir / f"models/model_best-epoch_{epoch:04d}.pth"
+                    log_dir / f"models/model_best-epoch_{epoch:04d}.pt"
                 )
                 model_file.parent.makedirs_p()
                 torch.save(model.state_dict(), model_file)

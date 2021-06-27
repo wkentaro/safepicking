@@ -23,7 +23,7 @@ home = path.Path("~").expanduser()
 
 def get_goal_oriented_reorient_poses(env):
     model = Model()
-    model_file = "./logs/pickable/20210626_174714.026157-grasp_point_normal/models/model_best-epoch_0147.pth"  # NOQA
+    model_file = "./logs/pickable/20210626_174714.026157-grasp_point_normal/models/model_best-epoch_0147.pt"  # NOQA
     model.load_state_dict(torch.load(model_file))
     model.cuda()
 
