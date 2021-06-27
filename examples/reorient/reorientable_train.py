@@ -319,7 +319,7 @@ def main():
     writer = SummaryWriter(log_dir=log_dir)
 
     max_metric = (-1, -np.inf)
-    with tqdm.trange(-1, 100, ncols=100) as pbar:
+    with tqdm.trange(-1, 200, ncols=100) as pbar:
         for epoch in pbar:
             pbar.set_description(
                 f"Epoch loop ({max_metric[1]:.3f} @{max_metric[0]})"
