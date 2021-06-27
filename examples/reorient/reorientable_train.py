@@ -189,7 +189,6 @@ def epoch_loop(
     data_loader,
     summary_writer,
     optimizer=None,
-    no_trajectory_length=False,
 ):
     if is_training:
         assert optimizer is not None
@@ -236,10 +235,7 @@ def epoch_loop(
             trajectory_length_pred[reorientable_true[:, 2] == 1],
             trajectory_length_true[reorientable_true[:, 2] == 1],
         )
-        if no_trajectory_length:
-            loss = loss_reorientable
-        else:
-            loss = loss_reorientable + loss_trajectory_length
+        loss = loss_reorientable + loss_trajectory_length
         losses["loss_reorientable"].append(loss_reorientable.item())
         losses["loss_trajectory_length"].append(loss_trajectory_length.item())
         losses["loss"].append(loss.item())
@@ -288,11 +284,6 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--name", required=True, help="name")
-    parser.add_argument(
-        "--no-trajectory-length",
-        action="store_true",
-        help="no trajectory length",
-    )
     args = parser.parse_args()
 
     data_train = Dataset(split="train")
@@ -340,7 +331,6 @@ def main():
                     data_loader=loader_train,
                     summary_writer=writer,
                     optimizer=optimizer,
-                    no_trajectory_length=args.no_trajectory_length,
                 )
 
             # val epoch
@@ -352,7 +342,6 @@ def main():
                     data_loader=loader_val,
                     summary_writer=writer,
                     optimizer=optimizer,
-                    no_trajectory_length=args.no_trajectory_length,
                 )
             if epoch >= 0 and metrics["f1"] > max_metric[1]:
                 model_file = (
