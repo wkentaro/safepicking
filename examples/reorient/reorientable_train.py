@@ -85,12 +85,14 @@ class Model(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.encoder_object_poses = PoseEncoder(32, nhead=4, num_layers=4)
+        self.encoder_object_poses = PoseEncoder(128, nhead=4, num_layers=4)
         self.fc_reorientable = torch.nn.Sequential(
-            torch.nn.Linear(32, 3),
+            torch.nn.Linear(128, 3),
             torch.nn.Sigmoid(),
         )
-        self.fc_trajectory_length = torch.nn.Linear(32, 1)
+        self.fc_trajectory_length = torch.nn.Sequential(
+            torch.nn.Linear(128, 1),
+        )
 
     def forward(
         self,
