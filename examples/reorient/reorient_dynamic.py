@@ -157,7 +157,7 @@ def plan_and_execute_reorient(
         logger.error("No solution is found")
         return False
 
-    _reorient.execute_plan(env, result)
+    _reorient.execute_reorient(env, result)
     return True
 
 
@@ -214,7 +214,7 @@ def main():
             result = _reorient.plan_reorient(env, grasp_pose, reorient_pose)
             if "js_place" in result:
                 break
-        _reorient.execute_plan(env, result)
+        _reorient.execute_reorient(env, result)
     else:
         indices = np.argsort(pickable)[::-1][:1000]
         reorient_poses = reorient_poses[indices]

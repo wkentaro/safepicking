@@ -46,7 +46,7 @@ def main():
         if "js_place" in result:
             break
 
-    _reorient.execute_plan(env, result)
+    _reorient.execute_reorient(env, result)
 
     for _ in range(480):
         pp.step_simulation()

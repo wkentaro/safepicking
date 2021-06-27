@@ -408,7 +408,7 @@ def plan_reorient(env, grasp_pose, reorient_pose):
     return result
 
 
-def execute_plan(env, result):
+def execute_reorient(env, result):
     js = result["js_pre_grasp"]
     for _ in (_ for j in js for _ in env.ri.movej(j, timeout=1)):
         pp.step_simulation()

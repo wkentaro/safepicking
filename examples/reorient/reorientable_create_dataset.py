@@ -83,7 +83,7 @@ def main():
 
         if args.gui and reorientable:
             with pp.WorldSaver():
-                _reorient.execute_plan(env, result)
+                _reorient.execute_reorient(env, result)
 
         if args.gui:
             continue
