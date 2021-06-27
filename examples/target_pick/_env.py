@@ -292,32 +292,40 @@ class PickFromPileEnv(Env):
         self.ri.setj(j)
 
         rgb, depth, segm = self.ri.get_camera_image()
+        camera_to_world = self.ri.get_pose("camera_link")
 
         K = self.ri.get_opengl_intrinsic_matrix()
 
         pcd_in_camera = mercury.geometry.pointcloud_from_depth(
             depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
         )
-
-        camera_to_world = self.ri.get_pose("camera_link")
-        ee_to_world = self.ri.get_pose("tipLink")
-        camera_to_ee = pp.multiply(pp.invert(ee_to_world), camera_to_world)
-        pcd_in_ee = mercury.geometry.transform_points(
-            pcd_in_camera,
-            mercury.geometry.transformation_matrix(*camera_to_ee),
+        normals_in_camera = mercury.geometry.normals_from_pointcloud(
+            pcd_in_camera
         )
 
-        normals = mercury.geometry.normals_from_pointcloud(pcd_in_ee)
+        mask = segm == target_object_id
 
-        yx = np.argwhere(segm == target_object_id)
-
-        for y, x in yx[random_state.permutation(len(yx))][:100]:
-            position = pcd_in_ee[y, x]
-            quaternion = mercury.geometry.quaternion_from_vec2vec(
-                [0, 0, 1], normals[y, x]
+        T_camera_to_world = mercury.geometry.transformation_matrix(
+            *camera_to_world
+        )
+        pcd_in_world = mercury.geometry.transform_points(
+            pcd_in_camera[mask], T_camera_to_world
+        )
+        normals_in_world = (
+            mercury.geometry.transform_points(
+                pcd_in_camera[mask] + normals_in_camera[mask],
+                T_camera_to_world,
             )
-            ee_to_ee_af = (position, quaternion)
-            ee_af_to_world = pp.multiply(ee_to_world, ee_to_ee_af)
+            - pcd_in_world
+        )
+        quaternion_in_world = mercury.geometry.quaternion_from_vec2vec(
+            [0, 0, 1], normals_in_world
+        )
+
+        for index in random_state.permutation(pcd_in_world.shape[0]):
+            position = pcd_in_world[index]
+            quaternion = quaternion_in_world[index]
+            ee_af_to_world = (position, quaternion)
 
             j = self.ri.solve_ik(ee_af_to_world, rotation_axis="z")
             if j is None:
