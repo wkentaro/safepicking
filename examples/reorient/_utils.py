@@ -119,7 +119,7 @@ def create_shelf(X, Y, Z):
 def init_place_scene(class_id, random_state, face="front"):
     lock_renderer = pp.LockRenderer()
 
-    place_aabb_extents = [0.3, 0.6, 0.3]
+    place_aabb_extents = [0.25, 0.6, 0.3]
 
     shelf = create_shelf(*place_aabb_extents)
 
