@@ -85,7 +85,7 @@ class Model(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.encoder_object_poses = PoseEncoder(128, nhead=4, num_layers=4)
+        self.encoder_object_poses = PoseEncoder(128, nhead=2, num_layers=2)
         self.fc_reorientable = torch.nn.Sequential(
             torch.nn.Linear(128, 3),
             torch.nn.Sigmoid(),
