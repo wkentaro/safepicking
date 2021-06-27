@@ -429,24 +429,25 @@ def execute_plan(env, result):
         pp.step_simulation()
         time.sleep(pp.get_time_step())
 
-    env.ri.ungrasp()
-
     c = mercury.geometry.Coordinate(*env.ri.get_pose("tipLink"))
-    c.translate([0, 0, -0.1])
+    c.translate([0, 0, -0.1], wrt="local")
     c.translate([0, 0, 0.2], wrt="world")
     j = env.ri.solve_ik(c.pose, rotation_axis=False)
+    js = None
     if j is not None:
         js = env.ri.planj(
             j,
             obstacles=env.bg_objects + env.object_ids,
-            min_distances_start_goal=mercury.utils.StaticDict(-0.02),
+            min_distances_start_goal=mercury.utils.StaticDict(-0.01),
         )
-        if js is not None:
-            for _ in (
-                _ for j in js for _ in env.ri.movej(j, timeout=1, speed=0.005)
-            ):
-                pp.step_simulation()
-                time.sleep(pp.get_time_step())
+    if js is None:
+        js = []
+
+    env.ri.ungrasp()
+
+    for _ in (_ for j in js for _ in env.ri.movej(j, timeout=1)):
+        pp.step_simulation()
+        time.sleep(pp.get_time_step())
 
     for _ in env.ri.movej(env.ri.homej):
         pp.step_simulation()
