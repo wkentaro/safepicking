@@ -29,6 +29,13 @@ def main():
     parser.add_argument("--visualize", action="store_true", help="visualize")
     args = parser.parse_args()
 
+    if (
+        home
+        / "data/mercury/reorient/reorientable"
+        / f"s-{args.seed:08d}/00000099.pkl"
+    ).exists():
+        return
+
     env = Env(class_ids=[2, 3, 5, 11, 12, 15], gui=args.gui)
     env.random_state = np.random.RandomState(args.seed)
     env.launch()
