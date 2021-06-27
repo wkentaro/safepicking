@@ -91,7 +91,7 @@ def plan_and_execute_reorient(
     object_poses = np.tile(object_poses[None], (B, 1, 1))
 
     with torch.no_grad():
-        reorientable_pred = model(
+        reorientable_pred, trajectory_length_pred = model(
             object_fg_flags=torch.as_tensor(object_fg_flags).cuda(),
             object_labels=torch.as_tensor(object_labels).cuda(),
             object_poses=torch.as_tensor(object_poses).cuda(),
@@ -99,10 +99,15 @@ def plan_and_execute_reorient(
             reorient_pose=torch.as_tensor(reorient_poses).cuda(),
         )
     reorientable_pred = reorientable_pred.cpu().numpy()
+    trajectory_length_pred = trajectory_length_pred.cpu().numpy()
 
-    keep = (reorientable_pred[:, 0] > 0.5) & (reorientable_pred[:, 1] > 0.5)
+    keep = (reorientable_pred[:, 0] > 0.75) & (reorientable_pred[:, 1] > 0.75)
+    grasp_poses = grasp_poses[keep]
+    reorientable_pred = reorientable_pred[keep]
+    trajectory_length_pred = trajectory_length_pred[keep]
+
     reorientable_pred = reorientable_pred[:, 2]
-    indices = np.argsort(reorientable_pred)[keep][::-1]
+    indices = np.argsort(reorientable_pred)[-100:]
 
     result = {}
     for index in indices:
