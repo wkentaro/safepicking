@@ -7,38 +7,33 @@ class FusionNet(torch.nn.Module):
 
         # heightmap: 1
         # maskmap: 1
-        self.conv1 = torch.nn.Sequential(
+        self.encoder = torch.nn.Sequential(
             torch.nn.Conv2d(1 + 1, 4, kernel_size=3, stride=1, padding=1),
             torch.nn.ReLU(),
-        )
-        self.conv2 = torch.nn.Sequential(
             torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0),
             torch.nn.Conv2d(4, 8, kernel_size=3, stride=1, padding=1),
             torch.nn.ReLU(),
-        )
-        self.conv3 = torch.nn.Sequential(
             torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0),
             torch.nn.Conv2d(8, 16, kernel_size=3, stride=1, padding=1),
             torch.nn.ReLU(),
-        )
-        self.conv4 = torch.nn.Sequential(
             torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0),
-            torch.nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1),
+            torch.nn.Conv2d(16, 24, kernel_size=3, stride=1, padding=1),
             torch.nn.ReLU(),
-        )
-        self.conv5 = torch.nn.Sequential(
+            torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0),
+            torch.nn.Conv2d(24, 32, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(),
             torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0),
             torch.nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
             torch.nn.ReLU(),
+            torch.nn.AvgPool2d(8, stride=8),
         )
-        in_channels = 4 + 8 + 16 + 32 + 64
 
         # object_labels: 7
         # object_poses: 7
         # grasp_flags: 1
         # actions: 6
-        # ee_poses: episode_length * 7 or 7
-        in_channels += 7 + 7 + 1 + 6 + episode_length * 7
+        # ee_poses: episode_length * 7
+        in_channels = 64 + 7 + 7 + 1 + 6 + episode_length * 7
         self.fc_encoder = torch.nn.Sequential(
             torch.nn.Linear(in_channels, 32),
             torch.nn.ReLU(),
@@ -73,38 +68,20 @@ class FusionNet(torch.nn.Module):
         h = torch.cat(
             [heightmap[:, None, :, :], maskmap[:, None, :, :].float()], dim=1
         )
-        h_conv1 = self.conv1(h)
-        h_conv2 = self.conv2(h_conv1)
-        h_conv3 = self.conv3(h_conv2)
-        h_conv4 = self.conv4(h_conv3)
-        h_conv5 = self.conv5(h_conv4)
-
-        yx = torch.tensor(h_conv1.shape[2:]) // 2
-        h_conv1 = h_conv1[:, :, yx[0], yx[1]]
-        yx = torch.tensor(h_conv2.shape[2:]) // 2
-        h_conv2 = h_conv2[:, :, yx[0], yx[1]]
-        yx = torch.tensor(h_conv3.shape[2:]) // 2
-        h_conv3 = h_conv3[:, :, yx[0], yx[1]]
-        yx = torch.tensor(h_conv4.shape[2:]) // 2
-        h_conv4 = h_conv4[:, :, yx[0], yx[1]]
-        yx = torch.tensor(h_conv5.shape[2:]) // 2
-        h_conv5 = h_conv5[:, :, yx[0], yx[1]]
-
-        h_conv = torch.cat(
-            [h_conv1, h_conv2, h_conv3, h_conv4, h_conv5], dim=1
-        )
+        h = self.encoder(h)
+        h = h.reshape(B, -1)
 
         # -----------------------------------------------------------------------------
 
         B, O = grasp_flags.shape
         A, _ = actions.shape
 
-        h_conv = h_conv[:, None, :].repeat(1, O, 1)
+        h = h[:, None, :].repeat(1, O, 1)
         h_pose = torch.cat(
             [object_labels, object_poses, grasp_flags[:, :, None]], dim=2
         )
         ee_poses = ee_poses.reshape(B, -1)[:, None, :].repeat(1, O, 1)
-        h = torch.cat([h_conv, h_pose, ee_poses], dim=2)
+        h = torch.cat([h, h_pose, ee_poses], dim=2)
         h_action = actions
 
         # B, A, O, C
