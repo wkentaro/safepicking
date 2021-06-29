@@ -3,6 +3,7 @@
 import collections
 import copy
 import itertools
+import pickle
 import time
 
 import gym
@@ -173,7 +174,7 @@ class PickFromPileEnv(Env):
                 i = random_state.randint(9000, 10000)
             else:
                 i = random_state.randint(0, 9000)
-            pile_file = self.PILES_DIR / f"{i:08d}.npz"
+            pile_file = self.PILES_DIR / f"{i:08d}.pkl"
 
         if not pp.is_connected():
             pp.connect(use_gui=self._gui, mp4=self._mp4)
@@ -203,7 +204,8 @@ class PickFromPileEnv(Env):
             width=320,
         )
 
-        data = dict(np.load(pile_file))
+        with open(pile_file, "rb") as f:
+            data = pickle.load(f)
 
         is_partially_occluded = (0.2 < data["visibility"]) & (
             data["visibility"] < 0.9
