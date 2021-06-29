@@ -1,4 +1,5 @@
 import copy
+import pickle
 import time
 
 from loguru import logger
@@ -78,7 +79,7 @@ class Env:
                 i = self.random_state.choice(self.PILE_EVAL_IDS)
             else:
                 i = self.random_state.choice(self.PILE_TRAIN_IDS)
-            pile_file = self.PILES_DIR / f"{i:08d}.npz"
+            pile_file = self.PILES_DIR / f"{i:08d}.pkl"
 
         if not pp.is_connected():
             self.launch()
@@ -121,7 +122,8 @@ class Env:
             )
             pp.set_pose(sphere, ([0, 0.3, 0.3], [0, 0, 0, 1]))
 
-        data = dict(np.load(pile_file))
+        with open(pile_file, "rb") as f:
+            data = pickle.load(f)
 
         PILE_AABB = (
             self.PILE_POSITION + [-0.25, -0.25, -0.05],
