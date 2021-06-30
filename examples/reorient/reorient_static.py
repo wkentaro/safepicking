@@ -29,6 +29,13 @@ def main():
     parser.add_argument("--nogui", action="store_true", help="no gui")
     args = parser.parse_args()
 
+    json_file = path.Path(
+        f"logs/reorient_static/{args.seed:08d}-{args.face}.json"
+    )
+    if args.nogui and json_file.exists():
+        logger.info(f"Already json_file exists: {json_file}")
+        return
+
     env = Env(
         class_ids=[2, 3, 5, 11, 12, 15],
         mp4=args.mp4,
@@ -63,19 +70,19 @@ def main():
 
         for _ in range(480):
             pp.step_simulation()
-            if not args.nogui:
+            if pp.has_gui():
                 time.sleep(pp.get_time_step())
 
         success = _reorient.plan_and_execute_place(env)
 
-    json_file = path.Path(f"logs/reorient_static/{args.seed:08d}.json")
-    json_file.parent.makedirs_p()
-    with open(json_file, "w") as f:
-        json.dump(
-            dict(success=success, trajectory_length=trajectory_length),
-            f,
-            indent=2,
-        )
+    if args.nogui:
+        json_file.parent.makedirs_p()
+        with open(json_file, "w") as f:
+            json.dump(
+                dict(success=success, trajectory_length=trajectory_length),
+                f,
+                indent=2,
+            )
 
 
 if __name__ == "__main__":

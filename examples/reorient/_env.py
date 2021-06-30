@@ -488,7 +488,8 @@ class Env:
         js = validation_result["js_pre_grasp"]
         for _ in (_ for j in js for _ in self.ri.movej(j)):
             pp.step_simulation()
-            time.sleep(pp.get_time_step())
+            if pp.has_gui():
+                time.sleep(pp.get_time_step())
 
         object_id = validation_result["object_id"]
         obj_to_world = pp.get_pose(object_id)
@@ -497,7 +498,8 @@ class Env:
             min_dz=0.1, max_dz=0.15, speed=0.001, rotation_axis=True
         ):
             pp.step_simulation()
-            time.sleep(pp.get_time_step())
+            if pp.has_gui():
+                time.sleep(pp.get_time_step())
             if self.ri.gripper.detect_contact():
                 break
         self.ri.gripper.activate()
@@ -510,34 +512,39 @@ class Env:
 
         for _ in self.ri.movej(self.ri.homej, speed=0.005):
             pp.step_simulation()
-            time.sleep(pp.get_time_step())
+            if pp.has_gui():
+                time.sleep(pp.get_time_step())
 
         js = validation_result["js_pre_place"]
         for _ in (_ for j in js for _ in self.ri.movej(j)):
             pp.step_simulation()
-            time.sleep(pp.get_time_step())
+            if pp.has_gui():
+                time.sleep(pp.get_time_step())
 
         js = validation_result["js_place"]
         for _ in (_ for j in js for _ in self.ri.movej(j, speed=0.005)):
             pp.step_simulation()
-            time.sleep(pp.get_time_step())
+            if pp.has_gui():
+                time.sleep(pp.get_time_step())
 
         for _ in range(240):
             p.stepSimulation()
             if self._step_callback:
                 self._step_callback()
-            if self._gui:
+            if pp.has_gui():
                 time.sleep(pp.get_time_step())
 
         self.ri.ungrasp()
 
         for _ in (_ for j in js[::-1] for _ in self.ri.movej(j, speed=0.005)):
             pp.step_simulation()
-            time.sleep(pp.get_time_step())
+            if pp.has_gui():
+                time.sleep(pp.get_time_step())
 
         for _ in self.ri.movej(self.ri.homej):
             pp.step_simulation()
-            time.sleep(pp.get_time_step())
+            if pp.has_gui():
+                time.sleep(pp.get_time_step())
 
 
 def main():

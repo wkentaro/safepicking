@@ -120,7 +120,7 @@ def plan_dynamic_reorient(
         indices = np.argsort(trajectory_length_pred)
 
     result = {}
-    for index in indices:
+    for index in indices[:10]:
         ee_to_obj = grasp_poses[index, :3], grasp_poses[index, 3:]
         ee_to_world = pp.multiply(obj_to_world, ee_to_obj)
         obj_af_to_world = reorient_poses[index, :3], reorient_poses[index, 3:]
@@ -177,6 +177,13 @@ def main():
     parser.add_argument("--nogui", action="store_true", help="no gui")
     args = parser.parse_args()
 
+    json_file = path.Path(
+        f"logs/reorient_dynamic/{args.seed:08d}-{args.face}.json"
+    )
+    if args.nogui and json_file.exists():
+        logger.info(f"Already json_file exists: {json_file}")
+        return
+
     env = Env(
         class_ids=[2, 3, 5, 11, 12, 15],
         gui=not args.nogui,
@@ -208,6 +215,8 @@ def main():
         _reorient.execute_reorient(env, result)
     else:
         indices = np.where(pickable > 0.75)[0]
+        if indices.size == 0:
+            indices = np.where(pickable > 0.5)[0]
         indices = np.random.choice(indices, 1000)
         reorient_poses = reorient_poses[indices]
         pickable = pickable[indices]
@@ -226,7 +235,7 @@ def main():
 
         for _ in range(480):
             pp.step_simulation()
-            if not args.nogui:
+            if pp.has_gui():
                 time.sleep(pp.get_time_step())
 
         result = _reorient.plan_place(env, target_grasp_poses)
@@ -237,14 +246,14 @@ def main():
             _reorient.execute_place(env, result)
             success = True
 
-    json_file = path.Path(f"logs/reorient_dynamic/{args.seed:08d}.json")
-    json_file.parent.makedirs_p()
-    with open(json_file, "w") as f:
-        json.dump(
-            dict(success=success, trajectory_length=trajectory_length),
-            f,
-            indent=2,
-        )
+    if args.nogui:
+        json_file.parent.makedirs_p()
+        with open(json_file, "w") as f:
+            json.dump(
+                dict(success=success, trajectory_length=trajectory_length),
+                f,
+                indent=2,
+            )
 
 
 if __name__ == "__main__":

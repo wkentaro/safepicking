@@ -412,22 +412,26 @@ def execute_reorient(env, result):
     js = result["js_pre_grasp"]
     for _ in (_ for j in js for _ in env.ri.movej(j, timeout=1)):
         pp.step_simulation()
-        time.sleep(pp.get_time_step())
+        if pp.has_gui():
+            time.sleep(pp.get_time_step())
 
     for _ in env.ri.grasp(
         min_dz=0.08, max_dz=0.12, rotation_axis=True, speed=0.001
     ):
         pp.step_simulation()
-        time.sleep(pp.get_time_step())
+        if pp.has_gui():
+            time.sleep(pp.get_time_step())
 
     js = result["js_place"]
     for _ in (_ for j in js for _ in env.ri.movej(j, timeout=1, speed=0.005)):
         pp.step_simulation()
-        time.sleep(pp.get_time_step())
+        if pp.has_gui():
+            time.sleep(pp.get_time_step())
 
     for _ in range(int(1 / pp.get_time_step())):
         pp.step_simulation()
-        time.sleep(pp.get_time_step())
+        if pp.has_gui():
+            time.sleep(pp.get_time_step())
 
     c = mercury.geometry.Coordinate(*env.ri.get_pose("tipLink"))
     c.translate([0, 0, -0.1], wrt="local")
@@ -447,11 +451,13 @@ def execute_reorient(env, result):
 
     for _ in (_ for j in js for _ in env.ri.movej(j, timeout=1)):
         pp.step_simulation()
-        time.sleep(pp.get_time_step())
+        if pp.has_gui():
+            time.sleep(pp.get_time_step())
 
     for _ in env.ri.movej(env.ri.homej):
         pp.step_simulation()
-        time.sleep(pp.get_time_step())
+        if pp.has_gui():
+            time.sleep(pp.get_time_step())
 
 
 def get_static_reorient_poses(env):
@@ -650,41 +656,50 @@ def plan_place(env, target_grasp_poses):
 def execute_place(env, result):
     for _ in (_ for j in result["js_pre_grasp"] for _ in env.ri.movej(j)):
         pp.step_simulation()
-        time.sleep(pp.get_time_step())
+        if pp.has_gui():
+            time.sleep(pp.get_time_step())
 
     for _ in env.ri.grasp(min_dz=0.08, max_dz=0.12, rotation_axis=True):
         pp.step_simulation()
-        time.sleep(pp.get_time_step())
+        if pp.has_gui():
+            time.sleep(pp.get_time_step())
 
     for _ in env.ri.movej(env.ri.homej):
         pp.step_simulation()
-        time.sleep(pp.get_time_step())
+        if pp.has_gui():
+            time.sleep(pp.get_time_step())
 
     js = result["js_pre_place"]
     for _ in (_ for j in js for _ in env.ri.movej(j)):
         pp.step_simulation()
-        time.sleep(pp.get_time_step())
+        if pp.has_gui():
+            time.sleep(pp.get_time_step())
 
     js = result["js_place"]
     for _ in (_ for j in js for _ in env.ri.movej(j, speed=0.005)):
         pp.step_simulation()
-        time.sleep(pp.get_time_step())
+        if pp.has_gui():
+            time.sleep(pp.get_time_step())
 
     for _ in range(240):
         pp.step_simulation()
-        time.sleep(pp.get_time_step())
+        if pp.has_gui():
+            time.sleep(pp.get_time_step())
 
     env.ri.ungrasp()
 
     for _ in range(240):
         pp.step_simulation()
-        time.sleep(pp.get_time_step())
+        if pp.has_gui():
+            time.sleep(pp.get_time_step())
 
     js = result["js_place"][::-1]
     for _ in (_ for j in js for _ in env.ri.movej(j, speed=0.005)):
         pp.step_simulation()
-        time.sleep(pp.get_time_step())
+        if pp.has_gui():
+            time.sleep(pp.get_time_step())
 
     for _ in env.ri.movej(env.ri.homej):
         pp.step_simulation()
-        time.sleep(pp.get_time_step())
+        if pp.has_gui():
+            time.sleep(pp.get_time_step())
