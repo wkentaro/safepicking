@@ -109,13 +109,15 @@ def plan_dynamic_reorient(
     trajectory_length_pred = trajectory_length_pred[keep]
 
     reorientable_pred = reorientable_pred[:, 2]
+
     keep = reorientable_pred > 0.75
-
-    grasp_poses = grasp_poses[keep]
-    reorientable_pred = reorientable_pred[keep]
-    trajectory_length_pred = trajectory_length_pred[keep]
-
-    indices = np.argsort(trajectory_length_pred)
+    if keep.sum() == 0:
+        indices = np.argsort(reorientable_pred)[::-1]
+    else:
+        grasp_poses = grasp_poses[keep]
+        reorientable_pred = reorientable_pred[keep]
+        trajectory_length_pred = trajectory_length_pred[keep]
+        indices = np.argsort(trajectory_length_pred)
 
     result = {}
     for index in indices:
@@ -221,7 +223,8 @@ def main():
                 break
         _reorient.execute_reorient(env, result)
     else:
-        indices = np.argsort(pickable)[::-1][:1000]
+        indices = np.where(pickable > 0.75)[0]
+        indices = np.random.choice(indices, 1000)
         reorient_poses = reorient_poses[indices]
         pickable = pickable[indices]
 
