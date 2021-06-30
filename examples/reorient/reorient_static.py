@@ -26,15 +26,18 @@ def main():
         help="face",
     )
     parser.add_argument("--mp4", help="mp4")
+    parser.add_argument("--nogui", action="store_true", help="no gui")
     args = parser.parse_args()
 
-    env = Env(class_ids=[2, 3, 5, 11, 12, 15], mp4=args.mp4, face=args.face)
+    env = Env(
+        class_ids=[2, 3, 5, 11, 12, 15],
+        mp4=args.mp4,
+        gui=not args.nogui,
+        face=args.face,
+    )
     env.random_state = np.random.RandomState(args.seed)
     env.eval = True
     env.reset()
-
-    # if _reorient.plan_and_execute_place(env):
-    #     return
 
     reorient_poses = _reorient.get_static_reorient_poses(env)
     grasp_poses = np.array(
@@ -60,7 +63,8 @@ def main():
 
         for _ in range(480):
             pp.step_simulation()
-            time.sleep(pp.get_time_step())
+            if not args.nogui:
+                time.sleep(pp.get_time_step())
 
         success = _reorient.plan_and_execute_place(env)
 

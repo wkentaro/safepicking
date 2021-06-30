@@ -187,22 +187,6 @@ def main():
     env.eval = True
     env.reset()
 
-    if 0:
-        pcd_in_obj, normals_in_obj = _reorient.get_query_ocs(env)
-        quaternion_in_obj = mercury.geometry.quaternion_from_vec2vec(
-            [0, 0, -1], normals_in_obj
-        )
-        target_grasp_poses = np.hstack([pcd_in_obj, quaternion_in_obj])
-        target_grasp_poses = target_grasp_poses[
-            np.random.permutation(target_grasp_poses.shape[0])
-        ][:10]
-
-        result = _reorient.plan_place(env, target_grasp_poses)
-        if "js_place" not in result:
-            logger.error("Failed to plan pick-and-place")
-        else:
-            _reorient.execute_place(env, result)
-
     (
         reorient_poses,
         pickable,
@@ -242,7 +226,8 @@ def main():
 
         for _ in range(480):
             pp.step_simulation()
-            time.sleep(pp.get_time_step())
+            if not args.nogui:
+                time.sleep(pp.get_time_step())
 
         result = _reorient.plan_place(env, target_grasp_poses)
         if "js_place" not in result:
