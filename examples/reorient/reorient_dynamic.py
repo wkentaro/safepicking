@@ -23,7 +23,7 @@ def plan_and_execute_reorient(
     env, grasp_poses, reorient_poses, pickable, visualize=True
 ):
     model = Model()
-    model_file = "logs/reorientable/20210627_191451.547701-smooth_l1_loss-lambda1_1-lambda2_1/models/model_best-epoch_0021.pt"  # NOQA
+    model_file = "logs/reorientable/20210630_024141.842308-train_size_4500/models/model_best-epoch_0077.pt"  # NOQA
     logger.info(f"Loading {model_file}")
     model.load_state_dict(torch.load(model_file, map_location="cpu"))
     model.eval()

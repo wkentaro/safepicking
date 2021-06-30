@@ -118,13 +118,13 @@ class Dataset(torch.utils.data.Dataset):
         self._split = split
 
         self._files = {"train": [], "val": []}
-        for i in range(0, 900):
+        for i in range(0, 4500):
             seed_dir = self.ROOT_DIR / f"s-{i:08d}"
             if not seed_dir.exists():
                 continue
             for pkl_file in sorted(seed_dir.walk("*.pkl")):
                 self._files["train"].append(pkl_file)
-        for i in range(900, 1000):
+        for i in range(4500, 5000):
             seed_dir = self.ROOT_DIR / f"s-{i:08d}"
             if not seed_dir.exists():
                 continue
