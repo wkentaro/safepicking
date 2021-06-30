@@ -43,7 +43,6 @@ def main():
             "closedloop_pose_net",
             "openloop_pose_net",
             "conv_net",
-            "semantic_conv_net",
             "fusion_net",
         ],
         help="model",

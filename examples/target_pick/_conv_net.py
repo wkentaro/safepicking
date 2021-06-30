@@ -2,10 +2,8 @@ import torch
 
 
 class ConvNet(torch.nn.Module):
-    def __init__(self, episode_length, semantic=False):
+    def __init__(self, episode_length):
         super().__init__()
-
-        self._semantic = semantic
 
         # heightmap: 1
         # maskmap: 1
@@ -34,10 +32,6 @@ class ConvNet(torch.nn.Module):
         # actions: 6
         # ee_poses: episode_length * 7
         in_channels = 64 + 6 + episode_length * 7
-        if self._semantic:
-            # object_label: 7
-            # object_pose: 7
-            in_channels += 7 + 7
         self.mlp = torch.nn.Sequential(
             torch.nn.Linear(in_channels, 32),
             torch.nn.ReLU(),
@@ -71,14 +65,7 @@ class ConvNet(torch.nn.Module):
         h_action = actions[None, :, :].repeat_interleave(B, dim=0)
         h_ee_pose = ee_poses[:, None, :, :].repeat_interleave(A, dim=1)
         h_ee_pose = h_ee_pose.reshape(B, A, -1)
-
-        if self._semantic:
-            h_semantic = torch.cat([object_label, object_pose], dim=0)
-            h_semantic = h_semantic[None, :].repeat_interleave(B, dim=0)
-            h_semantic = h_semantic[:, None, :].repeat_interleave(A, dim=1)
-            h = torch.cat([h, h_action, h_ee_pose, h_semantic], dim=2)
-        else:
-            h = torch.cat([h, h_action, h_ee_pose], dim=2)
+        h = torch.cat([h, h_action, h_ee_pose], dim=2)
 
         h = h.reshape(B * A, -1)
 
