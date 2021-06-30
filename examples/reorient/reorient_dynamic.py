@@ -2,10 +2,12 @@
 
 import argparse
 import itertools
+import json
 import time
 
 from loguru import logger
 import numpy as np
+import path
 import pybullet_planning as pp
 import torch
 
@@ -19,7 +21,7 @@ from pickable_eval import get_goal_oriented_reorient_poses
 from reorientable_train import Model
 
 
-def plan_and_execute_reorient(
+def plan_dynamic_reorient(
     env, grasp_poses, reorient_poses, pickable, visualize=True
 ):
     model = Model()
@@ -155,12 +157,7 @@ def plan_and_execute_reorient(
                 f"trajectory_length_pred={trajectory_length_pred[index]:.1f}"
             )
 
-    if "js_place" not in result:
-        logger.error("No solution is found")
-        return False
-
-    _reorient.execute_reorient(env, result)
-    return True
+    return result
 
 
 def main():
@@ -175,9 +172,15 @@ def main():
         help="face",
     )
     parser.add_argument("--mp4", help="mp4")
+    parser.add_argument("--nogui", action="store_true", help="no gui")
     args = parser.parse_args()
 
-    env = Env(class_ids=[2, 3, 5, 11, 12, 15], mp4=args.mp4, face=args.face)
+    env = Env(
+        class_ids=[2, 3, 5, 11, 12, 15],
+        gui=not args.nogui,
+        mp4=args.mp4,
+        face=args.face,
+    )
     env.random_state = np.random.RandomState(args.seed)
     env.eval = True
     env.reset()
@@ -222,17 +225,38 @@ def main():
         reorient_poses = reorient_poses[indices]
         pickable = pickable[indices]
 
-        plan_and_execute_reorient(env, grasp_poses, reorient_poses, pickable)
+        result = plan_dynamic_reorient(
+            env, grasp_poses, reorient_poses, pickable
+        )
 
-    for _ in range(480):
-        pp.step_simulation()
-        time.sleep(pp.get_time_step())
-
-    result = _reorient.plan_place(env, target_grasp_poses)
     if "js_place" not in result:
-        logger.error("Failed to plan pick-and-place")
+        logger.error("No solution is found")
+        success = False
+        trajectory_length = np.nan
     else:
-        _reorient.execute_place(env, result)
+        _reorient.execute_reorient(env, result)
+        trajectory_length = result["js_place_length"]
+
+        for _ in range(480):
+            pp.step_simulation()
+            time.sleep(pp.get_time_step())
+
+        result = _reorient.plan_place(env, target_grasp_poses)
+        if "js_place" not in result:
+            logger.error("Failed to plan pick-and-place")
+            success = False
+        else:
+            _reorient.execute_place(env, result)
+            success = True
+
+    json_file = path.Path(f"logs/reorient_dynamic/{args.seed:08d}.json")
+    json_file.parent.makedirs_p()
+    with open(json_file, "w") as f:
+        json.dump(
+            dict(success=success, trajectory_length=trajectory_length),
+            f,
+            indent=2,
+        )
 
 
 if __name__ == "__main__":

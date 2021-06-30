@@ -2,8 +2,12 @@
 
 import argparse
 import itertools
+import json
+import time
 
+from loguru import logger
 import numpy as np
+import path
 import pybullet_planning as pp
 
 from _env import Env
@@ -46,13 +50,28 @@ def main():
         if "js_place" in result:
             break
 
-    _reorient.execute_reorient(env, result)
+    if "js_place" not in result:
+        logger.error("No solution is found")
+        success = False
+        trajectory_length = np.nan
+    else:
+        _reorient.execute_reorient(env, result)
+        trajectory_length = result["js_place_length"]
 
-    for _ in range(480):
-        pp.step_simulation()
+        for _ in range(480):
+            pp.step_simulation()
+            time.sleep(pp.get_time_step())
 
-    if _reorient.plan_and_execute_place(env):
-        return
+        success = _reorient.plan_and_execute_place(env)
+
+    json_file = path.Path(f"logs/reorient_static/{args.seed:08d}.json")
+    json_file.parent.makedirs_p()
+    with open(json_file, "w") as f:
+        json.dump(
+            dict(success=success, trajectory_length=trajectory_length),
+            f,
+            indent=2,
+        )
 
 
 if __name__ == "__main__":
