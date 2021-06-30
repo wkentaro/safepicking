@@ -107,11 +107,11 @@ def plan_and_execute_reorient(
     trajectory_length_pred = trajectory_length_pred[keep]
 
     reorientable_pred = reorientable_pred[:, 2]
-    indices = np.argsort(reorientable_pred)[-100:]
+    keep = reorientable_pred > 0.75
 
-    grasp_poses = grasp_poses[indices]
-    reorientable_pred = reorientable_pred[indices]
-    trajectory_length_pred = trajectory_length_pred[indices]
+    grasp_poses = grasp_poses[keep]
+    reorientable_pred = reorientable_pred[keep]
+    trajectory_length_pred = trajectory_length_pred[keep]
 
     indices = np.argsort(trajectory_length_pred)
 
@@ -143,14 +143,16 @@ def plan_and_execute_reorient(
 
         if "js_place" in result:
             logger.success(
+                f"pickable={pickable[index]:.1%}, "
                 f"reorientable_pred={reorientable_pred[index]:.1%}, "
-                f"pickable={pickable[index]:.1%}"
+                f"trajectory_length_pred={trajectory_length_pred[index]:.1f}"
             )
             break
         else:
             logger.warning(
+                f"pickable={pickable[index]:.1%}, "
                 f"reorientable_pred={reorientable_pred[index]:.1%}, "
-                f"pickable={pickable[index]:.1%}"
+                f"trajectory_length_pred={trajectory_length_pred[index]:.1f}"
             )
 
     if "js_place" not in result:
