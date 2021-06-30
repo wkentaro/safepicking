@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def get_heightmap(points, colors, ids, aabb, pixel_size):
+def get_heightmap(points, colors, ids, positions, poses, aabb, pixel_size):
     """Get top-down (z-axis) orthographic heightmap image from 3D pointcloud.
 
     Args:
@@ -22,6 +22,8 @@ def get_heightmap(points, colors, ids, aabb, pixel_size):
     heightmap = np.zeros((height, width), dtype=np.float32)
     colormap = np.zeros((height, width, colors.shape[-1]), dtype=np.uint8)
     segmmap = np.zeros((height, width), dtype=np.int32)
+    positionmap = np.zeros((height, width, 3), dtype=np.float32)
+    posemap = np.zeros((height, width, 3), dtype=np.float32)
 
     # Filter out 3D points that are outside of the predefined bounds.
     ix = (points[..., 0] >= bounds[0, 0]) & (points[..., 0] < bounds[0, 1])
@@ -31,17 +33,26 @@ def get_heightmap(points, colors, ids, aabb, pixel_size):
     points = points[valid]
     colors = colors[valid]
     ids = ids[valid]
+    positions = positions[valid]
+    poses = poses[valid]
 
     # Sort 3D points by z-value, which works with array assignment to simulate
     # z-buffering for rendering the heightmap image.
     iz = np.argsort(points[:, -1])
-    points, colors, ids = points[iz], colors[iz], ids[iz]
+    points, colors, ids, positions, poses = (
+        points[iz],
+        colors[iz],
+        ids[iz],
+        positions[iz],
+        poses[iz],
+    )
     px = np.int32(np.floor((points[:, 0] - bounds[0, 0]) / pixel_size))
     py = np.int32(np.floor((points[:, 1] - bounds[1, 0]) / pixel_size))
     px = np.clip(px, 0, width - 1)
     py = np.clip(py, 0, height - 1)
     heightmap[py, px] = points[:, 2] - bounds[2, 0]
-    for c in range(colors.shape[-1]):
-        colormap[py, px, c] = colors[:, c]
+    colormap[py, px] = colors[:]
     segmmap[py, px] = ids[:]
-    return heightmap, colormap, segmmap
+    positionmap[py, px] = positions[:]
+    posemap[py, px] = poses[:]
+    return heightmap, colormap, segmmap, positionmap, posemap

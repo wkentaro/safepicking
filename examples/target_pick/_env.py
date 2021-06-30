@@ -118,6 +118,18 @@ class PickFromPileEnv(Env):
             shape=(self.HEIGHTMAP_IMAGE_SIZE, self.HEIGHTMAP_IMAGE_SIZE),
             dtype=np.uint8,
         )
+        positionmap = gym.spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=(self.HEIGHTMAP_IMAGE_SIZE, self.HEIGHTMAP_IMAGE_SIZE, 3),
+            dtype=np.float32,
+        )
+        posemap = gym.spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=(self.HEIGHTMAP_IMAGE_SIZE, self.HEIGHTMAP_IMAGE_SIZE, 3),
+            dtype=np.float32,
+        )
         ee_poses = gym.spaces.Box(
             low=-np.inf,
             high=np.inf,
@@ -134,6 +146,8 @@ class PickFromPileEnv(Env):
                 object_poses_init=object_poses_init,
                 heightmap=heightmap,
                 maskmap=maskmap,
+                positionmap=positionmap,
+                posemap=posemap,
                 ee_poses=ee_poses,
             )
         )
@@ -411,6 +425,38 @@ class PickFromPileEnv(Env):
         return self.get_obs()
 
     def get_visual_state(self, rgb, pcd_in_world, segm):
+        positionimg = np.zeros_like(pcd_in_world)
+        poseimg = np.zeros_like(pcd_in_world)
+        for i, object_id in enumerate(self.object_ids):
+            obj_to_world = self.object_state[2][i]
+            mask = segm == object_id
+            positionimg[mask] = pcd_in_world[mask] - obj_to_world[:3]
+
+            T_obj_to_world = mercury.geometry.transformation_matrix(
+                *np.hsplit(obj_to_world, [3])
+            )
+            T_world_to_obj = np.linalg.inv(T_obj_to_world)
+            pcd_in_obj = mercury.geometry.transform_points(
+                pcd_in_world[mask], T_world_to_obj
+            )
+            poseimg[mask] = pcd_in_obj
+
+        if 0:
+            import imgviz
+
+            imgviz.io.imsave("_rgb.jpg", rgb)
+            imgviz.io.imsave(
+                "_depth.jpg", imgviz.depth2rgb(pcd_in_world[:, :, 2])
+            )
+            imgviz.io.imsave("_segm.jpg", imgviz.label2rgb(segm))
+            imgviz.io.imsave(
+                "_positionimg.jpg",
+                np.uint8(imgviz.normalize(positionimg) * 255),
+            )
+            imgviz.io.imsave(
+                "_poseimg.jpg", np.uint8(imgviz.normalize(poseimg) * 255)
+            )
+
         aabb = np.array(
             [
                 self.ee_pose_init[:3] - self.HEIGHTMAP_SIZE / 2,
@@ -419,15 +465,29 @@ class PickFromPileEnv(Env):
         )
         aabb[0][2] = -0.05
         aabb[1][2] = 0.5
-        heightmap, colormap, segmmap = get_heightmap(
+        heightmap, colormap, segmmap, positionmap, posemap = get_heightmap(
             points=pcd_in_world,
             colors=rgb,
             ids=segm,
+            positions=positionimg,
+            poses=poseimg,
             aabb=aabb,
             pixel_size=self.HEIGHTMAP_PIXEL_SIZE,
         )
         maskmap = (segmmap == self.target_object_id).astype(np.uint8)
-        return heightmap, colormap, maskmap
+
+        if 0:
+            import imgviz
+
+            imgviz.io.imsave(
+                "_positionmap.jpg",
+                np.uint8(imgviz.normalize(positionmap) * 255),
+            )
+            imgviz.io.imsave(
+                "_posemap.jpg", np.uint8(imgviz.normalize(posemap) * 255)
+            )
+
+        return heightmap, colormap, maskmap, positionmap, posemap
 
     def get_object_state(self, pose_noise=False, random_state=None):
         if pose_noise:
@@ -464,7 +524,7 @@ class PickFromPileEnv(Env):
             self.ee_pose_init[1],
             0,
         ]
-        heightmap, colormap, maskmap = self.visual_state
+        heightmap, colormap, maskmap, positionmap, posemap = self.visual_state
         ee_poses = copy.deepcopy(self.ee_poses)
         ee_poses[:, :3] -= [
             self.ee_pose_init[0],
@@ -480,6 +540,8 @@ class PickFromPileEnv(Env):
             object_poses_init=object_poses_init,
             heightmap=heightmap,
             maskmap=maskmap,
+            positionmap=positionmap,
+            posemap=posemap,
             ee_poses=ee_poses,
         )
 
