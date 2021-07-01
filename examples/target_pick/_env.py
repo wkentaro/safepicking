@@ -559,8 +559,8 @@ class PickFromPileEnv(Env):
             object_labels[i] = np.eye(len(self.CLASS_IDS))[object_label]
             if pose_noise:
                 object_to_world = (
-                    object_to_world[0] + random_state.normal(0, 0.03, 3),
-                    object_to_world[1] + random_state.normal(0, 0.1, 4),
+                    object_to_world[0] + random_state.normal(0, 0.02, 3),
+                    object_to_world[1] + random_state.normal(0, 0.06, 4),
                 )
             object_poses[i] = np.hstack(object_to_world)
         return grasp_flags, object_labels, object_poses
