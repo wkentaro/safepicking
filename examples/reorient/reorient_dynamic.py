@@ -103,27 +103,33 @@ def plan_dynamic_reorient(
     reorientable_pred = reorientable_pred.cpu().numpy()
     trajectory_length_pred = trajectory_length_pred.cpu().numpy()
 
-    keep = (reorientable_pred[:, 0] > 0.75) & (reorientable_pred[:, 1] > 0.75)
-    grasp_poses = grasp_poses[keep]
-    reorientable_pred = reorientable_pred[keep]
-    trajectory_length_pred = trajectory_length_pred[keep]
+    for threshold in [0.9, 0.8, 0.7]:
+        keep = (reorientable_pred > threshold).all(axis=1)
+        if keep.sum() > 10:
+            pickable = pickable[keep]
+            reorientable_pred = reorientable_pred[keep]
+            trajectory_length_pred = trajectory_length_pred[keep]
+            grasp_poses = grasp_poses[keep]
+            reorient_poses = reorient_poses[keep]
+            break
 
-    reorientable_pred = reorientable_pred[:, 2]
+    # indices = np.argsort(reorientable_pred[:, 2])[::-1]
+    # indices = np.argsort(pickable)[::-1]
+    indices = np.argsort(trajectory_length_pred)
 
-    keep = reorientable_pred > 0.75
-    if keep.sum() == 0:
-        indices = np.argsort(reorientable_pred)[::-1]
-    else:
-        grasp_poses = grasp_poses[keep]
-        reorientable_pred = reorientable_pred[keep]
-        trajectory_length_pred = trajectory_length_pred[keep]
-        indices = np.argsort(trajectory_length_pred)
+    assert (
+        pickable.shape[0]
+        == reorientable_pred.shape[0]
+        == trajectory_length_pred.shape[0]
+        == grasp_poses.shape[0]
+        == reorient_poses.shape[0]
+    )
 
     result = {}
     for index in indices[:10]:
-        ee_to_obj = grasp_poses[index, :3], grasp_poses[index, 3:]
+        ee_to_obj = np.hsplit(grasp_poses[index], [3])
         ee_to_world = pp.multiply(obj_to_world, ee_to_obj)
-        obj_af_to_world = reorient_poses[index, :3], reorient_poses[index, 3:]
+        obj_af_to_world = np.hsplit(reorient_poses[index], [3])
 
         if visualize:
             obj_af = mercury.pybullet.duplicate(
@@ -148,14 +154,19 @@ def plan_dynamic_reorient(
         if "js_place" in result:
             logger.success(
                 f"pickable={pickable[index]:.1%}, "
-                f"reorientable_pred={reorientable_pred[index]:.1%}, "
-                f"trajectory_length_pred={trajectory_length_pred[index]:.1f}"
+                f"graspable_pred={reorientable_pred[index, 0]:.1%}, "
+                f"placable_pred={reorientable_pred[index, 1]:.1%}, "
+                f"reorientable_pred={reorientable_pred[index, 2]:.1%}, "
+                f"trajectory_length_pred={trajectory_length_pred[index]:.1f}, "
+                f"trajectory_length_true={result['js_place_length']:.1f}"
             )
             break
         else:
             logger.warning(
                 f"pickable={pickable[index]:.1%}, "
-                f"reorientable_pred={reorientable_pred[index]:.1%}, "
+                f"graspable_pred={reorientable_pred[index, 0]:.1%}, "
+                f"placable_pred={reorientable_pred[index, 1]:.1%}, "
+                f"reorientable_pred={reorientable_pred[index, 2]:.1%}, "
                 f"trajectory_length_pred={trajectory_length_pred[index]:.1f}"
             )
 
