@@ -308,7 +308,7 @@ def plan_reorient(env, grasp_pose, reorient_pose):
         if not env.ri.validatej(
             j,
             obstacles=bg_object_ids,
-            min_distances={(env.ri.attachments[0].child, -1): -0.01},
+            min_distances=mercury.utils.StaticDict(-0.01),
         ):
             logger.warning("j_place is invalid")
             j = None
