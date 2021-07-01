@@ -55,7 +55,7 @@ class ConvNet(torch.nn.Module):
             torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0),
             torch.nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
             torch.nn.ReLU(),
-            torch.nn.AvgPool2d(8, stride=8),
+            torch.nn.AvgPool2d(4, stride=4),
         )
 
         # h: 64
