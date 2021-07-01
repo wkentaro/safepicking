@@ -61,29 +61,28 @@ def get_reorient_poses(env):
 
     reorient_poses = []
     with pp.LockRenderer(), pp.WorldSaver():
-        for x, y in XY_valid:
-            for a, b, g in ABG:
-                c = mercury.geometry.Coordinate(
-                    position=(x, y, 0),
-                    quaternion=_utils.get_canonical_quaternion(
-                        class_id=_utils.get_class_id(env.fg_object_id)
-                    ),
-                )
-                c.rotate([a, b, g], wrt="world")
-                pp.set_pose(env.fg_object_id, c.pose)
+        for (x, y), (a, b, g) in itertools.product(XY, ABG):
+            c = mercury.geometry.Coordinate(
+                position=(x, y, 0),
+                quaternion=_utils.get_canonical_quaternion(
+                    class_id=_utils.get_class_id(env.fg_object_id)
+                ),
+            )
+            c.rotate([a, b, g], wrt="world")
+            pp.set_pose(env.fg_object_id, c.pose)
 
-                c.position[2] = -pp.get_aabb(env.fg_object_id)[0][2]
-                pp.set_pose(env.fg_object_id, c.pose)
+            c.position[2] = -pp.get_aabb(env.fg_object_id)[0][2]
+            pp.set_pose(env.fg_object_id, c.pose)
 
-                points = pp.body_collision_info(
-                    env.fg_object_id, env.plane, max_distance=0.2
-                )
-                distance_to_plane = min(point[8] for point in points)
-                assert distance_to_plane > 0
-                c.position[2] -= distance_to_plane
-                pp.set_pose(env.fg_object_id, c.pose)
+            points = pp.body_collision_info(
+                env.fg_object_id, env.plane, max_distance=0.2
+            )
+            distance_to_plane = min(point[8] for point in points)
+            assert distance_to_plane > 0
+            c.position[2] -= distance_to_plane
+            pp.set_pose(env.fg_object_id, c.pose)
 
-                reorient_poses.append(np.hstack(c.pose))
+            reorient_poses.append(np.hstack(c.pose))
     return np.array(reorient_poses)
 
 

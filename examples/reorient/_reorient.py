@@ -10,6 +10,8 @@ from yarr.agents.agent import ActResult
 
 import mercury
 
+import _utils
+
 
 def get_query_ocs(env):
     with pp.LockRenderer(), pp.WorldSaver():
@@ -480,8 +482,13 @@ def get_static_reorient_poses(env):
     # XY, ABG validation
     poses = []
     for (x, y), (a, b, g) in itertools.product(XY, ABG):
-        c = mercury.geometry.Coordinate(position=(x, y, 0))
-        c.quaternion = mercury.geometry.quaternion_from_euler((a, b, g))
+        c = mercury.geometry.Coordinate(
+            position=(x, y, 0),
+            quaternion=_utils.get_canonical_quaternion(
+                class_id=_utils.get_class_id(env.fg_object_id)
+            ),
+        )
+        c.rotate([a, b, g], wrt="world")
         pp.set_pose(env.fg_object_id, c.pose)
 
         c.position[2] = -pp.get_aabb(env.fg_object_id)[0][2]
