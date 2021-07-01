@@ -277,24 +277,18 @@ def plan_reorient(env, grasp_pose, reorient_pose):
 
     if j is not None:
         env.ri.setj(j)
-        for wrt in ["world", "local"]:
-            c = mercury.geometry.Coordinate(*env.ri.get_pose("tipLink"))
-            if wrt == "world":
-                c.translate([0, 0, 0.1], wrt="world")
-            else:
-                c.translate([0, 0, -0.1], wrt="local")
-            j = env.ri.solve_ik(c.pose, n_init=1)
-            obstacles = env.bg_objects + env.object_ids
-            obstacles.remove(env.fg_object_id)
-            if j is not None:
-                if not env.ri.validatej(
-                    j,
-                    obstacles=obstacles,
-                    min_distances=mercury.utils.StaticDict(-0.01),
-                ):
-                    j = None
-            if j is not None:
-                break
+        c = mercury.geometry.Coordinate(*env.ri.get_pose("tipLink"))
+        c.translate([0, 0, 0.2], wrt="world")
+        j = env.ri.solve_ik(c.pose, n_init=1)
+        obstacles = env.bg_objects + env.object_ids
+        obstacles.remove(env.fg_object_id)
+        if j is not None:
+            if not env.ri.validatej(
+                j,
+                obstacles=obstacles,
+                min_distances=mercury.utils.StaticDict(-0.01),
+            ):
+                j = None
         if j is None:
             logger.warning("j_post_grasp is not found")
             del result["j_grasp"]
