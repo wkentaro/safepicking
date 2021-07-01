@@ -422,9 +422,11 @@ def execute_reorient(env, result):
         if pp.has_gui():
             time.sleep(pp.get_time_step())
 
+    t_place = 0
     js = result["js_place"]
     for _ in (_ for j in js for _ in env.ri.movej(j, timeout=1, speed=0.005)):
         pp.step_simulation()
+        t_place += pp.get_time_step()
         if pp.has_gui():
             time.sleep(pp.get_time_step())
 
@@ -458,6 +460,8 @@ def execute_reorient(env, result):
         pp.step_simulation()
         if pp.has_gui():
             time.sleep(pp.get_time_step())
+
+    return dict(t_place=t_place)
 
 
 def get_static_reorient_poses(env):

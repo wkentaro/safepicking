@@ -63,9 +63,11 @@ def main():
     if "js_place" not in result:
         logger.error("No solution is found")
         success = False
+        execution_time = np.nan
         trajectory_length = np.nan
     else:
-        _reorient.execute_reorient(env, result)
+        exec_result = _reorient.execute_reorient(env, result)
+        execution_time = exec_result["t_place"]
         trajectory_length = result["js_place_length"]
 
         for _ in range(480):
@@ -79,7 +81,11 @@ def main():
         json_file.parent.makedirs_p()
         with open(json_file, "w") as f:
             json.dump(
-                dict(success=success, trajectory_length=trajectory_length),
+                dict(
+                    success=success,
+                    trajectory_length=trajectory_length,
+                    execution_time=execution_time,
+                ),
                 f,
                 indent=2,
             )
