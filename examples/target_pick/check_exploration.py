@@ -33,7 +33,9 @@ def main():
     parser.add_argument("--draw-obs", action="store_true", help="draw obs")
     args = parser.parse_args()
 
-    env = PickFromPileEnv(gui=not args.nogui, action_frame="ee")
+    env = PickFromPileEnv(
+        gui=not args.nogui, action_frame="ee", pose_noise=True
+    )
     obs = env.reset()
 
     if args.draw_obs:
@@ -43,8 +45,12 @@ def main():
                 np.uint8(obs["maskmap"]) * 255,
                 np.uint8(imgviz.normalize(obs["positionmap"]) * 255),
                 np.uint8(imgviz.normalize(obs["posemap"]) * 255),
+                imgviz.depth2rgb(obs["heightmap_virtual"]),
+                np.uint8(obs["maskmap_virtual"]) * 255,
+                np.uint8(imgviz.normalize(obs["positionmap_virtual"]) * 255),
+                np.uint8(imgviz.normalize(obs["posemap_virtual"]) * 255),
             ],
-            shape=(1, 4),
+            shape=(2, 4),
         )
         imgviz.io.pyglet_imshow(viz)
         imgviz.io.pyglet_run()
