@@ -238,11 +238,13 @@ def main():
 
     if "js_place" not in result:
         logger.error("No solution is found")
-        success = False
+        success_reorient = False
         execution_time = np.nan
         trajectory_length = np.nan
+        success = False
     else:
         exec_result = _reorient.execute_reorient(env, result)
+        success_reorient = True
         execution_time = exec_result["t_place"]
         trajectory_length = result["js_place_length"]
 
@@ -264,6 +266,7 @@ def main():
         with open(json_file, "w") as f:
             json.dump(
                 dict(
+                    success_reorient=success_reorient,
                     success=success,
                     trajectory_length=trajectory_length,
                     execution_time=execution_time,
