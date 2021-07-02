@@ -136,7 +136,10 @@ def main():
         env
     )
 
-    indices = np.argsort(pickable)[::-1][:1000]
+    indices = np.where(pickable > 0.75)[0]
+    if indices.size == 0:
+        indices = np.where(pickable > 0.5)[0]
+    indices = np.random.choice(indices, 1000)
     reorient_poses = reorient_poses[indices]
 
     if args.visualize:
