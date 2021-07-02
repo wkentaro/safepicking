@@ -18,14 +18,14 @@ home = path.Path("~").expanduser()
 
 
 def get_reorient_poses(env):
-    bounds = ((0.1, -0.6, 0.01), (0.7, -0.2, 0.01))
+    bounds = ((0.1, -0.55, 0.01), (0.6, -0.25, 0.01))
     pp.draw_aabb(bounds)
 
     XY = np.array(
         list(
             itertools.product(
                 np.linspace(bounds[0][0], bounds[1][0], num=10),
-                np.linspace(bounds[0][1], bounds[1][1], num=10),
+                np.linspace(bounds[0][1], bounds[1][1], num=8),
             )
         )
     )
@@ -58,6 +58,7 @@ def get_reorient_poses(env):
 
             pp.draw_point((x, y, 0.01), color=(0, 1, 0, 1))
             XY_valid.append((x, y))
+    XY = XY_valid
 
     reorient_poses = []
     with pp.LockRenderer(), pp.WorldSaver():

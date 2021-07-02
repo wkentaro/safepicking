@@ -103,8 +103,8 @@ def plan_dynamic_reorient(
     reorientable_pred = reorientable_pred.cpu().numpy()
     trajectory_length_pred = trajectory_length_pred.cpu().numpy()
 
-    for threshold in [0.9, 0.8, 0.7]:
-        keep = (reorientable_pred > threshold).all(axis=1)
+    for threshold in np.linspace(0.9, 0.1, num=10):
+        keep = reorientable_pred[:, 2] > threshold
         if keep.sum() > 10:
             pickable = pickable[keep]
             reorientable_pred = reorientable_pred[keep]
@@ -113,9 +113,9 @@ def plan_dynamic_reorient(
             reorient_poses = reorient_poses[keep]
             break
 
-    # indices = np.argsort(reorientable_pred[:, 2])[::-1]
-    # indices = np.argsort(pickable)[::-1]
-    indices = np.argsort(trajectory_length_pred)
+    indices1 = np.argsort(trajectory_length_pred)
+    indices2 = np.argsort(reorientable_pred[:, 2])[::-1]
+    indices = np.r_[indices1[:3], indices2[:3]]
 
     assert (
         pickable.shape[0]
@@ -126,7 +126,7 @@ def plan_dynamic_reorient(
     )
 
     result = {}
-    for index in indices[:10]:
+    for index in indices:
         ee_to_obj = np.hsplit(grasp_poses[index], [3])
         ee_to_world = pp.multiply(obj_to_world, ee_to_obj)
         obj_af_to_world = np.hsplit(reorient_poses[index], [3])
@@ -225,10 +225,11 @@ def main():
                 break
         _reorient.execute_reorient(env, result)
     else:
-        indices = np.where(pickable > 0.75)[0]
-        if indices.size == 0:
-            indices = np.where(pickable > 0.5)[0]
-        indices = np.random.choice(indices, 1000)
+        for threshold in np.linspace(0.9, 0.1, num=10):
+            indices = np.where(pickable > threshold)[0]
+            if indices.size > 1000:
+                break
+        indices = np.random.choice(indices, 1000, replace=False)
         reorient_poses = reorient_poses[indices]
         pickable = pickable[indices]
 

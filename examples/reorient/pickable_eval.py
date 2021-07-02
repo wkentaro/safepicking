@@ -46,7 +46,7 @@ def get_goal_oriented_reorient_poses(env):
 
     # target grasp_pose
     pcd_in_obj, normals_in_obj = _reorient.get_query_ocs(env)
-    indices = np.random.permutation(pcd_in_obj.shape[0])[:10]
+    indices = np.random.permutation(pcd_in_obj.shape[0])[:20]
 
     pcd_in_obj = pcd_in_obj[indices]
     normals_in_obj = normals_in_obj[indices]

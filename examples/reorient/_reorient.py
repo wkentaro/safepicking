@@ -679,7 +679,7 @@ def execute_place(env, result):
             time.sleep(pp.get_time_step())
 
     js = result["js_place"]
-    for _ in (_ for j in js for _ in env.ri.movej(j, speed=0.005)):
+    for _ in (_ for j in js for _ in env.ri.movej(j, timeout=1, speed=0.005)):
         pp.step_simulation()
         if pp.has_gui():
             time.sleep(pp.get_time_step())
@@ -697,7 +697,7 @@ def execute_place(env, result):
             time.sleep(pp.get_time_step())
 
     js = result["js_place"][::-1]
-    for _ in (_ for j in js for _ in env.ri.movej(j, speed=0.005)):
+    for _ in (_ for j in js for _ in env.ri.movej(j, timeout=1, speed=0.005)):
         pp.step_simulation()
         if pp.has_gui():
             time.sleep(pp.get_time_step())
