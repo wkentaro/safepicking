@@ -232,30 +232,13 @@ class Env:
         #     )
         #     imgviz.io.cv_waitkey(100)
         fg_mask = segm == self.fg_object_id
-        K = self.ri.get_opengl_intrinsic_matrix()
-        pcd_in_camera = mercury.geometry.pointcloud_from_depth(
-            depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
-        )
-        c_camera_to_world = mercury.geometry.Coordinate(
-            *self.ri.get_pose("camera_link")
-        )
-        pcd_in_world = mercury.geometry.transform_points(
-            pcd_in_camera, c_camera_to_world.matrix
-        )
-        ocs = np.zeros_like(pcd_in_world)
-        for obj in self.object_ids:
-            world_to_obj = pp.invert(pp.get_pose(obj))
-            ocs[segm == obj] = mercury.geometry.transform_points(
-                pcd_in_world,
-                mercury.geometry.transformation_matrix(*world_to_obj),
-            )[segm == obj]
+        camera_to_world = self.ri.get_pose("camera_link")
         self.obs = dict(
-            rgb=rgb.transpose(2, 0, 1),
+            rgb=rgb,
             depth=depth,
-            ocs=ocs.transpose(2, 0, 1).astype(np.float32),
             fg_mask=fg_mask.astype(np.uint8),
             segm=segm,
-            camera_to_world=np.hstack(c_camera_to_world.pose),
+            camera_to_world=np.hstack(camera_to_world),
         )
 
     def validate_action(self, act_result):
