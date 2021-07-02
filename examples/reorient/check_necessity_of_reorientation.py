@@ -5,6 +5,8 @@ import sys
 
 import numpy as np
 
+import mercury
+
 from _env import Env
 import _reorient
 
@@ -34,7 +36,17 @@ def main():
     env.eval = True
     env.reset()
 
-    pick_and_placable = _reorient.plan_and_execute_place(env)
+    pcd_in_obj, normals_in_obj = _reorient.get_query_ocs(env)
+    indices = np.random.permutation(pcd_in_obj.shape[0])[:20]
+    pcd_in_obj = pcd_in_obj[indices]
+    normals_in_obj = normals_in_obj[indices]
+    quaternion_in_obj = mercury.geometry.quaternion_from_vec2vec(
+        [0, 0, -1], normals_in_obj
+    )
+    target_grasp_poses = np.hstack([pcd_in_obj, quaternion_in_obj])
+    result = _reorient.plan_place(env, target_grasp_poses)
+    pick_and_placable = "js_place" not in result
+
     # 1: pick_and_placable=True, necessity_of_reorientation=False
     # 0: pick_and_placable=False, necessity_of_reorientation=True
     sys.exit(int(pick_and_placable))

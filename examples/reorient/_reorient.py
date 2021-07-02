@@ -4,9 +4,6 @@ import time
 from loguru import logger
 import numpy as np
 import pybullet_planning as pp
-import sklearn.neighbors
-
-from yarr.agents.agent import ActResult
 
 import mercury
 
@@ -66,108 +63,6 @@ def get_query_ocs(env):
         )
 
     return pcd_in_obj, normals_in_obj
-
-
-def plan_and_execute_place(env, num_sample=5):
-    pcd_in_obj, normals_in_obj = get_query_ocs(env)
-
-    index = np.argmin(
-        np.linalg.norm(pcd_in_obj - pcd_in_obj.mean(axis=0), axis=1)
-    )
-    point = pcd_in_obj[index]
-    normal = normals_in_obj[index]
-
-    obj_to_world = pp.get_pose(env.fg_object_id)
-    point, point_p_normal = mercury.geometry.transform_points(
-        [point, point + normal],
-        mercury.geometry.transformation_matrix(*obj_to_world),
-    )
-    normal = point_p_normal - point
-
-    obs = env.obs
-
-    T_cam_to_world = mercury.geometry.look_at(
-        eye=point + 0.1 * normal, target=point
-    )
-    fovy = np.deg2rad(80)
-    height = 240
-    width = 240
-    rgb, depth, segm = mercury.pybullet.get_camera_image(
-        T_cam_to_world,
-        fovy,
-        height,
-        width,
-    )
-    # if pp.has_gui():
-    #     import imgviz
-    #
-    #     imgviz.io.cv_imshow(
-    #         np.hstack((rgb, imgviz.depth2rgb(depth))),
-    #         "plan_and_execute_place",
-    #     )
-    #     imgviz.io.cv_waitkey(100)
-
-    fg_mask = segm == env.fg_object_id
-    K = env.ri.get_opengl_intrinsic_matrix()
-    pcd_in_camera = mercury.geometry.pointcloud_from_depth(
-        depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
-    )
-    pcd_in_world = mercury.geometry.transform_points(
-        pcd_in_camera, T_cam_to_world
-    )
-    ocs = np.zeros_like(pcd_in_world)
-    for obj in env.object_ids:
-        world_to_obj = pp.invert(pp.get_pose(obj))
-        ocs[segm == obj] = mercury.geometry.transform_points(
-            pcd_in_world,
-            mercury.geometry.transformation_matrix(*world_to_obj),
-        )[segm == obj]
-
-    env.obs = dict(
-        rgb=rgb.transpose(2, 0, 1),
-        depth=depth,
-        ocs=ocs.transpose(2, 0, 1).astype(np.float32),
-        fg_mask=fg_mask.astype(np.uint8),
-        segm=segm,
-        camera_to_world=np.hstack(
-            mercury.geometry.pose_from_matrix(T_cam_to_world)
-        ),
-    )
-
-    query_ocs, _ = get_query_ocs(env)
-    kdtree = sklearn.neighbors.KDTree(ocs.reshape(-1, 3))
-    distances, indices = kdtree.query(query_ocs)
-    a_flattens = indices[
-        (fg_mask.flatten()[indices] == 1) & (distances < 0.01)
-    ]
-
-    a_flattens = np.unique(a_flattens)
-    env.random_state.shuffle(a_flattens)
-
-    if 0:
-        obj_to_world = pp.get_pose(env.fg_object_id)
-        for a_flatten in a_flattens:
-            action = (a_flatten // ocs.shape[1], a_flatten % ocs.shape[1])
-            point = ocs[action[0], action[1]]
-            point = mercury.geometry.transform_points(
-                [point], mercury.geometry.transformation_matrix(*obj_to_world)
-            )[0]
-            pp.draw_point(point, color=(0, 1, 0, 1))
-
-    for a_flatten in a_flattens[:num_sample]:
-        action = (a_flatten // ocs.shape[1], a_flatten % ocs.shape[1])
-        act_result = ActResult(action)
-        is_valid, validation_result = env.validate_action(act_result)
-        if is_valid:
-            break
-    else:
-        logger.error("No valid actions")
-        env.obs = obs
-        return False
-
-    env.execute(validation_result)
-    env.obs = obs
-    return True
 
 
 def get_grasp_poses(env):
