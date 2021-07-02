@@ -211,7 +211,6 @@ def get_grasp_poses(env):
         if not env.ri.validatej(
             j,
             obstacles=obstacles,
-            min_distances=mercury.utils.StaticDict(-0.01),
         ):
             continue
 
@@ -223,7 +222,6 @@ def get_grasp_poses(env):
         if not env.ri.validatej(
             j,
             obstacles=obstacles,
-            min_distances=mercury.utils.StaticDict(-0.01),
         ):
             continue
 
