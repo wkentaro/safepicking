@@ -10,6 +10,7 @@ import pybullet_planning as pp
 
 import mercury
 
+from _get_heightmap import get_heightmap
 import _utils
 
 
@@ -20,7 +21,11 @@ class Env:
 
     # parameters
     IMAGE_HEIGHT = 240
-    IMAGE_WIDTH = 240
+    IMAGE_WIDTH = 320
+
+    HEIGHTMAP_PIXEL_SIZE = 0.004
+    HEIGHTMAP_IMAGE_SIZE = 128
+    HEIGHTMAP_SIZE = HEIGHTMAP_PIXEL_SIZE * HEIGHTMAP_IMAGE_SIZE
 
     PILES_DIR = home / "data/mercury/pile_generation"
     PILE_TRAIN_IDS = np.arange(0, 1000)
@@ -233,11 +238,39 @@ class Env:
         #     imgviz.io.cv_waitkey(100)
         fg_mask = segm == self.fg_object_id
         camera_to_world = self.ri.get_pose("camera_link")
+
+        K = self.ri.get_opengl_intrinsic_matrix()
+        pcd_in_camera = mercury.geometry.pointcloud_from_depth(
+            depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
+        )
+        pcd_in_world = mercury.geometry.transform_points(
+            pcd_in_camera,
+            mercury.geometry.transformation_matrix(*camera_to_world),
+        )
+
+        aabb = np.array(
+            [
+                self.PILE_POSITION - self.HEIGHTMAP_SIZE / 2,
+                self.PILE_POSITION + self.HEIGHTMAP_SIZE / 2,
+            ]
+        )
+        aabb[0][2] = 0
+        aabb[1][2] = 0.5
+        _, _, segmmap, pointmap = get_heightmap(
+            points=pcd_in_world,
+            colors=rgb,
+            ids=segm,
+            aabb=aabb,
+            pixel_size=self.HEIGHTMAP_PIXEL_SIZE,
+        )
+
         self.obs = dict(
             rgb=rgb,
             depth=depth,
             fg_mask=fg_mask.astype(np.uint8),
             segm=segm,
+            segmmap=segmmap,
+            pointmap=pointmap,
             camera_to_world=np.hstack(camera_to_world),
         )
 

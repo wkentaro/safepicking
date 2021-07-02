@@ -141,6 +141,8 @@ def main():
                 continue
 
             data = dict(
+                pointmap=env.obs["pointmap"],
+                segmmap=env.obs["segmmap"],
                 object_fg_flags=object_fg_flags,
                 object_classes=object_classes,
                 object_poses=object_poses,

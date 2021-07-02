@@ -101,6 +101,8 @@ def main():
         ee_to_obj = pp.multiply(world_to_obj, ee_to_world)
 
         data = dict(
+            pointmap=env.obs["pointmap"],
+            segmmap=env.obs["segmmap"],
             object_fg_flags=object_fg_flags,
             object_classes=object_classes,
             object_poses=object_poses,
