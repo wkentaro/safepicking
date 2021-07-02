@@ -227,9 +227,11 @@ def main():
     else:
         for threshold in np.linspace(0.9, 0.1, num=10):
             indices = np.where(pickable > threshold)[0]
-            if indices.size > 1000:
+            if indices.size > 100:
                 break
-        indices = np.random.choice(indices, 1000, replace=False)
+        indices = np.random.choice(
+            indices, min(indices.size, 1000), replace=False
+        )
         reorient_poses = reorient_poses[indices]
         pickable = pickable[indices]
 
