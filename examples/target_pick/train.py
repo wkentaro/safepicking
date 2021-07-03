@@ -85,12 +85,6 @@ def main():
         "--episode-length", type=int, default=5, help="episode length"
     )
     parser.add_argument(
-        "--action-frame",
-        choices=["object", "ee"],
-        default="object",
-        help="action frame",
-    )
-    parser.add_argument(
         "--pose-noise",
         action="store_true",
         help="pose noise",
@@ -134,7 +128,6 @@ def main():
         use_reward_max_velocity=hparams["use_reward_max_velocity"],
         episode_length=hparams["episode_length"],
         pose_noise=hparams["pose_noise"],
-        action_frame=hparams["action_frame"],
     )
 
     # Setup replay buffer

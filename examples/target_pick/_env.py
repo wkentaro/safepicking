@@ -51,7 +51,6 @@ class PickFromPileEnv(Env):
         speed=0.01,
         episode_length=5,
         pose_noise=False,
-        action_frame="object",
     ):
         super().__init__()
 
@@ -62,7 +61,6 @@ class PickFromPileEnv(Env):
         self._speed = speed
         self._episode_length = episode_length
         self._pose_noise = pose_noise
-        self._action_frame = action_frame
 
         self.plane = None
         self.ri = None
@@ -565,24 +563,10 @@ class PickFromPileEnv(Env):
         assert self.target_object_id == self.ri.attachments[0].child
 
         with pp.LockRenderer(), pp.WorldSaver():
-            if self._action_frame == "object":
-                with self.ri.enabling_attachments():
-                    c = mercury.geometry.Coordinate(
-                        *self.ri.get_pose("attachment_link0")
-                    )
-                    c.translate([dx, dy, dz], wrt="world")
-                    c.rotate([da, db, dg], wrt="world")
-                    j = self.ri.solve_ik(
-                        c.pose,
-                        move_target=self.ri.robot_model.attachment_link0,
-                        n_init=1,
-                    )
-            else:
-                assert self._action_frame == "ee"
-                c = mercury.geometry.Coordinate(*self.ri.get_pose("tipLink"))
-                c.translate([dx, dy, dz], wrt="world")
-                c.rotate([da, db, dg], wrt="world")
-                j = self.ri.solve_ik(c.pose, n_init=1)
+            c = mercury.geometry.Coordinate(*self.ri.get_pose("tipLink"))
+            c.translate([dx, dy, dz], wrt="world")
+            c.rotate([da, db, dg], wrt="world")
+            j = self.ri.solve_ik(c.pose, n_init=1)
             if j is None:
                 return
 
