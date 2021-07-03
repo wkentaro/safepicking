@@ -84,9 +84,7 @@ def main():
     parser.add_argument(
         "--episode-length", type=int, default=5, help="episode length"
     )
-    parser.add_argument(
-        "--pose-noise", type=float, default=0, help="pose noise"
-    )
+    parser.add_argument("--pose-noise", action="store_true", help="pose noise")
     args = parser.parse_args()
 
     hparams = args.__dict__.copy()
@@ -120,12 +118,17 @@ def main():
     # Setup env
     ###################
 
+    if hparams["pose_noise"]:
+        pose_noise = (0, 4)
+    else:
+        pose_noise = 0
+
     env = PickFromPileEnv(
         gui=False,
         use_reward_translation=hparams["use_reward_translation"],
         use_reward_max_velocity=hparams["use_reward_max_velocity"],
         episode_length=hparams["episode_length"],
-        pose_noise=hparams["pose_noise"],
+        pose_noise=pose_noise,
     )
 
     # Setup replay buffer

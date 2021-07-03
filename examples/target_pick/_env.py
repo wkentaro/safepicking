@@ -468,8 +468,8 @@ class PickFromPileEnv(Env):
 
         return heightmap, colormap, maskmap, positionmap, posemap
 
-    def get_object_state(self, pose_noise=0, random_state=None):
-        if pose_noise > 0:
+    def get_object_state(self, pose_noise=None, random_state=None):
+        if pose_noise is not None:
             random_state = copy.deepcopy(random_state)
         grasp_flags = np.zeros((len(self.object_ids),), dtype=np.uint8)
         object_labels = np.zeros(
@@ -482,12 +482,17 @@ class PickFromPileEnv(Env):
             class_id = _utils.get_class_id(object_id)
             object_label = self.CLASS_IDS.index(class_id)
             object_labels[i] = np.eye(len(self.CLASS_IDS))[object_label]
-            if pose_noise > 0:
+            if pose_noise is not None:
+                if isinstance(pose_noise, tuple):
+                    assert len(pose_noise) == 2
+                    scale = random_state.uniform(pose_noise[0], pose_noise[1])
+                else:
+                    scale = pose_noise
                 object_to_world = (
                     object_to_world[0]
-                    + random_state.normal(0, 0.01 * pose_noise, 3),
+                    + random_state.normal(0, 0.01 * scale, 3),
                     object_to_world[1]
-                    + random_state.normal(0, 0.03 * pose_noise, 4),
+                    + random_state.normal(0, 0.03 * scale, 4),
                 )
             object_poses[i] = np.hstack(object_to_world)
         return grasp_flags, object_labels, object_poses
