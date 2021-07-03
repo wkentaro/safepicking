@@ -67,7 +67,7 @@ class PickFromPileEnv(Env):
 
         dxs = [-self.DP, 0, self.DP]
         dys = [-self.DP, 0, self.DP]
-        dzs = [-self.DP, 0, self.DP]
+        dzs = [0, self.DP]
         das = [-self.DR, 0, self.DR]
         dbs = [-self.DR, 0, self.DR]
         dgs = [-self.DR, 0, self.DR]
