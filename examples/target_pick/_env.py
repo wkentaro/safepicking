@@ -383,25 +383,9 @@ class PickFromPileEnv(Env):
             random_state=random_state,
         )
 
-        grasp_flags, _, object_poses = self.object_state
-        obj_to_world = object_poses[grasp_flags == 1][0]
-        obj_to_world = np.hsplit(obj_to_world, [3])
-        # obj_to_world = pp.get_pose(target_object_id)
-        ee_to_world = self.ri.get_pose("tipLink")
-        obj_to_ee = pp.multiply(pp.invert(ee_to_world), obj_to_world)
-
-        self.ri.attachments = [
-            pp.Attachment(
-                self.ri.robot, self.ri.ee, obj_to_ee, target_object_id
-            )
-        ]
-
-        with pp.LockRenderer(), pp.WorldSaver():
-            self.ri.setj(j)
-            self.ri.attachments[0].assign()
-            self._z_min_init = pp.get_aabb(self.ri.attachments[0].child)[0][2]
-
-        self.ee_pose_init = np.hstack(ee_to_world).astype(np.float32)
+        self.ee_pose_init = np.hstack(self.ri.get_pose("tipLink")).astype(
+            np.float32
+        )
         self.visual_state = self.get_visual_state(
             rgb=rgb,
             pcd_in_world=pcd_in_world,
@@ -411,10 +395,7 @@ class PickFromPileEnv(Env):
         # ---------------------------------------------------------------------
 
         self.ee_poses = np.zeros((self.episode_length, 7), dtype=np.float32)
-        self.ee_poses = np.r_[
-            self.ee_poses[1:],
-            np.hstack(ee_to_world).astype(np.float32)[None],
-        ]
+        self.ee_poses = np.r_[self.ee_poses[1:], self.ee_pose_init[None]]
 
         self.i = 0
         self.translations = collections.defaultdict(float)
@@ -561,24 +542,11 @@ class PickFromPileEnv(Env):
 
     def validate_action(self, act_result):
         dx, dy, dz, da, db, dg = self.actions[act_result.action[0]]
-
-        assert self.target_object_id == self.ri.attachments[0].child
-
         with pp.LockRenderer(), pp.WorldSaver():
             c = mercury.geometry.Coordinate(*self.ri.get_pose("tipLink"))
             c.translate([dx, dy, dz], wrt="world")
             c.rotate([da, db, dg], wrt="world")
             j = self.ri.solve_ik(c.pose, n_init=1)
-            if j is None:
-                return
-
-            with pp.LockRenderer(), pp.WorldSaver():
-                self.ri.setj(j)
-                self.ri.attachments[0].assign()
-                z_min = pp.get_aabb(self.ri.attachments[0].child)[0][2]
-            if z_min < self._z_min_init:
-                return
-
             return j
 
     def step(self, act_result):
