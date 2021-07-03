@@ -37,7 +37,9 @@ def main():
                         }
                     )
 
-    pandas.set_option("display.max_colwidth", 100)
+    pandas.set_option("display.max_colwidth", 400)
+    pandas.set_option("display.max_columns", 500)
+    pandas.set_option("display.width", 1000)
 
     df = pandas.DataFrame(data)
     df2 = df.sort_values(["scene_id", "eval_dir"]).set_index(
