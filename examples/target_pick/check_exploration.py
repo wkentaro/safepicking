@@ -25,9 +25,6 @@ def main():
             "position_conv_net",
             "pose_conv_net",
             "position_pose_conv_net",
-            "position_virtual_conv_net",
-            "pose_virtual_conv_net",
-            "position_pose_virtual_conv_net",
             "fusion_net",
         ],
         help="model",
@@ -48,12 +45,8 @@ def main():
                 np.uint8(obs["maskmap"]) * 255,
                 np.uint8(imgviz.normalize(obs["positionmap"]) * 255),
                 np.uint8(imgviz.normalize(obs["posemap"]) * 255),
-                imgviz.depth2rgb(obs["heightmap_virtual"]),
-                np.uint8(obs["maskmap_virtual"]) * 255,
-                np.uint8(imgviz.normalize(obs["positionmap_virtual"]) * 255),
-                np.uint8(imgviz.normalize(obs["posemap_virtual"]) * 255),
             ],
-            shape=(2, 4),
+            shape=(1, 4),
         )
         imgviz.io.pyglet_imshow(viz)
         imgviz.io.pyglet_run()

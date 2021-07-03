@@ -39,21 +39,6 @@ class DqnModel(torch.nn.Module):
             self.module = ConvNet(
                 episode_length=env.episode_length, position=True, pose=True
             )
-        elif self._model == "position_virtual_conv_net":
-            self.module = ConvNet(
-                episode_length=env.episode_length, position=True, virtual=True
-            )
-        elif self._model == "pose_virtual_conv_net":
-            self.module = ConvNet(
-                episode_length=env.episode_length, pose=True, virtual=True
-            )
-        elif self._model == "position_pose_virtual_conv_net":
-            self.module = ConvNet(
-                episode_length=env.episode_length,
-                position=True,
-                pose=True,
-                virtual=True,
-            )
         elif self._model == "fusion_net":
             self.module = FusionNet(episode_length=env.episode_length)
         else:
@@ -83,9 +68,6 @@ class DqnModel(torch.nn.Module):
             "position_conv_net",
             "pose_conv_net",
             "position_pose_conv_net",
-            "position_virtual_conv_net",
-            "pose_virtual_conv_net",
-            "position_pose_virtual_conv_net",
         ]:
             kwargs = dict(
                 heightmap=observation["heightmap"],
@@ -93,9 +75,6 @@ class DqnModel(torch.nn.Module):
                 ee_poses=observation["ee_poses"],
                 positionmap=observation["positionmap"],
                 posemap=observation["posemap"],
-                heightmap_virtual=observation["heightmap_virtual"],
-                positionmap_virtual=observation["positionmap_virtual"],
-                posemap_virtual=observation["posemap_virtual"],
             )
         elif self._model == "fusion_net":
             kwargs = dict(
