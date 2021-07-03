@@ -53,14 +53,13 @@ def main():
     print(f"Support: {len(valid_scene_ids)}")
     print()
 
-    df = df[df["scene_id"].isin(valid_scene_ids)]
-    df2 = df.sort_values(["scene_id", "eval_dir"]).set_index(
-        ["scene_id", "eval_dir"]
-    )
-    print("# Mean over all")
-    print(df2.mean(level=1).sort_values("sum_of_translations"))
-
-    print()
+    # df = df[df["scene_id"].isin(valid_scene_ids)]
+    # df2 = df.sort_values(["scene_id", "eval_dir"]).set_index(
+    #     ["scene_id", "eval_dir"]
+    # )
+    # print("# Mean over all")
+    # print(df2.mean(level=1).sort_values("sum_of_translations"))
+    # print()
 
     df3 = []
     for threshold in np.linspace(0.9, 0.2, num=8):
