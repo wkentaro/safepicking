@@ -50,7 +50,7 @@ class PickFromPileEnv(Env):
         use_reward_max_velocity=False,
         speed=0.01,
         episode_length=5,
-        pose_noise=False,
+        pose_noise=0,
     ):
         super().__init__()
 
@@ -487,8 +487,8 @@ class PickFromPileEnv(Env):
 
         return heightmap, colormap, maskmap, positionmap, posemap
 
-    def get_object_state(self, pose_noise=False, random_state=None):
-        if pose_noise:
+    def get_object_state(self, pose_noise=0, random_state=None):
+        if pose_noise > 0:
             random_state = copy.deepcopy(random_state)
         grasp_flags = np.zeros((len(self.object_ids),), dtype=np.uint8)
         object_labels = np.zeros(
@@ -501,10 +501,12 @@ class PickFromPileEnv(Env):
             class_id = _utils.get_class_id(object_id)
             object_label = self.CLASS_IDS.index(class_id)
             object_labels[i] = np.eye(len(self.CLASS_IDS))[object_label]
-            if pose_noise:
+            if pose_noise > 0:
                 object_to_world = (
-                    object_to_world[0] + random_state.normal(0, 0.02, 3),
-                    object_to_world[1] + random_state.normal(0, 0.06, 4),
+                    object_to_world[0]
+                    + random_state.normal(0, 0.01 * pose_noise, 3),
+                    object_to_world[1]
+                    + random_state.normal(0, 0.03 * pose_noise, 4),
                 )
             object_poses[i] = np.hstack(object_to_world)
         return grasp_flags, object_labels, object_poses

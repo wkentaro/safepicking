@@ -85,9 +85,7 @@ def main():
         "--episode-length", type=int, default=5, help="episode length"
     )
     parser.add_argument(
-        "--pose-noise",
-        action="store_true",
-        help="pose noise",
+        "--pose-noise", type=float, default=0, help="pose noise"
     )
     args = parser.parse_args()
 

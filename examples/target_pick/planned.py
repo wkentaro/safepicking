@@ -34,7 +34,9 @@ def main():
     parser.add_argument("--seed", type=int, default=0, help="random seed")
     parser.add_argument("--nogui", action="store_true", help="no gui")
     parser.add_argument("--mp4", help="mp4")
-    parser.add_argument("--pose-noise", action="store_true", help="pose noise")
+    parser.add_argument(
+        "--pose-noise", type=float, default=0.0, help="pose noise"
+    )
     args = parser.parse_args()
 
     log_dir = here / f"logs/{args.planner}"
