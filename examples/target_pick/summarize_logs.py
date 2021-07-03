@@ -7,77 +7,67 @@ import pandas
 import path
 
 
-def summarize(eval_dir, valid_ids):
-    data = []
-    for id in valid_ids:
-        result_file = eval_dir / id
-        with open(result_file) as f:
-            result = json.load(f)
-        data.append(result)
-    df = pandas.DataFrame(data)
-
-    df = df[
-        [
-            "target_object_visibility",
-            "sum_of_translations",
-            "sum_of_max_velocities",
-        ]
-    ]
-
-    assert (df["sum_of_translations"] == 0).sum() == 0
-
-    print(f"Eval dir: {eval_dir}")
-    print(f"Support: {len(df)}")
-
-    bins = np.linspace(0.2, 0.9, num=8)
-    binned = np.digitize(df["target_object_visibility"], bins)
-
-    data = []
-
-    for i in np.arange(5):
-        mask = binned == i
-        data.append(
-            dict(
-                visibility=bins[i],
-                sum_of_translations=df[mask].mean()["sum_of_translations"],
-                sum_of_max_velocities=df[mask].mean()["sum_of_max_velocities"],
-            )
-        )
-
-    df = pandas.DataFrame(data)
-    print(df.dropna())
-    print(df.mean()[["sum_of_translations", "sum_of_max_velocities"]])
-
-    print()
-
-
 def main():
     logs_dir = path.Path("logs")
 
-    eval_dir_to_ids = {}
-    for log_dir in logs_dir.listdir():
+    data = []
+    for log_dir in sorted(logs_dir.listdir()):
         if not log_dir.isdir():
             continue
 
-        for eval_dir in log_dir.listdir():
-            if not eval_dir.stem.startswith("eval"):
-                continue
+        for eval_dir in log_dir.glob("eval-*"):
+            for json_file in eval_dir.walk("*.json"):
+                with open(json_file) as f:
+                    json_data = json.load(f)
 
-            ids = []
-            for config_dir in eval_dir.listdir():
-                for seed_file in config_dir.listdir():
-                    ids.append("/".join(seed_file.split("/")[-2:]))
-            eval_dir_to_ids[eval_dir] = ids
+                    assert int(json_file.stem) == 0
+                    data.append(
+                        {
+                            "eval_dir": "/".join(eval_dir.split("/")[-2:]),
+                            "scene_id": str(json_file.parent.stem),
+                            "target_object_visibility": json_data[
+                                "target_object_visibility"
+                            ],
+                            "sum_of_translations": json_data[
+                                "sum_of_translations"
+                            ],
+                            "sum_of_max_velocities": json_data[
+                                "sum_of_max_velocities"
+                            ],
+                        }
+                    )
 
-    all_ids = set(xi for x in eval_dir_to_ids.values() for xi in x)
+    pandas.set_option("display.max_colwidth", 100)
 
-    valid_ids = set()
-    for id in all_ids:
-        if all(id in ids for ids in eval_dir_to_ids.values()):
-            valid_ids.add(id)
+    df = pandas.DataFrame(data)
+    df2 = df.sort_values(["scene_id", "eval_dir"]).set_index(
+        ["scene_id", "eval_dir"]
+    )
+    df3 = df2.count(level=0)
+    valid_scene_ids = df3[
+        df3["target_object_visibility"] == df["eval_dir"].unique().size
+    ].index.values
 
-    for eval_dir, ids in sorted(eval_dir_to_ids.items()):
-        summarize(eval_dir, valid_ids)
+    print(f"Support: {len(valid_scene_ids)}")
+    print()
+
+    df = df[df["scene_id"].isin(valid_scene_ids)]
+    df2 = df.sort_values(["scene_id", "eval_dir"]).set_index(
+        ["scene_id", "eval_dir"]
+    )
+    print("# Mean over all")
+    print(df2.mean(level=1).sort_values("sum_of_translations"))
+
+    print()
+
+    df3 = []
+    for threshold in np.linspace(0.9, 0.2, num=8):
+        df3.append(
+            df2[df2["target_object_visibility"] > threshold].mean(level=1)
+        )
+    df3 = pandas.concat(df3).reset_index()
+    print("# Mean over each thresholds")
+    print(df3.groupby("eval_dir").mean().sort_values("sum_of_translations"))
 
 
 if __name__ == "__main__":
