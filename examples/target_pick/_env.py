@@ -31,8 +31,8 @@ class PickFromPileEnv(Env):
     PILES_DIR = home / "data/mercury/pile_generation"
     PILE_CENTER = np.array([0.5, 0, 0])
 
-    HEIGHTMAP_PIXEL_SIZE = 0.002
-    HEIGHTMAP_IMAGE_SIZE = 256
+    HEIGHTMAP_PIXEL_SIZE = 0.004
+    HEIGHTMAP_IMAGE_SIZE = 128
     HEIGHTMAP_SIZE = HEIGHTMAP_PIXEL_SIZE * HEIGHTMAP_IMAGE_SIZE
 
     CLASS_IDS = [2, 3, 5, 11, 12, 15, 16]
