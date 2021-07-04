@@ -102,7 +102,7 @@ def main():
 
         data = dict(
             pointmap=env.obs["pointmap"],
-            segmmap=env.obs["segmmap"],
+            maskmap=env.obs["segmmap"] == env.fg_object_id,
             object_fg_flags=object_fg_flags,
             object_classes=object_classes,
             object_poses=object_poses,
