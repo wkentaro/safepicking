@@ -44,6 +44,7 @@ class PoseEncoder(torch.nn.Module):
 
     def forward(
         self,
+        heightmap,
         object_fg_flags,
         object_labels,
         object_poses,
@@ -80,30 +81,106 @@ class PoseEncoder(torch.nn.Module):
         return h
 
 
-class Model(torch.nn.Module):
-    def __init__(self):
+class ConvEncoder(torch.nn.Module):
+    def __init__(self, out_channels):
         super().__init__()
 
-        self.encoder_object_poses = PoseEncoder(32, nhead=4, num_layers=4)
-        self.fc_pickable = torch.nn.Sequential(
-            torch.nn.Linear(32, 1),
-            torch.nn.Sigmoid(),
+        # heightmap: 1
+        in_channels = 1
+        self.encoder = torch.nn.Sequential(
+            torch.nn.Conv2d(
+                in_channels, 4, kernel_size=3, stride=1, padding=1
+            ),
+            torch.nn.ReLU(),
+            torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0),
+            torch.nn.Conv2d(4, 8, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(),
+            torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0),
+            torch.nn.Conv2d(8, 16, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(),
+            torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0),
+            torch.nn.Conv2d(16, 24, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(),
+            torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0),
+            torch.nn.Conv2d(24, 32, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(),
+            torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0),
+            torch.nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(),
+            torch.nn.AvgPool2d(4, stride=4),
+        )
+
+        # h: 64
+        # fg_object_label: 7
+        # fg_object_pose: 7
+        # grasp_pose: 6
+        # reorient_pose: 7
+        reorient_pose: 7
+        in_channels = 64 + 7 + 7 + 6 + 7
+        self.mlp = torch.nn.Sequential(
+            torch.nn.Linear(in_channels, out_channels),
+            torch.nn.ReLU(),
+            torch.nn.Linear(out_channels, out_channels),
+            torch.nn.ReLU(),
+            torch.nn.Linear(out_channels, out_channels),
+            torch.nn.ReLU(),
         )
 
     def forward(
         self,
+        heightmap,
         object_fg_flags,
         object_labels,
         object_poses,
         grasp_pose,
         reorient_pose,
     ):
-        h = self.encoder_object_poses(
-            object_fg_flags,
-            object_labels,
-            object_poses,
-            grasp_pose,
-            reorient_pose,
+        B = heightmap.shape[0]
+
+        fg_object_label = object_labels[object_fg_flags == 1]
+        fg_object_pose = object_poses[object_fg_flags == 1]
+
+        h = heightmap[:, None, :, :]
+        h = self.encoder(h)
+        h = h.reshape(B, -1)
+        h = torch.cat(
+            [h, fg_object_label, fg_object_pose, grasp_pose, reorient_pose],
+            dim=1,
+        )
+        h = self.mlp(h)
+
+        return h
+
+
+class Model(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        if 0:
+            self.encoder = PoseEncoder(out_channels=128, nhead=4, num_layers=4)
+        else:
+            self.encoder = ConvEncoder(out_channels=128)
+        self.fc_pickable = torch.nn.Sequential(
+            torch.nn.Linear(128, 1),
+            torch.nn.Sigmoid(),
+        )
+
+    def forward(
+        self,
+        heightmap,
+        object_fg_flags,
+        object_labels,
+        object_poses,
+        grasp_pose,
+        reorient_pose,
+    ):
+        h = self.encoder(
+            heightmap=heightmap,
+            object_fg_flags=object_fg_flags,
+            object_labels=object_labels,
+            object_poses=object_poses,
+            grasp_pose=grasp_pose,
+            reorient_pose=reorient_pose,
         )
         pickable = self.fc_pickable(h)[:, 0]
 
@@ -118,13 +195,13 @@ class Dataset(torch.utils.data.Dataset):
         self._split = split
 
         self._files = {"train": [], "val": []}
-        for i in range(0, 4500):
+        for i in range(0, 900):
             seed_dir = self.ROOT_DIR / f"s-{i:08d}"
             if not seed_dir.exists():
                 continue
             for pkl_file in sorted(seed_dir.walk("*.pkl")):
                 self._files["train"].append(pkl_file)
-        for i in range(4500, 5000):
+        for i in range(900, 1000):
             seed_dir = self.ROOT_DIR / f"s-{i:08d}"
             if not seed_dir.exists():
                 continue
@@ -164,6 +241,7 @@ class Dataset(torch.utils.data.Dataset):
         pickable = data["pickable"]
 
         return dict(
+            heightmap=data["pointmap"][:, :, 2],
             object_fg_flags=object_fg_flags,
             object_labels=object_labels,
             object_poses=object_poses,
@@ -195,6 +273,7 @@ def epoch_loop(
         )
     ):
         pickable_pred = model(
+            heightmap=batch["heightmap"].float().cuda(),
             object_fg_flags=batch["object_fg_flags"].float().cuda(),
             object_labels=batch["object_labels"].float().cuda(),
             object_poses=batch["object_poses"].float().cuda(),

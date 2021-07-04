@@ -2,6 +2,7 @@
 
 import pickle
 
+import imgviz
 from loguru import logger
 import numpy as np
 import path
@@ -31,6 +32,10 @@ def main():
         pkl_file = np.random.choice(pkl_files)
         with open(pkl_file, "rb") as f:
             data = pickle.load(f)
+
+        heightmap = data["pointmap"][:, :, 2]
+        imgviz.io.cv_imshow(imgviz.depth2rgb(heightmap))
+        imgviz.io.cv_waitkey(100)
 
         target_obj = None
         for object_fg_flag, object_class, object_pose in zip(
