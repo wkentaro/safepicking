@@ -48,7 +48,7 @@ class PickFromPileEnv(Env):
         mp4=None,
         use_reward_translation=False,
         use_reward_max_velocity=False,
-        speed=0.01,
+        speed=0.005,
         episode_length=5,
         pose_noise=0,
     ):
@@ -558,7 +558,7 @@ class PickFromPileEnv(Env):
         for _ in self.ri.movej(
             j,
             speed=self._speed,
-            timeout=5 * (0.01 / self._speed),
+            timeout=1 * (0.01 / self._speed),
         ):
             pp.step_simulation()
             step_callback()
@@ -569,7 +569,7 @@ class PickFromPileEnv(Env):
             for _ in self.ri.movej(
                 self.ri.homej,
                 speed=self._speed,
-                timeout=5 * (0.01 / self._speed),
+                timeout=1 * (0.01 / self._speed),
             ):
                 pp.step_simulation()
                 step_callback()

@@ -126,7 +126,6 @@ def main():
         use_reward_max_velocity=hparams["use_reward_max_velocity"],
         episode_length=hparams["episode_length"],
         pose_noise=pose_noise,
-        speed=0.005,
     )
 
     # Setup replay buffer
