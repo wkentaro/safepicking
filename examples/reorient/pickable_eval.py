@@ -23,11 +23,13 @@ home = path.Path("~").expanduser()
 
 def get_goal_oriented_reorient_poses(env):
     model = Model()
-    model_file = "./logs/pickable/20210628_012504.165934-train_size_4500/models/model_best-epoch_0181.pt"  # NOQA
+    model_file = "./logs/pickable/20210705_231315.319988-conv_encoder-train_size_4000/models/model_best-epoch_0072.pt"  # NOQA
     model.load_state_dict(torch.load(model_file))
     model.cuda()
 
     class_ids = [2, 3, 5, 11, 12, 15, 16]
+
+    heightmap = env.obs["pointmap"][:, :, 2]
 
     object_fg_flags = []
     object_labels = []
@@ -73,35 +75,27 @@ def get_goal_oriented_reorient_poses(env):
         )
     grasp_points = np.array(grasp_points)
 
+    object_label = object_labels[object_fg_flags == 1][0]
+    object_pose = object_poses[object_fg_flags == 1][0]
+
     R = reorient_poses.shape[0]
     G = grasp_points.shape[0]
-    O = object_fg_flags.shape[0]
 
-    object_fg_flags = object_fg_flags[None].repeat(R, axis=0)
-    object_labels = object_labels[None].repeat(R, axis=0)
-    object_poses = object_poses[None].repeat(R, axis=0)
-
-    object_fg_flags = object_fg_flags[:, None].repeat(G, axis=1)
-    object_labels = object_labels[:, None].repeat(G, axis=1)
-    object_poses = object_poses[:, None].repeat(G, axis=1)
     reorient_poses = reorient_poses[:, None].repeat(G, axis=1)
     grasp_poses = grasp_poses[None].repeat(R, axis=0)
     grasp_points = grasp_points[None].repeat(R, axis=0)
 
-    object_fg_flags = object_fg_flags.reshape(R * G, O)
-    object_labels = object_labels.reshape(R * G, O, 7)
-    object_poses = object_poses.reshape(R * G, O, 7)
     reorient_poses = reorient_poses.reshape(R * G, 7)
     grasp_poses = grasp_poses.reshape(R * G, 7)
     grasp_points = grasp_points.reshape(R * G, 6)
 
     with torch.no_grad():
         pickable_pred = model(
-            object_fg_flags=torch.as_tensor(object_fg_flags).float().cuda(),
-            object_labels=torch.as_tensor(object_labels).float().cuda(),
-            object_poses=torch.as_tensor(object_poses).float().cuda(),
-            grasp_pose=torch.as_tensor(grasp_points).float().cuda(),
-            reorient_pose=torch.as_tensor(reorient_poses).float().cuda(),
+            heightmap=torch.as_tensor(heightmap[None, None]).float().cuda(),
+            object_label=torch.as_tensor(object_label[None]).float().cuda(),
+            object_pose=torch.as_tensor(object_pose[None]).float().cuda(),
+            grasp_pose=torch.as_tensor(grasp_points[None]).float().cuda(),
+            reorient_pose=torch.as_tensor(reorient_poses[None]).float().cuda(),
         )
     pickable_pred = pickable_pred.cpu().numpy()
 

@@ -68,24 +68,21 @@ class ConvEncoder(torch.nn.Module):
     def forward(
         self,
         heightmap,
-        object_fg_flags,
-        object_labels,
-        object_poses,
+        object_label,
+        object_pose,
         grasp_pose,
         reorient_pose,
     ):
-        B = heightmap.shape[0]
+        B, _, H, W = heightmap.shape
+        B, A, _ = grasp_pose.shape
 
-        fg_object_label = object_labels[object_fg_flags == 1]
-        fg_object_pose = object_poses[object_fg_flags == 1]
+        h_obs = self.encoder(heightmap)
+        h_obs = h_obs.reshape(B, h_obs.shape[1])
 
-        h = heightmap[:, None, :, :]
-        h = self.encoder(h)
-        h = h.reshape(B, -1)
-        h = torch.cat(
-            [h, fg_object_label, fg_object_pose, grasp_pose, reorient_pose],
-            dim=1,
-        )
+        h_obs = torch.cat([h_obs, object_label, object_pose], dim=1)
+
+        h_obs = h_obs[:, None, :].repeat(1, A, 1)
+        h = torch.cat([h_obs, grasp_pose, reorient_pose], dim=2)
         h = self.mlp(h)
 
         return h
@@ -104,21 +101,19 @@ class Model(torch.nn.Module):
     def forward(
         self,
         heightmap,
-        object_fg_flags,
-        object_labels,
-        object_poses,
+        object_label,
+        object_pose,
         grasp_pose,
         reorient_pose,
     ):
         h = self.encoder(
             heightmap=heightmap,
-            object_fg_flags=object_fg_flags,
-            object_labels=object_labels,
-            object_poses=object_poses,
+            object_label=object_label,
+            object_pose=object_pose,
             grasp_pose=grasp_pose,
             reorient_pose=reorient_pose,
         )
-        pickable = self.fc_pickable(h)[:, 0]
+        pickable = self.fc_pickable(h)[:, :, 0]
 
         return pickable
 
@@ -166,6 +161,9 @@ class Dataset(torch.utils.data.Dataset):
         object_fg_flags = data["object_fg_flags"]
         object_poses = data["object_poses"]
 
+        object_label = object_labels[object_fg_flags == 1][0]
+        object_pose = object_poses[object_fg_flags == 1][0]
+
         ee_to_obj = np.hsplit(data["grasp_pose_wrt_obj"], [3])
         grasp_point_start = ee_to_obj[0]
         grasp_point_end = mercury.geometry.transform_points(
@@ -174,16 +172,17 @@ class Dataset(torch.utils.data.Dataset):
         grasp_pose = np.hstack([grasp_point_start, grasp_point_end])
 
         reorient_pose = data["reorient_pose"]
-        pickable = data["pickable"]
+        pickable = np.array(data["pickable"])
+
+        heightmap = data["pointmap"][:, :, 2][None, :, :]
 
         return dict(
-            heightmap=data["pointmap"][:, :, 2],
-            object_fg_flags=object_fg_flags,
-            object_labels=object_labels,
-            object_poses=object_poses,
-            grasp_pose=grasp_pose,
-            reorient_pose=reorient_pose,
-            pickable=pickable,
+            heightmap=heightmap,
+            object_label=object_label,
+            object_pose=object_pose,
+            grasp_pose=grasp_pose[None],
+            reorient_pose=reorient_pose[None],
+            pickable=pickable[None],
         )
 
 
@@ -210,13 +209,15 @@ def epoch_loop(
     ):
         pickable_pred = model(
             heightmap=batch["heightmap"].float().cuda(),
-            object_fg_flags=batch["object_fg_flags"].float().cuda(),
-            object_labels=batch["object_labels"].float().cuda(),
-            object_poses=batch["object_poses"].float().cuda(),
+            object_label=batch["object_label"].float().cuda(),
+            object_pose=batch["object_pose"].float().cuda(),
             grasp_pose=batch["grasp_pose"].float().cuda(),
             reorient_pose=batch["reorient_pose"].float().cuda(),
         )
         pickable_true = batch["pickable"].float().cuda()
+
+        pickable_true = pickable_true[:, 0]
+        pickable_pred = pickable_pred[:, 0]
 
         if is_training:
             optimizer.zero_grad()
