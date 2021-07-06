@@ -576,7 +576,7 @@ class PandaRobotInterface:
         else:
             self.attachments = []
 
-    def move_to_homej(self, bg_object_ids, object_ids, **kwargs):
+    def move_to_homej(self, bg_object_ids, object_ids, speed=0.01, timeout=5):
         obstacles = bg_object_ids + object_ids
         if self.attachments and self.attachments[0].child in obstacles:
             obstacles.remove(self.attachments[0].child)
@@ -598,5 +598,5 @@ class PandaRobotInterface:
             logger.warning(f"js is None w/ min_distance={min_distance}")
             min_distance -= 0.01
         for j in js:
-            for _ in self.movej(j, **kwargs):
+            for _ in self.movej(j, speed=speed, timeout=timeout / len(js)):
                 yield
