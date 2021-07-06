@@ -5,23 +5,12 @@ class ConvNet(torch.nn.Module):
     def __init__(
         self,
         episode_length,
-        position=False,
-        pose=False,
     ):
         super().__init__()
-
-        self._position = position
-        self._pose = pose
 
         # heightmap: 1
         # maskmap: 1
         in_channels = 1 + 1
-        if self._position:
-            # positionmap: 3
-            in_channels += 3
-        if self._pose:
-            # posemap: 3
-            in_channels += 3
         self.encoder = torch.nn.Sequential(
             torch.nn.Conv2d(
                 in_channels, 4, kernel_size=3, stride=1, padding=1
@@ -65,18 +54,12 @@ class ConvNet(torch.nn.Module):
         maskmap,
         ee_poses,
         actions,
-        positionmap=None,
-        posemap=None,
     ):
         B = heightmap.shape[0]
         A = actions.shape[0]
         H, W = heightmap.shape[1:]
 
         h = [heightmap[:, None, :, :], maskmap[:, None, :, :].float()]
-        if self._position:
-            h.append(positionmap.permute(0, 3, 1, 2))
-        if self._pose:
-            h.append(posemap.permute(0, 3, 1, 2))
         h = torch.cat(h, dim=1)
         h = self.encoder(h)
         h = h.reshape(B, -1)

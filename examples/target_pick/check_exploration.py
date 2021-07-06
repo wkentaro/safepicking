@@ -22,9 +22,6 @@ def main():
             "closedloop_pose_net",
             "openloop_pose_net",
             "conv_net",
-            "position_conv_net",
-            "pose_conv_net",
-            "position_pose_conv_net",
             "fusion_net",
         ],
         help="model",
@@ -41,10 +38,8 @@ def main():
             [
                 imgviz.depth2rgb(obs["heightmap"]),
                 np.uint8(obs["maskmap"]) * 255,
-                np.uint8(imgviz.normalize(obs["positionmap"]) * 255),
-                np.uint8(imgviz.normalize(obs["posemap"]) * 255),
             ],
-            shape=(1, 4),
+            shape=(1, 2),
         )
         imgviz.io.pyglet_imshow(viz)
         imgviz.io.pyglet_run()
