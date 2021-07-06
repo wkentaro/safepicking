@@ -25,7 +25,7 @@ def plan_dynamic_reorient(
     env, grasp_poses, reorient_poses, pickable, visualize=True
 ):
     model = Model()
-    model_file = "logs/reorientable/20210630_024141.842308-train_size_4500/models/model_best-epoch_0077.pt"  # NOQA
+    model_file = "logs/reorientable/20210706_030229.595823-conv_encoder-train_size_4000/models/model_best-epoch_0059.pt"  # NOQA
     logger.info(f"Loading {model_file}")
     model.load_state_dict(torch.load(model_file, map_location="cpu"))
     model.eval()
@@ -75,6 +75,8 @@ def plan_dynamic_reorient(
 
     class_ids = [2, 3, 5, 11, 12, 15, 16]
 
+    heightmap = env.obs["pointmap"][:, :, 2]
+
     object_fg_flags = []
     object_labels = []
     object_poses = []
@@ -88,20 +90,22 @@ def plan_dynamic_reorient(
     object_labels = np.stack(object_labels, axis=0).astype(np.float32)
     object_poses = np.stack(object_poses, axis=0).astype(np.float32)
 
-    object_fg_flags = np.tile(object_fg_flags[None], (B, 1))
-    object_labels = np.tile(object_labels[None], (B, 1, 1))
-    object_poses = np.tile(object_poses[None], (B, 1, 1))
+    object_label = object_labels[object_fg_flags == 1][0]
+    object_pose = object_poses[object_fg_flags == 1][0]
 
     with torch.no_grad():
         reorientable_pred, trajectory_length_pred = model(
-            object_fg_flags=torch.as_tensor(object_fg_flags).cuda(),
-            object_labels=torch.as_tensor(object_labels).cuda(),
-            object_poses=torch.as_tensor(object_poses).cuda(),
-            grasp_pose=torch.as_tensor(grasp_points).cuda(),
-            reorient_pose=torch.as_tensor(reorient_poses).cuda(),
+            heightmap=torch.as_tensor(heightmap[None, None]).float().cuda(),
+            object_label=torch.as_tensor(object_label[None]).float().cuda(),
+            object_pose=torch.as_tensor(object_pose[None]).float().cuda(),
+            grasp_pose=torch.as_tensor(grasp_points[None]).cuda(),
+            reorient_pose=torch.as_tensor(reorient_poses[None]).cuda(),
         )
     reorientable_pred = reorientable_pred.cpu().numpy()
     trajectory_length_pred = trajectory_length_pred.cpu().numpy()
+
+    reorientable_pred = reorientable_pred[0]
+    trajectory_length_pred = trajectory_length_pred[0]
 
     for threshold in np.linspace(0.9, 0.1, num=10):
         keep = reorientable_pred[:, 2] > threshold

@@ -74,7 +74,7 @@ class ConvEncoder(torch.nn.Module):
         reorient_pose,
     ):
         B, _, H, W = heightmap.shape
-        B, A, _ = grasp_pose.shape
+        _, A, _ = grasp_pose.shape
 
         h_obs = self.encoder(heightmap)
         h_obs = h_obs.reshape(B, h_obs.shape[1])
