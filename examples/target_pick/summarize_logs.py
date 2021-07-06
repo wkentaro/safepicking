@@ -57,12 +57,12 @@ def main():
     df2 = df.sort_values(["scene_id", "eval_dir"]).set_index(
         ["scene_id", "eval_dir"]
     )
-    # print("# Mean over all")
-    # print(df2.mean(level=1).sort_values("sum_of_translations"))
-    # print()
+    print("# Mean over all")
+    print(df2.mean(level=1).sort_values("sum_of_translations"))
+    print()
 
     df3 = []
-    for threshold in np.linspace(0.9, 0.2, num=8):
+    for threshold in np.linspace(0.9, 0.2):
         df3.append(
             df2[df2["target_object_visibility"] > threshold].mean(level=1)
         )
