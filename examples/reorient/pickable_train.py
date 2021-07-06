@@ -20,67 +20,6 @@ home = path.Path("~").expanduser()
 here = path.Path(__file__).abspath().parent
 
 
-class PoseEncoder(torch.nn.Module):
-    def __init__(self, out_channels, nhead, num_layers):
-        super().__init__()
-        # object_fg_flags: 1
-        # object_labels: 7
-        # object_poses: 7
-        # grasp_pose: 6
-        # reorient_pose: 7
-        self.fc_encoder = torch.nn.Sequential(
-            torch.nn.Linear(1 + 7 + 7 + 6 + 7, out_channels),
-            torch.nn.ReLU(),
-        )
-        self.transformer_encoder = torch.nn.TransformerEncoder(
-            encoder_layer=torch.nn.TransformerEncoderLayer(
-                d_model=out_channels,
-                nhead=nhead,
-                dim_feedforward=out_channels * 2,
-            ),
-            num_layers=num_layers,
-            norm=None,
-        )
-
-    def forward(
-        self,
-        heightmap,
-        object_fg_flags,
-        object_labels,
-        object_poses,
-        grasp_pose,
-        reorient_pose,
-    ):
-        B, O = object_fg_flags.shape
-
-        object_fg_flags = object_fg_flags[:, :, None]
-        grasp_pose = grasp_pose[:, None, :].repeat_interleave(O, dim=1)
-        reorient_pose = reorient_pose[:, None, :].repeat_interleave(O, dim=1)
-
-        h = torch.cat(
-            [
-                object_fg_flags,
-                object_labels,
-                object_poses,
-                grasp_pose,
-                reorient_pose,
-            ],
-            dim=2,
-        )
-
-        h = h.reshape(B * O, -1)
-        h = self.fc_encoder(h)
-        h = h.reshape(B, O, -1)
-
-        h = h.permute(1, 0, 2)  # BOE -> OBE
-        h = self.transformer_encoder(h)
-        h = h.permute(1, 0, 2)  # OBE -> BOE
-
-        h = h.mean(dim=1)
-
-        return h
-
-
 class ConvEncoder(torch.nn.Module):
     def __init__(self, out_channels):
         super().__init__()
@@ -156,10 +95,7 @@ class Model(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
-        if 0:
-            self.encoder = PoseEncoder(out_channels=128, nhead=4, num_layers=4)
-        else:
-            self.encoder = ConvEncoder(out_channels=128)
+        self.encoder = ConvEncoder(out_channels=128)
         self.fc_pickable = torch.nn.Sequential(
             torch.nn.Linear(128, 1),
             torch.nn.Sigmoid(),
