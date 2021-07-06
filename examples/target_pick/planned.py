@@ -76,6 +76,7 @@ def main():
             bg_object_ids=[plane],
             object_ids=object_ids,
             speed=0.005,
+            timeout=10,
         )
 
     poses = {}
