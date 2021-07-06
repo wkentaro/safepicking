@@ -5,6 +5,7 @@ import json
 import numpy as np
 import pandas
 import path
+import sklearn.metrics
 
 
 def main():
@@ -61,14 +62,21 @@ def main():
     print(df2.mean(level=1).sort_values("sum_of_translations"))
     print()
 
-    df3 = []
-    for threshold in np.linspace(0.9, 0.2):
-        df3.append(
-            df2[df2["target_object_visibility"] > threshold].mean(level=1)
+    data = []
+    for eval_dir in df["eval_dir"].unique():
+        df_eval_dir = df[df["eval_dir"] == eval_dir]
+        x = np.linspace(0, 2.0)
+        y = [(df_eval_dir["sum_of_translations"] < xi).mean() for xi in x]
+        auc = sklearn.metrics.auc(x, y) / (x.max() - x.min())
+        data.append(
+            {
+                "eval_dir": eval_dir,
+                "auc": auc,
+            }
         )
-    df3 = pandas.concat(df3).reset_index()
-    print("# Mean over each thresholds")
-    print(df3.groupby("eval_dir").mean().sort_values("sum_of_translations"))
+    df = pandas.DataFrame(data)
+    df = df.set_index("eval_dir")
+    print(df.sort_values("auc").iloc[::-1])
 
 
 if __name__ == "__main__":
