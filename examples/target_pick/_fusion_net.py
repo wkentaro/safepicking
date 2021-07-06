@@ -7,7 +7,7 @@ class FusionNet(torch.nn.Module):
 
         # heightmap: 1
         # maskmap: 1
-        self.encoder = torch.nn.Sequential(
+        self.conv_encoder_raw = torch.nn.Sequential(
             torch.nn.Conv2d(1 + 1, 4, kernel_size=3, stride=1, padding=1),
             torch.nn.ReLU(),
             torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0),
@@ -28,17 +28,28 @@ class FusionNet(torch.nn.Module):
             torch.nn.AvgPool2d(4, stride=4),
         )
 
+        self.fc_encoder_raw = torch.nn.Sequential(
+            torch.nn.Linear(64, 32),
+            torch.nn.ReLU(),
+        )
+
         # object_labels: 7
         # object_poses: 7
         # grasp_flags: 1
         # actions: 6
         # ee_poses: episode_length * 7
-        in_channels = 64 + 7 + 7 + 1 + 6 + episode_length * 7
-        self.fc_encoder = torch.nn.Sequential(
+        in_channels = 7 + 7 + 1 + 6 + episode_length * 7
+        self.fc_encoder_pose = torch.nn.Sequential(
             torch.nn.Linear(in_channels, 32),
             torch.nn.ReLU(),
         )
-        self.transformer_object = torch.nn.TransformerEncoder(
+
+        self.fc_encoder_mix = torch.nn.Sequential(
+            torch.nn.Linear(64, 32),
+            torch.nn.ReLU(),
+        )
+
+        self.transformer_mix = torch.nn.TransformerEncoder(
             encoder_layer=torch.nn.TransformerEncoderLayer(
                 d_model=32,
                 nhead=4,
@@ -65,37 +76,42 @@ class FusionNet(torch.nn.Module):
         B = heightmap.shape[0]
         A = actions.shape[0]
 
-        h = torch.cat(
+        h_raw = torch.cat(
             [heightmap[:, None, :, :], maskmap[:, None, :, :].float()], dim=1
         )
-        h = self.encoder(h)
-        h = h.reshape(B, -1)
+        h_raw = self.conv_encoder_raw(h_raw)
+        h_raw = h_raw.reshape(B, -1)
+        h_raw = self.fc_encoder_raw(h_raw)
 
         # -----------------------------------------------------------------------------
 
         B, O = grasp_flags.shape
         A, _ = actions.shape
 
-        h = h[:, None, :].repeat(1, O, 1)
-        h_pose = torch.cat(
-            [object_labels, object_poses, grasp_flags[:, :, None]], dim=2
-        )
         ee_poses = ee_poses.reshape(B, -1)[:, None, :].repeat(1, O, 1)
-        h = torch.cat([h, h_pose, ee_poses], dim=2)
-        h_action = actions
+        h_pose = torch.cat(
+            [object_labels, object_poses, grasp_flags[:, :, None], ee_poses],
+            dim=2,
+        )
 
         # B, A, O, C
-        h = h[:, None, :, :].repeat(1, A, 1, 1)
-        h_action = h_action[None, :, None, :].repeat(B, 1, O, 1)
+        h_pose = h_pose[:, None, :, :].repeat(1, A, 1, 1)
+        h_action = actions[None, :, None, :].repeat(B, 1, O, 1)
 
-        h = torch.cat([h, h_action], dim=3)
+        h_pose = torch.cat([h_pose, h_action], dim=3)
 
-        h = h.reshape(B * A * O, h.shape[-1])  # B*A*O, C
-        h = self.fc_encoder(h)
-        h = h.reshape(B * A, O, h.shape[-1])  # B*A, O, C
+        h_pose = h_pose.reshape(B * A * O, h_pose.shape[-1])  # B*A*O, C
+        h_pose = self.fc_encoder_pose(h_pose)
+        h_pose = h_pose.reshape(B * A, O, h_pose.shape[-1])  # B*A, O, C
+
+        h_raw = h_raw[:, None, None, :].repeat(1, A, O, 1)
+        h_raw = h_raw.reshape(B * A, O, h_raw.shape[-1])
+
+        h = torch.cat([h_raw, h_pose], dim=2)
+        h = self.fc_encoder_mix(h)
 
         h = h.permute(1, 0, 2)  # B*A, O, C -> O, B*A, C
-        h = self.transformer_object(h)
+        h = self.transformer_mix(h)
         h = h.permute(1, 0, 2)  # O, B*A, C -> B*A, O, C
 
         h = h.mean(dim=1)  # B*A, O, C -> B*A, C
