@@ -51,6 +51,7 @@ class PickFromPileEnv(Env):
         speed=0.005,
         episode_length=5,
         pose_noise=0,
+        miss=0,
     ):
         super().__init__()
 
@@ -61,6 +62,7 @@ class PickFromPileEnv(Env):
         self._speed = speed
         self._episode_length = episode_length
         self._pose_noise = pose_noise
+        self._miss = miss
 
         self.plane = None
         self.ri = None
@@ -360,6 +362,7 @@ class PickFromPileEnv(Env):
                 return self.reset()
 
         self.object_ids = object_ids
+        self.object_visibilities = data["visibility"]
         self.target_object_id = target_object_id
         self.target_object_class = data["class_id"][target_index]
         self.target_object_visibility = data["visibility"][target_index]
@@ -427,6 +430,8 @@ class PickFromPileEnv(Env):
         )
         object_poses = np.zeros((len(self.object_ids), 7), dtype=np.float32)
         for i, object_id in enumerate(self.object_ids):
+            if self.object_visibilities[i] < self._miss:
+                continue
             grasp_flags[i] = object_id == self.target_object_id
             object_to_world = pp.get_pose(object_id)
             class_id = _utils.get_class_id(object_id)

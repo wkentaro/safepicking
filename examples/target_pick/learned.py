@@ -25,6 +25,7 @@ def main():
     parser.add_argument(
         "--pose-noise", type=float, default=0.0, help="pose noise"
     )
+    parser.add_argument("--miss", type=float, default=0.2, help="miss")
     args = parser.parse_args()
 
     log_dir = args.weight_dir.parent.parent
@@ -33,7 +34,7 @@ def main():
         scene_id = args.pile_file.stem
         json_file = (
             log_dir
-            / f"eval-noise_{args.pose_noise}/{scene_id}/{args.seed}.json"
+            / f"eval-noise_{args.pose_noise}-miss_{args.miss}/{scene_id}/{args.seed}.json"  # NOQA
         )
         json_file.parent.makedirs_p()
         if json_file.exists():
@@ -59,6 +60,7 @@ def main():
         mp4=args.mp4,
         speed=0.005,
         pose_noise=args.pose_noise,
+        miss=args.miss,
     )
     env.eval = True
     try:
