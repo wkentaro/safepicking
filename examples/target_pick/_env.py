@@ -430,7 +430,12 @@ class PickFromPileEnv(Env):
         )
         object_poses = np.zeros((len(self.object_ids), 7), dtype=np.float32)
         for i, object_id in enumerate(self.object_ids):
-            if self.object_visibilities[i] < self._miss:
+            if isinstance(self._miss, tuple):
+                assert len(self._miss) == 2
+                miss = np.random.uniform(self._miss[0], self._miss[1])
+            else:
+                miss = self._miss
+            if self.object_visibilities[i] < miss:
                 continue
             grasp_flags[i] = object_id == self.target_object_id
             object_to_world = pp.get_pose(object_id)
@@ -440,7 +445,7 @@ class PickFromPileEnv(Env):
             if pose_noise is not None:
                 if isinstance(pose_noise, tuple):
                     assert len(pose_noise) == 2
-                    scale = random_state.uniform(pose_noise[0], pose_noise[1])
+                    scale = np.random.uniform(pose_noise[0], pose_noise[1])
                 else:
                     scale = pose_noise
                 object_to_world = (
