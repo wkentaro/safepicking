@@ -42,6 +42,8 @@ class PoseNet(torch.nn.Module):
         B, O = grasp_flags.shape
         A, _ = actions.shape
 
+        is_valid = (object_labels > 0).any(dim=2)
+
         h = torch.cat(
             [object_labels, object_poses, grasp_flags[:, :, None]], dim=2
         )
@@ -50,6 +52,7 @@ class PoseNet(torch.nn.Module):
         h_action = actions
 
         # B, A, O, C
+        is_valid = is_valid[:, None, :].repeat(1, A, 1)
         h = h[:, None, :, :].repeat(1, A, 1, 1)
         h_action = h_action[None, :, None, :].repeat(B, 1, O, 1)
 
@@ -59,11 +62,14 @@ class PoseNet(torch.nn.Module):
         h = self.fc_encoder(h)
         h = h.reshape(B * A, O, h.shape[-1])  # B*A, O, C
 
+        is_valid = is_valid.reshape(B * A, O)
+
         h = h.permute(1, 0, 2)  # B*A, O, C -> O, B*A, C
-        h = self.transformer_object(h)
+        h = self.transformer_object(h, src_key_padding_mask=~is_valid)
         h = h.permute(1, 0, 2)  # O, B*A, C -> B*A, O, C
 
-        h = h.mean(dim=1)  # B*A, O, C -> B*A, C
+        is_valid = is_valid[:, :, None].float()
+        h = (is_valid * h).sum(dim=1) / is_valid.sum(dim=1)
 
         h = self.fc_output(h)  # B*A, 1
 

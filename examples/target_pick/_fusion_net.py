@@ -88,6 +88,8 @@ class FusionNet(torch.nn.Module):
         B, O = grasp_flags.shape
         A, _ = actions.shape
 
+        is_valid = (object_labels > 0).any(dim=2)
+
         ee_poses = ee_poses.reshape(B, -1)[:, None, :].repeat(1, O, 1)
         h_pose = torch.cat(
             [object_labels, object_poses, grasp_flags[:, :, None], ee_poses],
@@ -95,6 +97,7 @@ class FusionNet(torch.nn.Module):
         )
 
         # B, A, O, C
+        is_valid = is_valid[:, None, :].repeat(1, A, 1)
         h_pose = h_pose[:, None, :, :].repeat(1, A, 1, 1)
         h_action = actions[None, :, None, :].repeat(B, 1, O, 1)
 
@@ -110,11 +113,15 @@ class FusionNet(torch.nn.Module):
         h = torch.cat([h_raw, h_pose], dim=2)
         h = self.fc_encoder_mix(h)
 
+        is_valid = is_valid.reshape(B * A, O)
+
         h = h.permute(1, 0, 2)  # B*A, O, C -> O, B*A, C
-        h = self.transformer_mix(h)
+        h = self.transformer_mix(h, src_key_padding_mask=~is_valid)
         h = h.permute(1, 0, 2)  # O, B*A, C -> B*A, O, C
 
-        h = h.mean(dim=1)  # B*A, O, C -> B*A, C
+        # B*A, O, C -> B*A, C
+        is_valid = is_valid[:, :, None].float()
+        h = (is_valid * h).sum(dim=1) / is_valid.sum(dim=1)
 
         h = self.fc_output(h)  # B*A, 1
 
