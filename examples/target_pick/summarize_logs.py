@@ -19,24 +19,27 @@ def main():
         for eval_dir in log_dir.glob("eval-*"):
             for json_file in eval_dir.walk("*.json"):
                 with open(json_file) as f:
-                    json_data = json.load(f)
+                    try:
+                        json_data = json.load(f)
+                    except json.decoder.JSONDecodeError:
+                        continue
 
-                    assert int(json_file.stem) == 0
-                    data.append(
-                        {
-                            "eval_dir": "/".join(eval_dir.split("/")[-2:]),
-                            "scene_id": str(json_file.parent.stem),
-                            "target_object_visibility": json_data[
-                                "target_object_visibility"
-                            ],
-                            "sum_of_translations": json_data[
-                                "sum_of_translations"
-                            ],
-                            "sum_of_max_velocities": json_data[
-                                "sum_of_max_velocities"
-                            ],
-                        }
-                    )
+                assert int(json_file.stem) == 0
+                data.append(
+                    {
+                        "eval_dir": "/".join(eval_dir.split("/")[-2:]),
+                        "scene_id": str(json_file.parent.stem),
+                        "target_object_visibility": json_data[
+                            "target_object_visibility"
+                        ],
+                        "sum_of_translations": json_data[
+                            "sum_of_translations"
+                        ],
+                        "sum_of_max_velocities": json_data[
+                            "sum_of_max_velocities"
+                        ],
+                    }
+                )
 
     pandas.set_option("display.max_colwidth", 400)
     pandas.set_option("display.max_columns", 500)
