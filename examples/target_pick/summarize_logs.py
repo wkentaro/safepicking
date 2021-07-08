@@ -71,9 +71,9 @@ def main():
     df2 = df.sort_values(["scene_id", "eval_dir"]).set_index(
         ["scene_id", "eval_dir"]
     )
-    print("# Mean over all")
-    print(df2.mean(level=1).sort_values("sum_of_translations"))
-    print()
+    # print("# Mean over all")
+    # print(df2.mean(level=1).sort_values("sum_of_translations"))
+    # print()
 
     data = []
     for eval_dir in df["eval_dir"].unique():
