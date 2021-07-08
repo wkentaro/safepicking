@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import argparse
 import json
 
 import numpy as np
@@ -9,6 +10,14 @@ import sklearn.metrics
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--threshold", type=float, default=0.2, help="threshold"
+    )
+    args = parser.parse_args()
+
     logs_dir = path.Path("logs")
 
     data = []
@@ -46,6 +55,7 @@ def main():
     pandas.set_option("display.width", 1000)
 
     df = pandas.DataFrame(data)
+    df = df[df["target_object_visibility"] > args.threshold]
     df2 = df.sort_values(["scene_id", "eval_dir"]).set_index(
         ["scene_id", "eval_dir"]
     )
