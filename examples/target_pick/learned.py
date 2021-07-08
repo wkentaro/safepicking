@@ -5,14 +5,7 @@ import json
 import pprint
 
 from loguru import logger
-import numpy as np
 import path
-
-import mercury
-
-from _agent import DqnAgent
-from _env import PickFromPileEnv
-import _utils
 
 
 here = path.Path(__file__).abspath().parent
@@ -42,9 +35,18 @@ def main():
             log_dir
             / f"eval-noise_{args.pose_noise}/{scene_id}/{args.seed}.json"
         )
+        json_file.parent.makedirs_p()
         if json_file.exists():
             logger.info(f"Result file already exists: {json_file}")
             return
+
+    import numpy as np
+
+    import mercury
+
+    from _agent import DqnAgent
+    from _env import PickFromPileEnv
+    import _utils
 
     hparams_file = log_dir / "hparams.json"
     with open(hparams_file) as f:
@@ -59,10 +61,15 @@ def main():
         pose_noise=args.pose_noise,
     )
     env.eval = True
-    obs = env.reset(
-        random_state=np.random.RandomState(args.seed),
-        pile_file=args.pile_file,
-    )
+    try:
+        obs = env.reset(
+            random_state=np.random.RandomState(args.seed),
+            pile_file=args.pile_file,
+        )
+    except RuntimeError:
+        with open(json_file, "w") as f:
+            pass
+        return
 
     agent = DqnAgent(env=env, model=hparams["model"])
     agent.build(training=False)
@@ -114,7 +121,6 @@ def main():
             sum_of_max_velocities=sum(max_velocities.values()),
         )
 
-        json_file.parent.makedirs_p()
         with open(json_file, "w") as f:
             json.dump(data, f, indent=2)
         logger.info(f"Saved to: {json_file}")
