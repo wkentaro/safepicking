@@ -18,7 +18,7 @@ def main():
     log_dir = here / "logs/reorient_dataset"
     log_dir.makedirs_p()
 
-    for seed in range(0, 50):
+    for seed in range(0, 200):
         for face in faces:
             env = Env(
                 class_ids=[2, 3, 5, 11, 12, 15],
@@ -40,9 +40,8 @@ def main():
             result = _reorient.plan_place(env, target_grasp_poses)
             pick_and_placable = "js_place" not in result
 
-            if pick_and_placable:
-                with open(log_dir / f"{seed:08d}-{face}", "w"):
-                    pass
+            with open(log_dir / f"{seed:08d}-{face}.txt", "w") as f:
+                f.write(f"{int(pick_and_placable)}")
 
 
 if __name__ == "__main__":
