@@ -61,6 +61,7 @@ def main():
         speed=0.005,
         pose_noise=args.pose_noise,
         miss=args.miss,
+        raise_on_timeout=True,
     )
     env.eval = True
     try:

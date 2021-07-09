@@ -102,7 +102,7 @@ class PandaRobotInterface:
             joint_positions.append(p.getJointState(self.robot, joint)[0])
         return joint_positions
 
-    def movej(self, targj, speed=0.01, timeout=5):
+    def movej(self, targj, speed=0.01, timeout=5, raise_on_timeout=False):
         assert len(targj) == len(self.joints)
         for i in itertools.count():
             currj = [p.getJointState(self.robot, i)[0] for i in self.joints]
@@ -126,8 +126,11 @@ class PandaRobotInterface:
             yield i
 
             if i >= (timeout / pybullet_planning.get_time_step()):
-                logger.error("timeout in joint motor control")
-                return
+                if raise_on_timeout:
+                    raise RuntimeError("timeout in joint motor control")
+                else:
+                    logger.error("timeout in joint motor control")
+                    return
 
     def solve_ik(
         self, pose, move_target=None, n_init=5, random_state=None, **kwargs

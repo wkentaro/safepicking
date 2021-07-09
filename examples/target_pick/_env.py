@@ -52,6 +52,7 @@ class PickFromPileEnv(Env):
         episode_length=5,
         pose_noise=0,
         miss=0,
+        raise_on_timeout=False,
     ):
         super().__init__()
 
@@ -63,6 +64,7 @@ class PickFromPileEnv(Env):
         self._episode_length = episode_length
         self._pose_noise = pose_noise
         self._miss = miss
+        self._raise_on_timeout = raise_on_timeout
 
         self.plane = None
         self.ri = None
@@ -569,6 +571,7 @@ class PickFromPileEnv(Env):
             j,
             speed=self._speed,
             timeout=2 * (0.01 / self._speed),
+            raise_on_timeout=self._raise_on_timeout,
         ):
             pp.step_simulation()
             step_callback()
@@ -580,6 +583,7 @@ class PickFromPileEnv(Env):
                 self.ri.homej,
                 speed=self._speed,
                 timeout=10 * (0.01 / self._speed),
+                raise_on_timeout=self._raise_on_timeout,
             ):
                 pp.step_simulation()
                 step_callback()
