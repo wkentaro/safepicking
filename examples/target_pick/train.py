@@ -44,6 +44,7 @@ def main():
             "openloop_pose_net",
             "conv_net",
             "fusion_net",
+            "virtual_fusion_net",
         ],
         help="model",
         required=True,

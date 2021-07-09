@@ -31,6 +31,10 @@ class DqnModel(torch.nn.Module):
             self.module = ConvNet(episode_length=env.episode_length)
         elif self._model == "fusion_net":
             self.module = FusionNet(episode_length=env.episode_length)
+        elif self._model == "virtual_fusion_net":
+            self.module = FusionNet(
+                episode_length=env.episode_length, virtual=True
+            )
         else:
             raise ValueError
 
@@ -59,7 +63,7 @@ class DqnModel(torch.nn.Module):
                 maskmap=observation["maskmap"],
                 ee_poses=observation["ee_poses"],
             )
-        elif self._model == "fusion_net":
+        elif self._model in ["fusion_net", "virtual_fusion_net"]:
             kwargs = dict(
                 heightmap=observation["heightmap"],
                 maskmap=observation["maskmap"],
@@ -68,6 +72,9 @@ class DqnModel(torch.nn.Module):
                 object_poses=observation["object_poses_init"],
                 ee_poses=observation["ee_poses"],
             )
+            if self._model == "virtual_fusion_net":
+                kwargs["heightmap_virtual"] = observation["heightmap_virtual"]
+                kwargs["maskmap_virtual"] = observation["maskmap_virtual"]
         else:
             raise ValueError
 

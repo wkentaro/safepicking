@@ -120,6 +120,18 @@ class PickFromPileEnv(Env):
             shape=(self.HEIGHTMAP_IMAGE_SIZE, self.HEIGHTMAP_IMAGE_SIZE),
             dtype=np.uint8,
         )
+        heightmap_virtual = gym.spaces.Box(
+            low=0,
+            high=np.inf,
+            shape=(self.HEIGHTMAP_IMAGE_SIZE, self.HEIGHTMAP_IMAGE_SIZE),
+            dtype=np.float32,
+        )
+        maskmap_virtual = gym.spaces.Box(
+            low=0,
+            high=1,
+            shape=(self.HEIGHTMAP_IMAGE_SIZE, self.HEIGHTMAP_IMAGE_SIZE),
+            dtype=np.uint8,
+        )
         ee_poses = gym.spaces.Box(
             low=-np.inf,
             high=np.inf,
@@ -136,6 +148,8 @@ class PickFromPileEnv(Env):
                 object_poses_init=object_poses_init,
                 heightmap=heightmap,
                 maskmap=maskmap,
+                heightmap_virtual=heightmap_virtual,
+                maskmap_virtual=maskmap_virtual,
                 ee_poses=ee_poses,
             )
         )
@@ -383,6 +397,35 @@ class PickFromPileEnv(Env):
             segm=segm,
         )
 
+        with pp.WorldSaver():
+            for object_id, object_pose in zip(
+                self.object_ids, self.object_state[2]
+            ):
+                if (object_pose == 0).all():
+                    pp.set_pose(object_id, ([0, 0, 10], [0, 0, 0, 1]))
+                else:
+                    pp.set_pose(object_id, np.hsplit(object_pose, [3]))
+
+            self.ri.setj(j_capture)
+            rgb, depth, segm = self.ri.get_camera_image()
+            K = self.ri.get_opengl_intrinsic_matrix()
+            camera_to_world = self.ri.get_pose("camera_link")
+
+            pcd_in_camera = mercury.geometry.pointcloud_from_depth(
+                depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
+            )
+            T_camera_to_world = mercury.geometry.transformation_matrix(
+                *camera_to_world
+            )
+            pcd_in_world = mercury.geometry.transform_points(
+                pcd_in_camera, T_camera_to_world
+            )
+        self.visual_state_virtual = self.get_visual_state(
+            rgb=rgb,
+            pcd_in_world=pcd_in_world,
+            segm=segm,
+        )
+
         # ---------------------------------------------------------------------
 
         self.ee_poses = np.zeros((self.episode_length, 7), dtype=np.float32)
@@ -472,7 +515,8 @@ class PickFromPileEnv(Env):
             self.ee_pose_init[1],
             0,
         ]
-        heightmap, colormap, maskmap = self.visual_state
+        heightmap, _, maskmap = self.visual_state
+        heightmap_virtual, _, maskmap_virtual = self.visual_state_virtual
         ee_poses = copy.deepcopy(self.ee_poses)
         ee_poses[:, :3] -= [
             self.ee_pose_init[0],
@@ -488,6 +532,8 @@ class PickFromPileEnv(Env):
             object_poses_init=object_poses_init,
             heightmap=heightmap,
             maskmap=maskmap,
+            heightmap_virtual=heightmap_virtual,
+            maskmap_virtual=maskmap_virtual,
             ee_poses=ee_poses,
         )
 

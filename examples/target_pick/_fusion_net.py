@@ -2,13 +2,22 @@ import torch
 
 
 class FusionNet(torch.nn.Module):
-    def __init__(self, episode_length):
+    def __init__(self, episode_length, virtual=False):
         super().__init__()
+
+        self._virtual = virtual
 
         # heightmap: 1
         # maskmap: 1
+        in_channels = 1 + 1
+        if self._virtual:
+            # heightmap_virtual: 1
+            # maskmap_virtual: 1
+            in_channels += 1 + 1
         self.conv_encoder_raw = torch.nn.Sequential(
-            torch.nn.Conv2d(1 + 1, 4, kernel_size=3, stride=1, padding=1),
+            torch.nn.Conv2d(
+                in_channels, 4, kernel_size=3, stride=1, padding=1
+            ),
             torch.nn.ReLU(),
             torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0),
             torch.nn.Conv2d(4, 8, kernel_size=3, stride=1, padding=1),
@@ -72,13 +81,17 @@ class FusionNet(torch.nn.Module):
         grasp_flags,
         ee_poses,
         actions,
+        heightmap_virtual=None,
+        maskmap_virtual=None,
     ):
         B = heightmap.shape[0]
         A = actions.shape[0]
 
-        h_raw = torch.cat(
-            [heightmap[:, None, :, :], maskmap[:, None, :, :].float()], dim=1
-        )
+        h_raw = [heightmap[:, None, :, :], maskmap[:, None, :, :].float()]
+        if self._virtual:
+            h_raw.append(heightmap_virtual[:, None, :, :])
+            h_raw.append(maskmap_virtual[:, None, :, :].float())
+        h_raw = torch.cat(h_raw, dim=1)
         h_raw = self.conv_encoder_raw(h_raw)
         h_raw = h_raw.reshape(B, -1)
         h_raw = self.fc_encoder_raw(h_raw)

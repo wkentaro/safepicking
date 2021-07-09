@@ -23,6 +23,7 @@ def main():
             "openloop_pose_net",
             "conv_net",
             "fusion_net",
+            "virtual_fusion_net",
         ],
         help="model",
     )
@@ -30,7 +31,7 @@ def main():
     parser.add_argument("--draw-obs", action="store_true", help="draw obs")
     args = parser.parse_args()
 
-    env = PickFromPileEnv(gui=not args.nogui, pose_noise=True)
+    env = PickFromPileEnv(gui=not args.nogui, pose_noise=2, miss=0.4)
     obs = env.reset()
 
     if args.draw_obs:
@@ -38,9 +39,12 @@ def main():
             [
                 imgviz.depth2rgb(obs["heightmap"]),
                 np.uint8(obs["maskmap"]) * 255,
+                imgviz.depth2rgb(obs["heightmap_virtual"]),
+                np.uint8(obs["maskmap_virtual"]) * 255,
             ],
-            shape=(1, 2),
+            shape=(2, 2),
         )
+        viz = imgviz.resize(viz, height=512)
         imgviz.io.pyglet_imshow(viz)
         imgviz.io.pyglet_run()
 
