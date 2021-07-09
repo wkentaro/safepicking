@@ -222,8 +222,6 @@ class PbPlanner:
             ob.PathLengthOptimizationObjective(self.si)
         )
         optimizingPlanner = getattr(og, self.planner)(self.si)
-        if self.planner == "RRTConnect":
-            optimizingPlanner.setRange(0.1)
         optimizingPlanner.setProblemDefinition(pdef)
         optimizingPlanner.setup()
         solved = optimizingPlanner.solve(solveTime=1)
