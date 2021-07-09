@@ -78,7 +78,9 @@ def main():
     data = []
     for eval_dir in df["eval_dir"].unique():
         df_eval_dir = df[df["eval_dir"] == eval_dir]
-        x = np.linspace(0, 2.0)
+        x = np.linspace(
+            df["sum_of_translations"].min(), df["sum_of_translations"].max()
+        )
         y = [(df_eval_dir["sum_of_translations"] < xi).mean() for xi in x]
         auc = sklearn.metrics.auc(x, y) / (x.max() - x.min())
         data.append(
