@@ -266,7 +266,24 @@ def main():
             success = False
         else:
             _reorient.execute_place(env, result)
-            success = True
+            obj_to_world_target = env.PLACE_POSE
+            obj_to_world_actual = pp.get_pose(env.fg_object_id)
+            pcd_file = mercury.datasets.ycb.get_pcd_file(
+                _utils.get_class_id(env.fg_object_id)
+            )
+            pcd_obj = np.loadtxt(pcd_file)
+            pcd_target = mercury.geometry.transform_points(
+                pcd_obj,
+                mercury.geometry.transformation_matrix(*obj_to_world_target),
+            )
+            pcd_actual = mercury.geometry.transform_points(
+                pcd_obj,
+                mercury.geometry.transformation_matrix(*obj_to_world_actual),
+            )
+            auc = mercury.geometry.average_distance_auc(
+                pcd_target, pcd_actual, max_threshold=0.1
+            )
+            success = float(auc) > 0.9
 
     if args.nogui:
         json_file.parent.makedirs_p()
