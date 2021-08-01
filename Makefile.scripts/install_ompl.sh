@@ -25,9 +25,10 @@ if [ ! -d ompl ]; then
   git clone https://github.com/ompl/ompl.git
 fi
 cd ompl
+git checkout 1.5.1
 
 mkdir -p build
 cd build
-cmake .. -DOMPL_BUILD_PYBINDINGS=TRUE
-make -j4 update_bindings
-make -j4
+cmake .. -DOMPL_BUILD_PYBINDINGS=TRUE -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+make -j 4 update_bindings
+make -j 4
