@@ -18,13 +18,13 @@
     <link name="${ns}_table">
       <visual>
         <geometry>
-          <box size="1.2 1.2 0.075"/>
+          <box size="1.0 1.3 0.05"/>
         </geometry>
         <material name="white"/>
       </visual>
       <collision>
         <geometry>
-          <box size="1.2 1.2 0.075"/>
+          <box size="1.0 1.3 0.05"/>
         </geometry>
       </collision>
     </link>
