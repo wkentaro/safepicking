@@ -60,14 +60,7 @@ class DepthToNormalNode(topic_tools.LazyTransport):
             self._pub_normal.publish(out_msg)
 
         if self._pub_jet.get_num_connections() > 0:
-            mean = np.nanmean(depth)
-            std = np.nanstd(depth)
-
-            min_value = np.maximum(0.3, mean - 3 * std)
-            max_value = np.minimum(2.0, mean + 3 * std)
-            jet = imgviz.depth2rgb(
-                depth, min_value=min_value, max_value=max_value
-            )
+            jet = imgviz.depth2rgb(depth, min_value=0.3, max_value=1)
             out_msg = bridge.cv2_to_imgmsg(jet, "rgb8")
             out_msg.header = cam_msg.header
             self._pub_jet.publish(out_msg)
