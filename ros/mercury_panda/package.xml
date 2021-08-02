@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>mercury_panda</name>
+  <version>0.1.0</version>
+  <description>TODO</description>
+  <license>BSD</license>
+
+  <maintainer email="www.kentaro.wada@gmail.com">Kentaro Wada</maintainer>
+  <author email="www.kentaro.wada@gmail.com">Kentaro Wada</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>message_generation</build_depend>
+
+  <exec_depend>controller_manager</exec_depend>
+  <exec_depend>franka_control</exec_depend>
+  <exec_depend>franka_description</exec_depend>
+  <exec_depend>joint_state_publisher</exec_depend>
+  <exec_depend>message_runtime</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>xacro</exec_depend>
+
+</package>
