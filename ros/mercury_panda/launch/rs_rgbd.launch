@@ -5,6 +5,13 @@
   <include file="$(find realsense2_camera)/launch/rs_rgbd.launch">
   </include>
 
+  <group ns="/camera/color" if="$(arg GUI)">
+    <node name="image_view"
+          pkg="image_view" type="image_view"
+          clear_params="true">
+      <remap from="image" to="image_rect_color" />
+    </node>
+  </group>
   <group ns="/camera/aligned_depth_to_color">
     <node name="depth_to_rgb"
           pkg="mercury_panda" type="depth_to_rgb.py"
@@ -12,6 +19,13 @@
       <remap from="~input/camera_info" to="camera_info" />
       <remap from="~input/depth" to="image_raw" />
     </node>
+    <group ns="depth_to_rgb" if="$(arg GUI)">
+      <node name="image_view"
+            pkg="image_view" type="image_view"
+            clear_params="true">
+        <remap from="image" to="output/jet" />
+      </node>
+    </group>
   </group>
 
   <node name="marker_6dof"
@@ -31,12 +45,6 @@
       initial_z: 0.026
       initial_orientation: [0.659, 0.277, 0.653, -0.250]
     </rosparam>
-  </node>
-
-  <node name="rviz"
-        pkg="rviz" type="rviz"
-        args="-d $(find mercury_panda)/rviz/rs_rgbd.rviz"
-        clear_params="true">
   </node>
 
 </launch>

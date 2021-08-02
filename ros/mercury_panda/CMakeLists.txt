@@ -7,22 +7,22 @@ find_package(
   roscpp
   rospy
   std_msgs
-  # genmsg
-  # message_generation
+  genmsg
+  message_generation
 )
 
-# add_message_files(
-#   FILES
-#   ObjectClass.msg
-#   ObjectClassArray.msg
-# )
+add_message_files(
+  FILES
+  ObjectClass.msg
+  ObjectClassArray.msg
+)
 
-# generate_messages(
-#   DEPENDENCIES
-#   std_msgs
-# )
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+)
 
 catkin_package(
   CATKIN_DEPENDS
-  # message_runtime
+  message_runtime
 )
