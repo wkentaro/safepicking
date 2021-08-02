@@ -36,8 +36,8 @@
 
   <!-- }} controllers -->
 
-  <!-- <node name="set_suction_server" -->
-  <!--       pkg="mercury_panda" type="set_suction_server.py" -->
-  <!--       output="screen" required="true" /> -->
+  <node name="set_suction_server"
+        pkg="mercury_panda" type="set_suction_server.py"
+        output="screen" required="true" />
 
 </launch>

@@ -6,7 +6,7 @@ find_package(
   COMPONENTS
   roscpp
   rospy
-  # std_msgs
+  std_msgs
   # genmsg
   # message_generation
 )
@@ -16,12 +16,7 @@ find_package(
 #   ObjectClass.msg
 #   ObjectClassArray.msg
 # )
-#
-# add_service_files(
-#   FILES
-#   SetSuction.srv
-# )
-#
+
 # generate_messages(
 #   DEPENDENCIES
 #   std_msgs
