@@ -1,32 +1,16 @@
 <launch>
 
+  <arg name="GUI" default="true" />
+
   <include file="$(find realsense2_camera)/launch/rs_rgbd.launch">
   </include>
 
   <group ns="/camera/aligned_depth_to_color">
-    <node name="image_raw_passthrough"
-          pkg="jsk_topic_tools" type="passthrough"
+    <node name="depth_to_rgb"
+          pkg="mercury_panda" type="depth_to_rgb.py"
           clear_params="true">
-      <remap from="~input" to="image_raw" />
-      <rosparam subst_value="true">
-        default_duration: 60
-      </rosparam>
-    </node>
-    <!-- <node name="depth_to_rgb" -->
-    <!--       pkg="pickpp_panda" type="depth_to_rgb.py" -->
-    <!--       clear_params="true"> -->
-    <!--   <remap from="~input/camera_info" to="camera_info" /> -->
-    <!--   <remap from="~input/depth" to="image_raw_passthrough/output" /> -->
-    <!-- </node> -->
-  </group>
-
-  <group ns="camera">
-    <node pkg="nodelet" type="nodelet" name="points_xyzrgb_aligned_depth_to_color"
-          args="standalone depth_image_proc/point_cloud_xyzrgb">
-      <remap from="rgb/image_rect_color"        to="color/image_rect_color_passthrough/output" />
-      <remap from="rgb/camera_info"             to="color/camera_info" />
-      <remap from="depth_registered/image_rect" to="aligned_depth_to_color/image_raw_passthrough/output" />
-      <remap from="depth_registered/points"     to="depth_registered/points_passthrough/output" />
+      <remap from="~input/camera_info" to="camera_info" />
+      <remap from="~input/depth" to="image_raw" />
     </node>
   </group>
 
@@ -47,6 +31,12 @@
       initial_z: 0.026
       initial_orientation: [0.659, 0.277, 0.653, -0.250]
     </rosparam>
+  </node>
+
+  <node name="rviz"
+        pkg="rviz" type="rviz"
+        args="-d $(find mercury_panda)/rviz/rs_rgbd.rviz"
+        clear_params="true">
   </node>
 
 </launch>
