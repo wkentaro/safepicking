@@ -12,7 +12,7 @@
           clear_params="true">
       <remap from="~input" to="image_raw" />
       <rosparam subst_value="true">
-        default_duration: 60
+        default_duration: 0
       </rosparam>
     </node>
     <node name="image_view"
@@ -22,14 +22,6 @@
     </node>
   </group>
   <group ns="/camera/aligned_depth_to_color">
-    <node name="image_raw_passthrough"
-          pkg="jsk_topic_tools" type="passthrough"
-          clear_params="true">
-      <remap from="~input" to="image_raw" />
-      <rosparam subst_value="true">
-        default_duration: 60
-      </rosparam>
-    </node>
     <node name="depth_to_rgb"
           pkg="mercury_panda" type="depth_to_rgb.py"
           clear_params="true">

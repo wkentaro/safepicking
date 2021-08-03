@@ -5,6 +5,7 @@ import sys
 import tempfile
 import warnings
 
+import imgviz
 import IPython
 import numpy as np
 import scipy.ndimage
@@ -30,6 +31,10 @@ from std_srvs.srv import SetBoolRequest
 import tf
 
 from mercury_panda.msg import ObjectClassArray
+from morefusion_panda_ycb_video.msg import ObjectClass as MFObjectClass
+from morefusion_panda_ycb_video.msg import (
+    ObjectClassArray as MFObjectClassArray,  # NOQA
+)
 from morefusion_panda_ycb_video.msg import ObjectPoseArray
 
 sys.path.insert(0, "../../../examples/target_pick")
@@ -229,14 +234,21 @@ class DemoInterface:
     # -------------------------------------------------------------------------
 
     def __init__(self):
-        rospy.init_node("demo")
+        rospy.init_node("demo_interface")
+
+        self._pub_heightmap = rospy.Publisher(
+            "~debug/heightmap", Image, queue_size=1
+        )
+        self._pub_remove = rospy.Publisher(
+            "/object_mapping/input/remove", ObjectClassArray, queue_size=1
+        )
 
         self._tf_listener = tf.listener.TransformListener(
             cache_time=rospy.Duration(60)
         )
 
         self.robot = Panda()
-        # self.robot.rarm.end_coords.translate([0, 0, 0.02], wrt="local")
+        self.robot.rarm.end_coords.translate([0, 0, 0.015], wrt="local")
         self.ri = skrobot.interfaces.PandaROSRobotInterface(robot=self.robot)
         # self._viewer = skrobot.viewers.TrimeshSceneViewer()
         # self._viewer.add(self.robot)
@@ -247,10 +259,18 @@ class DemoInterface:
         self.agent = _agent.DqnAgent(env=self.env, model="fusion_net")
         self.agent.build(training=False)
         self.agent.load_weights(
-            "logs/20210706_183819-fusion_net/weights/98600"
+            "logs/20210709_005731-fusion_net-noise/weights/84500"
         )
 
         self.set_target(None)
+
+        # publish placeholder
+        bridge = cv_bridge.CvBridge()
+        S = self.env.HEIGHTMAP_IMAGE_SIZE
+        heightmap_msg = bridge.cv2_to_imgmsg(
+            np.zeros((S, S * 2), dtype=np.uint8), encoding="mono8"
+        )
+        self._pub_heightmap.publish(heightmap_msg)
 
     # -------------------------------------------------------------------------
     # sensor inputs
@@ -260,8 +280,9 @@ class DemoInterface:
         self.target_object = target_object
         self.obs = {
             "pcd_cam": None,
-            "T_cam2base": None,
             "pcd_base": None,
+            "label_ins": None,
+            "target_ins_id": None,
         }
 
     def _subscribe(self):
@@ -311,7 +332,6 @@ class DemoInterface:
         )
         T_cam2base = mercury.geometry.transformation_matrix(pos, qua)
         pcd_base = mercury.geometry.transform_points(pcd_cam, T_cam2base)
-        self.obs["T_cam2base"] = T_cam2base
         self.obs["pcd_cam"] = pcd_cam
         self.obs["pcd_base"] = pcd_base
 
@@ -365,6 +385,7 @@ class DemoInterface:
         self._subscribe()
         while any(value is None for value in self.obs.values()):
             rospy.loginfo_throttle(10, "Waiting for visual observation")
+            print(self.obs)
             rospy.timer.sleep(0.1)
         rospy.loginfo("Received visual observation")
         self._unsubsribe()
@@ -416,8 +437,7 @@ class DemoInterface:
         self.start_passthrough()
 
         rospy.wait_for_message(
-            "/camera/mask_rcnn_instance_segmentation/output/class",
-            ObjectClassArray,
+            "/singleview_3d_pose_estimation/output", ObjectPoseArray
         )
 
         avs_scan = []
@@ -448,11 +468,11 @@ class DemoInterface:
 
         self.send_avs(avs_scan, time_scale=20)
 
-        self.stop_passthrough()
-
-        self._object_poses_msg = rospy.wait_for_message(
-            "/object_mapping/output/poses", ObjectPoseArray
+        rospy.wait_for_message(
+            "/singleview_3d_pose_estimation/output", ObjectPoseArray
         )
+
+        self.stop_passthrough()
 
     def place(self):
         av = self.joint_positions["pre_place"]
@@ -486,16 +506,40 @@ class DemoInterface:
 
     def go_to_canonical_view(self):
         object_poses_msg = self._object_poses_msg
+        object_centroids_msg = self._object_centroids_msg
 
-        for object_pose in object_poses_msg.poses:
-            if object_pose.class_id == self.target_object.value:
-                break
+        T_cam2base = self.get_transform(
+            "panda_link0",
+            object_poses_msg.header.frame_id,
+            time=object_poses_msg.header.stamp,
+        )
 
-        xy = (object_pose.pose.position.x, object_pose.pose.position.y)
+        if 0:
+            for object_pose in object_centroids_msg.poses:
+                if object_pose.class_id == self.target_object.value:
+                    break
+            anchor = [
+                object_pose.pose.position.x,
+                object_pose.pose.position.y,
+                object_pose.pose.position.z,
+            ]  # in cam
+            anchor = mercury.geometry.transform_points([anchor], T_cam2base)[
+                0
+            ]  # in base
+        else:
+            for object_pose in object_poses_msg.poses:
+                if object_pose.class_id == self.target_object.value:
+                    break
+            anchor = [
+                object_pose.pose.position.x,
+                object_pose.pose.position.y,
+                object_pose.pose.position.z,
+            ]  # in base
 
-        self._is_right = object_pose.pose.position.y <= 0
+        # self._is_right = centroid[2] <= 0  # y
+        self._is_right = True
 
-        self.go_to_overlook_pose(xy=xy, time_scale=3)
+        self.go_to_overlook_pose(xy=anchor[:2], time_scale=5)
 
     def pick_and_place(self):
         coord = self.plan_grasping()
@@ -513,12 +557,12 @@ class DemoInterface:
         heightmap, _, idmap = _get_heightmap.get_heightmap(
             self.obs["pcd_base"],
             np.zeros(self.obs["pcd_base"].shape, dtype=np.uint8),
-            ids=self.obs["label_ins"],
+            ids=self.obs["label_ins"] + 1,
             aabb=aabb,
             pixel_size=self.env.HEIGHTMAP_PIXEL_SIZE,
         )
         self.obs["heightmap"] = heightmap
-        self.obs["idmap"] = idmap
+        self.obs["maskmap"] = idmap == (self.obs["target_ins_id"] + 1)
 
         coord.translate([0, 0, -0.20], wrt="local")
 
@@ -549,10 +593,10 @@ class DemoInterface:
         self.send_avs(avs_grasp, time_scale=10)
         self.start_grasp()
 
-        self.send_avs(avs_manipulation, time_scale=20)
-        self.go_to_reset_pose()
+        self.send_avs(avs_manipulation, time_scale=30)
+        self.send_avs([self.joint_positions["reset"]], time_scale=5)
 
-        # self.place()
+        self.place()
 
     def plan_manipulation(self, grasp_coord):
         obs = self.obs.copy()
@@ -560,7 +604,21 @@ class DemoInterface:
         assert object_poses_msg.header.frame_id == "panda_link0"
 
         heightmap = obs["heightmap"]
-        maskmap = obs["idmap"] == obs["target_ins_id"]
+        maskmap = obs["maskmap"]
+
+        bridge = cv_bridge.CvBridge()
+        heightmap_msg = bridge.cv2_to_imgmsg(
+            imgviz.tile(
+                [
+                    imgviz.depth2rgb(heightmap, min_value=0, max_value=0.5),
+                    np.uint8(maskmap * 255),
+                ],
+                shape=(1, 2),
+                border=(255, 255, 255),
+            ),
+            encoding="rgb8",
+        )
+        self._pub_heightmap.publish(heightmap_msg)
 
         num_instance = len(object_poses_msg.poses)
         grasp_flags = np.zeros((num_instance,), dtype=np.uint8)
@@ -584,6 +642,16 @@ class DemoInterface:
                 object_pose_msg.pose.orientation.z,
                 object_pose_msg.pose.orientation.w,
             ]
+            if grasp_flags[i]:
+                cls_msg = MFObjectClassArray()
+                cls_msg.header = object_poses_msg.header
+                cls_msg.classes = [
+                    MFObjectClass(
+                        instance_id=object_pose_msg.instance_id,
+                        class_id=object_pose_msg.class_id,
+                    )
+                ]
+                self._pub_remove.publish(cls_msg)
 
         ee_poses = np.zeros((self.env.episode_length, 7), dtype=np.float32)
         ee_poses = np.r_[
@@ -639,7 +707,7 @@ class DemoInterface:
                 av_i = self.robot.rarm.inverse_kinematics(
                     skrobot_coords_from_matrix(coord.matrix)
                 )
-                if av_i is not None:
+                if av_i is not False:
                     break
             avs.append(av_i)
 
@@ -706,7 +774,7 @@ class DemoInterface:
 
         return coord
 
-    def run(self, target_object):
+    def run(self, target_objects):
         if not self.recover_from_error():
             return
 
@@ -714,11 +782,21 @@ class DemoInterface:
         self.go_to_reset_pose()
 
         self.scan()
-        self.set_target(target_object)
-        self.go_to_canonical_view()
-        self.capture_visual_observation()
 
-        self.pick_and_place()
+        for target_object in target_objects:
+            self._object_poses_msg = rospy.wait_for_message(
+                "/object_mapping/output/poses", ObjectPoseArray
+            )
+            self._object_centroids_msg = rospy.wait_for_message(
+                "/object_mapping/grids_to_centroids/output/object_poses",
+                ObjectPoseArray,
+            )
+
+            self.set_target(target_object)
+            self.go_to_canonical_view()
+            self.capture_visual_observation()
+
+            self.pick_and_place()
 
 
 if __name__ == "__main__":

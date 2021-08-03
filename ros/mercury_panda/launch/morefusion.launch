@@ -31,20 +31,12 @@
         ground_as_noentry: true
       </rosparam>
     </node>
-    <node name="grids_to_markers"
-          pkg="morefusion_panda_ycb_video" type="voxel_grids_to_markers.py"
-          clear_params="true">
-      <remap from="~input" to="octomap_server/output/grids" />
-      <rosparam subst_value="true">
-        show_bbox: false
-      </rosparam>
-    </node>
     <group ns="octomap_server">
       <node name="draw_instance_segmentation"
             pkg="morefusion_panda_ycb_video" type="draw_instance_segmentation.py"
             clear_params="true">
-        <remap from="~input/rgb" to="color/image_rect_color" unless="$(arg PASSTHROUGH)" />
-        <remap from="~input/rgb" to="color/image_rect_color_passthrough/output" if="$(arg PASSTHROUGH)" />
+        <remap from="~input/rgb" to="/camera/color/image_rect_color" unless="$(arg PASSTHROUGH)" />
+        <remap from="~input/rgb" to="/camera/color/image_rect_color_passthrough/output" if="$(arg PASSTHROUGH)" />
         <remap from="~input/label_ins" to="output/label_rendered" />
         <remap from="~input/class" to="output/class" />
         <rosparam subst_value="true">
@@ -89,6 +81,19 @@
           pkg="morefusion_panda_ycb_video" type="object_poses_to_markers.py"
           clear_params="true">
       <remap from="~input" to="output/poses" />
+    </node>
+    <node name="grids_to_markers"
+          pkg="morefusion_panda_ycb_video" type="voxel_grids_to_markers.py"
+          clear_params="true">
+      <remap from="~input" to="output/grids" />
+      <rosparam subst_value="true">
+        show_bbox: false
+      </rosparam>
+    </node>
+    <node name="grids_to_centroids"
+          pkg="mercury_panda" type="voxel_grids_to_centroids.py"
+          clear_params="true">
+      <remap from="~input" to="output/grids" />
     </node>
   </group>
 

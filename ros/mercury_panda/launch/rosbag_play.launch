@@ -1,0 +1,63 @@
+<launch>
+
+  <arg name="LOG_DIR" />
+
+  <rosparam command="load" file="$(arg LOG_DIR)/rosparam.yaml" />
+
+  <param name="/use_sim_time" value="true" />
+
+  <node name="rosbag_play"
+        pkg="rosbag" type="play"
+        clear_params="true"
+        args="$(arg LOG_DIR)/rosbag.bag --pause --clock /tf_static_republished:=/tf_static"
+        launch-prefix="xterm -geometry 100x30 -e"
+        required="true">
+  </node>
+
+  <!-- <node name="publish_image_placeholder" -->
+  <!--       pkg="pickpp_panda" type="publish_image_placeholder.py" -->
+  <!--       clear_params="true"> -->
+  <!--   <rosparam subst_value="true"> -->
+  <!--     topics: -->
+  <!--       &#45; /camera/aligned_depth_to_color/depth_to_rgb/output/normal -->
+  <!--       &#45; /camera/color/image_rect_color_passthrough/output -->
+  <!--       &#45; /camera/octomap_server/draw_instance_segmentation/output -->
+  <!--       &#45; /demo/output/aux_ins -->
+  <!--       &#45; /demo/output/pcd_cam_viz -->
+  <!--       &#45; /demo/output/target_mask -->
+  <!--   </rosparam> -->
+  <!-- </node> -->
+
+  <group ns="camera">
+    <group ns="color">
+      <node name="republish"
+            pkg="image_transport" type="republish"
+            args="compressed raw"
+            clear_params="true">
+        <remap from="in" to="image_rect_color" />
+        <remap from="out" to="image_rect_color" />
+      </node>
+    </group>
+    <group ns="aligned_depth_to_color">
+      <node name="republish"
+            pkg="image_transport" type="republish"
+            args="compressedDepth raw"
+            clear_params="true">
+        <remap from="in" to="image_raw" />
+        <remap from="out" to="image_raw" />
+      </node>
+    </group>
+    <node pkg="nodelet" type="nodelet" name="points_xyzrgb_aligned_depth_to_color"
+          args="standalone depth_image_proc/point_cloud_xyzrgb">
+      <remap from="rgb/image_rect_color"        to="color/image_rect_color" />
+      <remap from="rgb/camera_info"             to="color/camera_info" />
+      <remap from="depth_registered/image_rect" to="aligned_depth_to_color/image_raw" />
+      <remap from="depth_registered/points"     to="depth_registered/points" />
+    </node>
+  </group>
+
+  <include file="$(find mercury_panda)/launch/setup.launch">
+    <arg name="PROCESS" value="false" />
+  </include>
+
+</launch>
