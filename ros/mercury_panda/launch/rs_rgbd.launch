@@ -1,8 +1,9 @@
 <launch>
 
   <arg name="GUI" default="true" />
+  <arg name="PROCESS" default="true" />
 
-  <include file="$(find realsense2_camera)/launch/rs_rgbd.launch">
+  <include file="$(find realsense2_camera)/launch/rs_rgbd.launch" if="$(arg PROCESS)">
   </include>
 
   <group ns="/camera/color">
@@ -46,7 +47,7 @@
 
   <node name="marker_6dof"
         pkg="jsk_interactive_marker" type="marker_6dof"
-        clear_params="true">
+        clear_params="true" if="$(arg PROCESS)">
     <rosparam subst_value="true">
       frame_id: panda_link8  # parent
       tf_frame: camera_link  # child

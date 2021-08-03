@@ -2,21 +2,23 @@
 
   <arg name="GUI" default="true" />
   <arg name="PASSTHROUGH" default="false" />
+  <arg name="PROCESS" default="true" />
 
   <include file="$(find mercury_panda)/launch/mask_rcnn_instance_segmentation.launch">
     <arg name="GUI" value="false" />
     <arg name="PASSTHROUGH" value="true" />
+    <arg name="PROCESS" value="$(arg PROCESS)" />
   </include>
 
   <group ns="camera">
     <node name="render_voxel_grids"
           pkg="morefusion_panda_ycb_video" type="render_voxel_grids.py"
-          clear_params="true">
+          clear_params="true" if="$(arg PROCESS)">
     </node>
     <node name="octomap_server"
           pkg="morefusion_panda_ycb_video" type="octomap_server"
           clear_params="true"
-          output="screen">
+          output="screen" if="$(arg PROCESS)">
       <remap from="~render" to="render_voxel_grids/render" />
       <remap from="~input/camera_info" to="color/camera_info" />
       <remap from="~input/depth" to="aligned_depth_to_color/image_raw" />
@@ -55,7 +57,7 @@
   <node name="singleview_3d_pose_estimation"
         pkg="morefusion_panda_ycb_video" type="singleview_3d_pose_estimation.py"
         clear_params="true"
-        output="screen">
+        output="screen" if="$(arg PROCESS)">
     <remap from="~input/camera_info" to="/camera/color/camera_info" />
     <remap from="~input/rgb" to="/camera/color/image_rect_color" unless="$(arg PASSTHROUGH)" />
     <remap from="~input/rgb" to="/camera/color/image_rect_color_passthrough/output" if="$(arg PASSTHROUGH)" />
@@ -75,7 +77,7 @@
 
   <node name="object_mapping"
         pkg="morefusion_panda_ycb_video" type="object_mapping.py"
-        clear_params="true">
+        clear_params="true" if="$(arg PROCESS)">
     <remap from="~input/poses" to="singleview_3d_pose_estimation/output" />
     <remap from="~input/grids" to="/camera/octomap_server/output/grids" />
     <rosparam subst_value="true">
