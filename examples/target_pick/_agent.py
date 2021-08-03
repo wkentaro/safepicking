@@ -41,7 +41,7 @@ class DqnModel(torch.nn.Module):
         self._actions = torch.as_tensor(env.actions, dtype=torch.float)
 
     def forward(self, observation):
-        device = observation["grasp_flags"].device
+        device = observation["ee_poses"].device
 
         if self._model == "closedloop_pose_net":
             kwargs = dict(
