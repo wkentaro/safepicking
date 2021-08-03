@@ -5,14 +5,30 @@
   <include file="$(find realsense2_camera)/launch/rs_rgbd.launch">
   </include>
 
-  <group ns="/camera/color" if="$(arg GUI)">
+  <group ns="/camera/color">
+    <node name="image_rect_color_passthrough"
+          pkg="jsk_topic_tools" type="passthrough"
+          clear_params="true">
+      <remap from="~input" to="image_raw" />
+      <rosparam subst_value="true">
+        default_duration: 60
+      </rosparam>
+    </node>
     <node name="image_view"
           pkg="image_view" type="image_view"
-          clear_params="true">
+          clear_params="true" if="$(arg GUI)">
       <remap from="image" to="image_rect_color" />
     </node>
   </group>
   <group ns="/camera/aligned_depth_to_color">
+    <node name="image_raw_passthrough"
+          pkg="jsk_topic_tools" type="passthrough"
+          clear_params="true">
+      <remap from="~input" to="image_raw" />
+      <rosparam subst_value="true">
+        default_duration: 60
+      </rosparam>
+    </node>
     <node name="depth_to_rgb"
           pkg="mercury_panda" type="depth_to_rgb.py"
           clear_params="true">

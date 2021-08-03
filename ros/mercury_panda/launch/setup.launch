@@ -11,6 +11,7 @@
 
   <include file="$(find mercury_panda)/launch/morefusion.launch">
     <arg name="GUI" value="true" />
+    <arg name="PASSTHROUGH" value="true" />
   </include>
 
 </launch>

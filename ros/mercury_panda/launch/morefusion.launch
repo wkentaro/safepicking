@@ -1,9 +1,11 @@
 <launch>
 
   <arg name="GUI" default="true" />
+  <arg name="PASSTHROUGH" default="false" />
 
   <include file="$(find mercury_panda)/launch/mask_rcnn_instance_segmentation.launch">
     <arg name="GUI" value="false" />
+    <arg name="PASSTHROUGH" value="true" />
   </include>
 
   <group ns="camera">
@@ -24,7 +26,7 @@
       <rosparam subst_value="true">
         frame_id: panda_link0
         resolution: 0.01
-        ground_as_noentry: false
+        ground_as_noentry: true
       </rosparam>
     </node>
     <node name="grids_to_markers"
@@ -39,7 +41,8 @@
       <node name="draw_instance_segmentation"
             pkg="morefusion_panda_ycb_video" type="draw_instance_segmentation.py"
             clear_params="true">
-        <remap from="~input/rgb" to="/camera/color/image_rect_color_passthrough/output" />
+        <remap from="~input/rgb" to="color/image_rect_color" unless="$(arg PASSTHROUGH)" />
+        <remap from="~input/rgb" to="color/image_rect_color_passthrough/output" if="$(arg PASSTHROUGH)" />
         <remap from="~input/label_ins" to="output/label_rendered" />
         <remap from="~input/class" to="output/class" />
         <rosparam subst_value="true">
@@ -54,7 +57,8 @@
         clear_params="true"
         output="screen">
     <remap from="~input/camera_info" to="/camera/color/camera_info" />
-    <remap from="~input/rgb" to="/camera/color/image_rect_color" />
+    <remap from="~input/rgb" to="/camera/color/image_rect_color" unless="$(arg PASSTHROUGH)" />
+    <remap from="~input/rgb" to="/camera/color/image_rect_color_passthrough/output" if="$(arg PASSTHROUGH)" />
     <remap from="~input/depth" to="/camera/aligned_depth_to_color/image_raw" />
     <remap from="~input/label_ins" to="/camera/octomap_server/output/label_rendered" />
     <remap from="~input/class" to="/camera/octomap_server/output/class" />
@@ -68,25 +72,6 @@
         clear_params="true">
     <remap from="~input" to="singleview_3d_pose_estimation/output" />
   </node>
-  <node name="render_mesh_markers"
-        pkg="morefusion_panda_ycb_video" type="render_mesh_markers.py"
-        clear_params="true">
-    <remap from="~input/camera_info" to="/camera/color/camera_info" />
-    <remap from="~input/markers" to="object_poses_to_markers/output" />
-  </node>
-  <group ns="render_mesh_markers">
-    <node name="tile_image"
-          pkg="morefusion_panda_ycb_video" type="tile_image.py"
-          clear_params="true">
-      <rosparam subst_value="true">
-        input_topics:
-          - /camera/color/image_rect_color
-          - output
-        queue_size: 100
-        approximate_sync: false
-      </rosparam>
-    </node>
-  </group>
 
   <node name="object_mapping"
         pkg="morefusion_panda_ycb_video" type="object_mapping.py"
@@ -103,25 +88,6 @@
           clear_params="true">
       <remap from="~input" to="output/poses" />
     </node>
-    <node name="render_mesh_markers"
-          pkg="morefusion_panda_ycb_video" type="render_mesh_markers.py"
-          clear_params="true">
-      <remap from="~input/camera_info" to="/camera/color/camera_info" />
-      <remap from="~input/markers" to="object_poses_to_markers/output" />
-    </node>
-    <group ns="render_mesh_markers">
-      <node name="tile_image"
-            pkg="morefusion_panda_ycb_video" type="tile_image.py"
-            clear_params="true">
-        <rosparam subst_value="true">
-          input_topics:
-            - /camera/color/image_rect_color
-            - output
-          queue_size: 100
-          approximate_sync: false
-        </rosparam>
-      </node>
-    </group>
   </group>
 
   <group if="$(arg GUI)">

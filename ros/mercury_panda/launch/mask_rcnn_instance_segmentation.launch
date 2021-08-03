@@ -1,17 +1,29 @@
 <launch>
 
   <arg name="GUI" default="true" />
+  <arg name="PASSTHROUGH" default="false" />
 
   <group ns="/camera">
+    <group ns="color">
+      <node name="image_rect_color_throttle"
+            pkg="nodelet" type="nodelet"
+            args="standalone jsk_topic_tools/LightweightThrottle">
+        <remap from="~input" to="image_rect_color" unless="$(arg PASSTHROUGH)" />
+        <remap from="~input" to="image_rect_color_passthrough/output" if="$(arg PASSTHROUGH)" />
+        <rosparam subst_value="true">
+          update_rate: 1
+        </rosparam>
+      </node>
+    </group>
     <node name="mask_rcnn_instance_segmentation"
           pkg="mercury_panda" type="mask_rcnn_instance_segmentation.py"
           clear_params="true" output="screen">
-      <remap from="~input" to="color/image_rect_color" />
+      <remap from="~input" to="color/image_rect_color_throttle/output" />
     </node>
     <node name="draw_instance_segmentation"
           pkg="mercury_panda" type="draw_instance_segmentation.py"
           clear_params="true">
-      <remap from="~input/rgb" to="color/image_rect_color" />
+      <remap from="~input/rgb" to="color/image_rect_color_throttle/output" />
       <remap from="~input/label_ins" to="mask_rcnn_instance_segmentation/output/label_ins" />
       <remap from="~input/class" to="mask_rcnn_instance_segmentation/output/class" />
     </node>
