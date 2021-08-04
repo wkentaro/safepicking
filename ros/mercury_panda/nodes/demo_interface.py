@@ -508,33 +508,38 @@ class DemoInterface:
         object_poses_msg = self._object_poses_msg
         object_centroids_msg = self._object_centroids_msg
 
-        T_cam2base = self.get_transform(
-            "panda_link0",
-            object_poses_msg.header.frame_id,
-            time=object_poses_msg.header.stamp,
-        )
+        anchor = None
+        for object_pose in object_poses_msg.poses:
+            if object_pose.class_id == self.target_object.value:
+                anchor = [
+                    object_pose.pose.position.x,
+                    object_pose.pose.position.y,
+                    object_pose.pose.position.z,
+                ]  # in base
+                break
 
-        if 0:
+        if anchor is None:
             for object_pose in object_centroids_msg.poses:
                 if object_pose.class_id == self.target_object.value:
+                    T_cam2base = self.get_transform(
+                        "panda_link0",
+                        object_centroids_msg.header.frame_id,
+                        time=object_centroids_msg.header.stamp,
+                    )
+                    anchor = [
+                        object_pose.pose.position.x,
+                        object_pose.pose.position.y,
+                        object_pose.pose.position.z,
+                    ]  # in cam
+                    anchor = mercury.geometry.transform_points(
+                        [anchor], T_cam2base
+                    )[
+                        0
+                    ]  # in base
                     break
-            anchor = [
-                object_pose.pose.position.x,
-                object_pose.pose.position.y,
-                object_pose.pose.position.z,
-            ]  # in cam
-            anchor = mercury.geometry.transform_points([anchor], T_cam2base)[
-                0
-            ]  # in base
-        else:
-            for object_pose in object_poses_msg.poses:
-                if object_pose.class_id == self.target_object.value:
-                    break
-            anchor = [
-                object_pose.pose.position.x,
-                object_pose.pose.position.y,
-                object_pose.pose.position.z,
-            ]  # in base
+
+        if anchor is None:
+            raise RuntimeError
 
         # self._is_right = centroid[2] <= 0  # y
         self._is_right = True
