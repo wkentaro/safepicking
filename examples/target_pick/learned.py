@@ -22,10 +22,7 @@ def main():
     parser.add_argument("--seed", type=int, default=0, help="random seed")
     parser.add_argument("--nogui", action="store_true", help="no gui")
     parser.add_argument("--mp4", help="mp4")
-    parser.add_argument(
-        "--pose-noise", type=float, default=0.0, help="pose noise"
-    )
-    parser.add_argument("--miss", type=float, default=0.2, help="miss")
+    parser.add_argument("--noise", action="store_true", help="noise")
     args = parser.parse_args()
 
     log_dir = args.weight_dir.parent.parent
@@ -34,7 +31,7 @@ def main():
         scene_id = args.pile_file.stem
         json_file = (
             log_dir
-            / f"eval-noise_{args.pose_noise}-miss_{args.miss}/{scene_id}/{args.seed}.json"  # NOQA
+            / f"{'eval-noise' if args.noise else 'eval'}/{scene_id}/{args.seed}.json"  # NOQA
         )
         json_file.parent.makedirs_p()
         if json_file.exists():
@@ -55,12 +52,16 @@ def main():
 
     pprint.pprint(hparams)
 
+    if args.noise:
+        pose_noise = (0, 0.3)
+        miss = (0, 0.5)
+
     env = PickFromPileEnv(
         gui=not args.nogui,
         mp4=args.mp4,
         speed=0.005,
-        pose_noise=args.pose_noise,
-        miss=args.miss,
+        pose_noise=pose_noise,
+        miss=miss,
         raise_on_timeout=True,
     )
     env.eval = True

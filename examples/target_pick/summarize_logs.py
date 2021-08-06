@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import json
-import re
 
 import pandas
 import path
@@ -15,7 +14,9 @@ def main():
         if not log_dir.isdir():
             continue
 
-        for eval_dir in log_dir.glob("eval-*"):
+        for eval_dir in log_dir.glob("eval*"):
+            if "noise_" in eval_dir or "miss_" in eval_dir:
+                continue
             for json_file in eval_dir.walk("*.json"):
                 with open(json_file) as f:
                     try:
@@ -43,6 +44,7 @@ def main():
     pandas.set_option("display.max_colwidth", 400)
     pandas.set_option("display.max_columns", 500)
     pandas.set_option("display.width", 1000)
+    pandas.set_option("display.float_format", "{:.3f}".format)
 
     df = pandas.DataFrame(data)
     df2 = df.sort_values(["scene_id", "eval_dir"]).set_index(
@@ -51,7 +53,7 @@ def main():
     df3 = df2.count(level=0)
     valid_scene_ids = df3[
         df3["target_object_visibility"] == df["eval_dir"].unique().size
-    ].index.values
+    ].index.values[:600]
 
     print(f"Support: {len(valid_scene_ids)}")
     print()
@@ -64,51 +66,8 @@ def main():
     )
 
     df = df.reset_index()
-
-    data = []
-    for _, row in df.iterrows():
-        row["log_dir"] = row["eval_dir"].split("/")[0]
-        match = re.search(r"noise_(\d\.\d)", row["eval_dir"])
-        if match:
-            noise = float(match.groups()[0])
-        else:
-            noise = 0
-        match = re.search(r"miss_(\d\.\d)", row["eval_dir"])
-        if match:
-            miss = float(match.groups()[0])
-        else:
-            miss = 0
-        row["noise"] = noise
-        row["miss"] = miss
-        data.append(row)
-
-    df = pandas.DataFrame(data)
-
-    methods = [
-        "Naive",
-        "RRTConnect",
-        "Heuristic",
-        "20210709_005731-fusion_net-noise",
-        "20210706_194543-conv_net",
-        "20210709_005731-openloop_pose_net-noise",
-    ]
-    data = []
-    for method in methods:
-        row = df[(df["log_dir"] == method) & (df.noise + df.miss == 0)].mean()
-        row = row.drop(["target_object_visibility", "noise", "miss"])
-        row["method"] = method
-        row["noise"] = False
-        data.append(dict(row))
-
-        if method in ["Naive", "Heuristic", "20210706_194543-conv_net"]:
-            continue
-        row = df[(df["log_dir"] == method) & (df.noise + df.miss != 0)].mean()
-        row = row.drop(["target_object_visibility", "noise", "miss"])
-        row["method"] = method
-        row["noise"] = True
-        data.append(dict(row))
-    df = pandas.DataFrame(data)
-    df = df.set_index(["method", "noise"])
+    df = df.drop(columns=["target_object_visibility"])
+    df = df.sort_values("eval_dir")
     print(df)
 
 
