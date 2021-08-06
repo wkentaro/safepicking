@@ -55,6 +55,9 @@ def main():
     if args.noise:
         pose_noise = (0, 0.3)
         miss = (0, 0.5)
+    else:
+        pose_noise = 0
+        miss = 0
 
     env = PickFromPileEnv(
         gui=not args.nogui,
