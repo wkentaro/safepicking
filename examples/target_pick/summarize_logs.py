@@ -1,23 +1,13 @@
 #!/usr/bin/env python
 
-import argparse
 import json
+import re
 
-import numpy as np
 import pandas
 import path
-import sklearn.metrics
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    parser.add_argument(
-        "--threshold", type=float, default=0.2, help="threshold"
-    )
-    args = parser.parse_args()
-
     logs_dir = path.Path("logs")
 
     data = []
@@ -55,7 +45,6 @@ def main():
     pandas.set_option("display.width", 1000)
 
     df = pandas.DataFrame(data)
-    df = df[df["target_object_visibility"] > args.threshold]
     df2 = df.sort_values(["scene_id", "eval_dir"]).set_index(
         ["scene_id", "eval_dir"]
     )
@@ -68,30 +57,59 @@ def main():
     print()
 
     df = df[df["scene_id"].isin(valid_scene_ids)]
-    df2 = df.sort_values(["scene_id", "eval_dir"]).set_index(
-        ["scene_id", "eval_dir"]
+    df = (
+        df.sort_values(["scene_id", "eval_dir"])
+        .set_index(["scene_id", "eval_dir"])
+        .mean(level=1)
     )
-    # print("# Mean over all")
-    # print(df2.mean(level=1).sort_values("sum_of_translations"))
-    # print()
+
+    df = df.reset_index()
 
     data = []
-    for eval_dir in df["eval_dir"].unique():
-        df_eval_dir = df[df["eval_dir"] == eval_dir]
-        x = np.linspace(
-            df["sum_of_translations"].min(), df["sum_of_translations"].max()
-        )
-        y = [(df_eval_dir["sum_of_translations"] < xi).mean() for xi in x]
-        auc = sklearn.metrics.auc(x, y) / (x.max() - x.min())
-        data.append(
-            {
-                "eval_dir": eval_dir,
-                "auc": auc,
-            }
-        )
+    for _, row in df.iterrows():
+        row["log_dir"] = row["eval_dir"].split("/")[0]
+        match = re.search(r"noise_(\d\.\d)", row["eval_dir"])
+        if match:
+            noise = float(match.groups()[0])
+        else:
+            noise = 0
+        match = re.search(r"miss_(\d\.\d)", row["eval_dir"])
+        if match:
+            miss = float(match.groups()[0])
+        else:
+            miss = 0
+        row["noise"] = noise
+        row["miss"] = miss
+        data.append(row)
+
     df = pandas.DataFrame(data)
-    df = df.set_index("eval_dir")
-    print(df.sort_values("auc").iloc[::-1])
+
+    methods = [
+        "Naive",
+        "RRTConnect",
+        "Heuristic",
+        "20210709_005731-fusion_net-noise",
+        "20210706_194543-conv_net",
+        "20210709_005731-openloop_pose_net-noise",
+    ]
+    data = []
+    for method in methods:
+        row = df[(df["log_dir"] == method) & (df.noise + df.miss == 0)].mean()
+        row = row.drop(["target_object_visibility", "noise", "miss"])
+        row["method"] = method
+        row["noise"] = False
+        data.append(dict(row))
+
+        if method in ["Naive", "Heuristic", "20210706_194543-conv_net"]:
+            continue
+        row = df[(df["log_dir"] == method) & (df.noise + df.miss != 0)].mean()
+        row = row.drop(["target_object_visibility", "noise", "miss"])
+        row["method"] = method
+        row["noise"] = True
+        data.append(dict(row))
+    df = pandas.DataFrame(data)
+    df = df.set_index(["method", "noise"])
+    print(df)
 
 
 if __name__ == "__main__":
