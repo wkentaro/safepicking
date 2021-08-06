@@ -2,6 +2,7 @@
 
 import argparse
 import collections
+import itertools
 import json
 import time
 
@@ -27,7 +28,7 @@ def main():
     parser.add_argument("pile_file", type=path.Path, help="pile file")
     parser.add_argument(
         "--planner",
-        choices=["RRTConnect", "Naive"],
+        choices=["RRTConnect", "Heuristic", "Naive"],
         required=True,
         help="planner",
     )
@@ -37,6 +38,7 @@ def main():
     parser.add_argument(
         "--pose-noise", type=float, default=0.0, help="pose noise"
     )
+    parser.add_argument("--miss", type=float, default=0.2, help="miss")
     args = parser.parse_args()
 
     log_dir = here / f"logs/{args.planner}"
@@ -45,7 +47,7 @@ def main():
         scene_id = args.pile_file.stem
         json_file = (
             log_dir
-            / f"eval-noise_{args.pose_noise}/{scene_id}/{args.seed}.json"
+            / f"eval-noise_{args.pose_noise}-miss_{args.miss}/{scene_id}/{args.seed}.json"  # NOQA
         )
         if json_file.exists():
             logger.info(f"Result file already exists: {json_file}")
@@ -55,6 +57,7 @@ def main():
         gui=not args.nogui,
         mp4=args.mp4,
         pose_noise=args.pose_noise,
+        miss=args.miss,
     )
     env.eval = True
     env.reset(
@@ -71,13 +74,27 @@ def main():
 
     with pp.LockRenderer(), pp.WorldSaver():
         for object_id, object_pose in zip(object_ids, env.object_state[2]):
-            pp.set_pose(object_id, (object_pose[:3], object_pose[3:]))
-        steps = ri.move_to_homej(
-            bg_object_ids=[plane],
-            object_ids=object_ids,
-            speed=0.005,
-            timeout=20,
-        )
+            if (object_pose == 0).all():
+                pp.set_pose(object_id, ([1, 1, 1], [0, 0, 0, 1]))
+            else:
+                pp.set_pose(object_id, (object_pose[:3], object_pose[3:]))
+        if ri.planner == "Heuristic":
+            c = mercury.geometry.Coordinate(*ri.get_pose("tipLink"))
+            steps = []
+            for _ in range(5):
+                c.translate([0, 0, 0.05], wrt="world")
+                j = ri.solve_ik(c.pose)
+                if j is not None:
+                    steps.append(ri.movej(j, speed=0.005))
+            steps.append(ri.movej(ri.homej, speed=0.005))
+            steps = itertools.chain(*steps)
+        else:
+            steps = ri.move_to_homej(
+                bg_object_ids=[plane],
+                object_ids=object_ids,
+                speed=0.005,
+                timeout=20,
+            )
 
     poses = {}
     for object_id in object_ids:
