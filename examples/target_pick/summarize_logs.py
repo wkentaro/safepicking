@@ -59,16 +59,22 @@ def main():
     print()
 
     df = df[df["scene_id"].isin(valid_scene_ids)]
-    df = (
-        df.sort_values(["scene_id", "eval_dir"])
-        .set_index(["scene_id", "eval_dir"])
-        .mean(level=1)
-    )
 
-    df = df.reset_index()
-    df = df.drop(columns=["target_object_visibility"])
-    df = df.sort_values("eval_dir")
-    print(df)
+    data = []
+    for scene_id in valid_scene_ids:
+        a = df[
+            (df["scene_id"] == scene_id)
+            & (df["eval_dir"] == "20210706_194543-conv_net/eval")
+        ]["sum_of_translations"].item()
+        b = df[
+            (df["scene_id"] == scene_id)
+            & (df["eval_dir"] == "20210709_005731-fusion_net-noise/eval")
+        ]["sum_of_translations"].item()
+        data.append(dict(diff=a - b, scene_id=scene_id))
+    df2 = pandas.DataFrame(data).sort_values("diff")
+    import IPython
+
+    IPython.embed()  # NOQA
 
 
 if __name__ == "__main__":
