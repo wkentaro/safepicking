@@ -22,39 +22,38 @@
     <link name="${ns}_suction_gripper">
       <visual>
         <geometry>
-          <mesh filename="package://mercury_panda/robots/meshes/visual/suction_mount.stl"/>
+          <mesh filename="package://mercury_panda/robots/meshes/visual/suction_mount.obj"/>
         </geometry>
         <material name="black"/>
       </visual>
       <collision>
         <geometry>
-          <box size="0.168 0.137 0.047"/>
+          <mesh filename="package://mercury_panda/robots/meshes/collision/suction_mount.obj"/>
         </geometry>
-        <origin xyz="0.0155 0 -0.005"/>
       </collision>
     </link>
 
-    <link name="${ns}_suction_cup">
+    <link name="tipLink">
       <visual>
         <geometry>
-          <mesh filename="package://mercury_panda/robots/meshes/visual/suction_cup.stl"/>
+          <cylinder length="0.11" radius="0.02"/>
         </geometry>
+        <origin xyz="0 0 -0.055"/>
         <material name="green"/>
       </visual>
       <collision>
         <geometry>
-          <box size="0.0502 0.0502 0.0671"/>
+          <cylinder length="0.11" radius="0.02"/>
         </geometry>
-        <origin xyz="0 0 -0.0314"/>
+        <origin xyz="0 0 -0.055"/>
       </collision>
     </link>
 
     <joint name="${ns}_suction_mount_to_cup_joint" type="fixed">
       <parent link="${ns}_suction_gripper"/>
-      <child link="${ns}_suction_cup"/>
-      <origin xyz="0.072 0 -0.069494" rpy="${pi} 0 0"/>
+      <child link="tipLink"/>
+      <origin xyz="0.072 0 -0.09" rpy="${pi} 0 0"/>
     </joint>
-
 
   </xacro:macro>
 </robot>

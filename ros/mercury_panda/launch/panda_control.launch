@@ -1,6 +1,6 @@
 <launch>
 
-  <param name="robot_description" command="$(find xacro)/xacro --inorder '$(find mercury_panda)/robots/panda.urdf.xacro'" />
+  <param name="robot_description" command="$(find xacro)/xacro --inorder '$(find mercury_panda)/robots/panda_reorient.urdf.xacro'" />
 
   <!-- controllers {{ -->
 
