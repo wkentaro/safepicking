@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="suction_gripper">
+
+  <material name="black">
+    <color rgba="0.2 0.2 0.2 1"/>
+  </material>
+
+  <material name="green">
+    <color rgba="0.1 0.9 0.1 1"/>
+  </material>
+
+  <xacro:macro name="suction_gripper" params="connected_to:='' ns:='' rpy:='0 0 0' xyz:='0 0 0' ">
+
+    <xacro:unless value="${connected_to == ''}">
+      <joint name="${ns}_suction_gripper_joint" type="fixed">
+        <parent link="${connected_to}"/>
+        <child link="${ns}_suction_gripper"/>
+        <origin xyz="${xyz}" rpy="${rpy}"/>
+      </joint>
+    </xacro:unless>
+
+    <link name="${ns}_suction_gripper">
+      <visual>
+        <geometry>
+          <mesh filename="panda_drl/visual/suction_mount.obj"/>
+        </geometry>
+        <material name="black"/>
+      </visual>
+      <collision>
+        <geometry>
+          <mesh filename="panda_drl/collision/suction_mount.obj"/>
+        </geometry>
+      </collision>
+    </link>
+
+    <link name="tipLink">
+      <visual>
+        <geometry>
+          <cylinder length="0.11" radius="0.02"/>
+        </geometry>
+        <origin xyz="0 0 -0.055"/>
+        <material name="green"/>
+      </visual>
+      <collision>
+        <geometry>
+          <cylinder length="0.11" radius="0.02"/>
+        </geometry>
+        <origin xyz="0 0 -0.055"/>
+      </collision>
+    </link>
+
+    <joint name="${ns}_suction_mount_to_cup_joint" type="fixed">
+      <parent link="${ns}_suction_gripper"/>
+      <child link="tipLink"/>
+      <origin xyz="0.072 0 -0.09" rpy="${pi} 0 0"/>
+    </joint>
+
+  </xacro:macro>
+</robot>

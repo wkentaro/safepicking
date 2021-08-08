@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="panda">
+
+  <!-- arm {{ -->
+
+  <xacro:include filename="panda_arm.urdf"/>
+
+  <!-- }} arm -->
+
+  <!-- gripper {{ -->
+
+  <xacro:include filename="panda_drl/suction_gripper.xacro"/>
+  <xacro:suction_gripper ns="panda" rpy="${pi} 0 ${-pi/4}" xyz="0 0 0.0065" connected_to="panda_link8"/>
+
+  <!-- }} gripper -->
+
+</robot>
