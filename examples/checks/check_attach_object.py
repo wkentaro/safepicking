@@ -3,14 +3,14 @@
 import time
 
 import pybullet as p
-import pybullet_planning
+import pybullet_planning as pp
 
 import mercury
 
 
 def main():
-    pybullet_planning.connect(use_gui=True)
-    pybullet_planning.add_data_path()
+    pp.connect(use_gui=True)
+    pp.add_data_path()
 
     p.resetDebugVisualizerCamera(
         cameraDistance=2,
@@ -24,10 +24,11 @@ def main():
 
     # -------------------------------------------------------------------------
 
-    cube = pybullet_planning.create_box(
-        0.05, 0.05, 0.05, mass=0.1, color=(0, 1, 0, 1)
-    )
-    p.resetBasePositionAndOrientation(cube, (0, 0, 0.7), (0, 0, 0, 1))
+    cube = pp.create_box(0.05, 0.05, 0.05, mass=0.1, color=(0, 1, 0, 1))
+    ee_to_world = ri.get_pose("tipLink")
+    obj_to_ee = ([0, 0, 0.025], [0, 0, 0, 1])
+    obj_to_world = pp.multiply(ee_to_world, obj_to_ee)
+    p.resetBasePositionAndOrientation(cube, *obj_to_world)
     p.createConstraint(
         parentBodyUniqueId=ri.robot,
         parentLinkIndex=ri.ee,
@@ -35,16 +36,14 @@ def main():
         childLinkIndex=-1,
         jointType=p.JOINT_FIXED,
         jointAxis=(0, 0, 0),
-        parentFramePosition=(0, 0, 0.04),
-        parentFrameOrientation=(0, 0, 0, 1),
+        parentFramePosition=obj_to_ee[0],
+        parentFrameOrientation=obj_to_ee[1],
         childFramePosition=(0, 0, 0),
     )
 
     # -------------------------------------------------------------------------
 
-    coord = mercury.geometry.Coordinate(
-        *pybullet_planning.get_link_pose(ri.robot, ri.ee)
-    )
+    coord = mercury.geometry.Coordinate(*pp.get_link_pose(ri.robot, ri.ee))
     coord.translate([0.5, 0, -0.5], wrt="world")
 
     robot_model = ri.get_skrobot()
@@ -59,7 +58,7 @@ def main():
             p.stepSimulation()
             time.sleep(1 / 240)
 
-    pybullet_planning.disconnect()
+    pp.disconnect()
 
 
 if __name__ == "__main__":
