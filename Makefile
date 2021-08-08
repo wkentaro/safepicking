@@ -12,8 +12,11 @@ install_anaconda3:
 install_ompl:
 	@Makefile.scripts/install_ompl.sh
 
+install_vhacd:
+	@Makefile.scripts/install_vhacd.sh
+
 install_yarr:
 	@Makefile.scripts/install_yarr.sh
 
-install: check_src install_anaconda3 install_ompl install_yarr
+install: check_src install_anaconda3 install_ompl install_vhacd install_yarr
 	@Makefile.scripts/install.sh
