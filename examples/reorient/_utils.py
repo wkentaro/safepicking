@@ -128,7 +128,7 @@ def init_place_scene(class_id, random_state, face="front"):
     )
     place_aabb_offset = np.array([0, 0, 1]) * place_aabb_extents
     place_aabb += place_aabb_offset
-    pp.draw_aabb(place_aabb, width=5, color=(1, 0, 0, 1), parent=shelf)
+    # pp.draw_aabb(place_aabb, width=5, color=(1, 0, 0, 1), parent=shelf)
 
     visual_file = mercury.datasets.ycb.get_visual_file(class_id=class_id)
 

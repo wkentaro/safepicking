@@ -30,7 +30,7 @@ class Env:
     PILES_DIR = home / "data/mercury/pile_generation"
     PILE_TRAIN_IDS = np.arange(0, 1000)
     PILE_EVAL_IDS = np.arange(1000, 1200)
-    PILE_POSITION = np.array([0.5, 0, 0])
+    PILE_POSITION = np.array([0.5, 0, 0.07])
 
     CAMERA_POSITION = np.array([PILE_POSITION[0], PILE_POSITION[1], 0.7])
 
@@ -98,9 +98,26 @@ class Env:
             cameraTargetPosition=(0, 0, 0),
         )
         with pp.LockRenderer():
-            self.plane = pp.load_pybullet("plane.urdf")
-            pp.set_texture(self.plane)
-            pp.set_color(self.plane, (100 / 256, 100 / 256, 100 / 256, 1))
+            # Extracted from panda_table in URDF
+            plane_aabb = np.array(
+                [
+                    [0.18, -0.65, 0.0125],
+                    [1.18, 0.65, 0.0625],
+                ],
+                dtype=np.float32,
+            )
+            plane_pose = (
+                (0.6800000071525574, 0.0, 0.03750000149011612),
+                (0.0, 0.0, 0.0, 1.0),
+            )
+            extents = plane_aabb[1] - plane_aabb[0]
+            self.plane = pp.create_box(*extents, color=(1, 1, 1, 1))
+            pp.set_pose(self.plane, plane_pose)
+
+            self.ground = pp.load_pybullet("plane.urdf")
+            pp.set_texture(self.ground)
+            pp.set_color(self.ground, (0.4, 0.4, 0.4, 1))
+            pp.set_pose(self.ground, ([0, 0, -1], [0, 0, 0, 1]))
 
         self.ri = mercury.pybullet.PandaRobotInterface(
             suction_max_force=None,
@@ -117,32 +134,14 @@ class Env:
             width=self.IMAGE_WIDTH,
         )
 
-        if 0:
-            sphere = pp.create_sphere(
-                0.8, color=(1, 0, 0, 0.2), collision=False
-            )
-            pp.set_pose(sphere, ([0, 0, 0.1], [0, 0, 0, 1]))
-            sphere = pp.create_sphere(
-                0.8, color=(1, 0, 0, 0.2), collision=False
-            )
-            pp.set_pose(sphere, ([0, 0.3, 0.3], [0, 0, 0, 1]))
-
         with open(pile_file, "rb") as f:
             data = pickle.load(f)
 
         PILE_AABB = (
-            self.PILE_POSITION + [-0.25, -0.25, -0.05],
-            self.PILE_POSITION + [0.25, 0.25, 0.5],
+            self.PILE_POSITION + [-0.3, -0.3, -0.05],
+            self.PILE_POSITION + [0.3, 0.3, 0.50],
         )
         # pp.draw_aabb(PILE_AABB)
-        box = pp.create_box(
-            w=PILE_AABB[1][0] - PILE_AABB[0][0],
-            l=PILE_AABB[1][1] - PILE_AABB[0][1],
-            h=0.01,
-            color=(0, 100 / 256, 0, 1),
-            collision=False,
-        )
-        pp.set_pose(box, (self.PILE_POSITION, [0, 0, 0, 1]))
 
         num_instances = len(data["class_id"])
         object_ids = []
@@ -176,13 +175,16 @@ class Env:
                     quaternion=quaternion,
                 )
             pp.set_dynamics(object_id, lateralFriction=0.7)
-            object_ids.append(object_id)
 
             contained = pp.aabb_contains_aabb(
                 pp.get_aabb(object_id), PILE_AABB
             )
+            if not contained:
+                pp.remove_body(object_id)
+                continue
 
-            if class_id in self._class_ids and visibility > 0.95 and contained:
+            object_ids.append(object_id)
+            if class_id in self._class_ids and visibility > 0.95:
                 fg_object_ids.append(object_id)
 
         if not fg_object_ids:

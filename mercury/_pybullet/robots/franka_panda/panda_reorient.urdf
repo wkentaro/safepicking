@@ -272,26 +272,4 @@
     <child link="tipLink"/>
     <origin rpy="3.14159265359 0 0" xyz="0.072 0 -0.09"/>
   </joint>
-  <material name="white">
-    <color rgba="1.0 1.0 1.0 1.0"/>
-  </material>
-  <joint name="panda_table_joint" type="fixed">
-    <parent link="panda_link0"/>
-    <child link="panda_table"/>
-    <origin rpy="0 0 0" xyz="0.68 0 0.0375"/>
-  </joint>
-  <link name="panda_table">
-    <visual>
-      <geometry>
-        <box size="1.0 1.3 0.05"/>
-      </geometry>
-      <material name="white"/>
-    </visual>
-    <collision>
-      <geometry>
-        <box size="1.0 1.3 0.05"/>
-      </geometry>
-    </collision>
-  </link>
 </robot>
-

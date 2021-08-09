@@ -18,7 +18,7 @@ home = path.Path("~").expanduser()
 
 
 def get_reorient_poses(env):
-    bounds = ((0.1, -0.55, 0.01), (0.6, -0.25, 0.01))
+    bounds = ((0.25, -0.55, 0.071), (0.75, -0.25, 0.071))
     pp.draw_aabb(bounds)
 
     XY = np.array(
@@ -47,16 +47,15 @@ def get_reorient_poses(env):
         XY_valid = []
         for x, y in XY:
             box = pp.create_box(w=max_extent, l=max_extent, h=0.5)
-            with pp.LockRenderer():
-                pp.set_pose(box, ((x, y, 0), (0, 0, 0, 1)))
-            obstacles = [env.ri.robot] + env.object_ids
+            pp.set_pose(box, ((x, y, 0), (0, 0, 0, 1)))
+            obstacles = env.object_ids[:]
             obstacles.remove(env.fg_object_id)
             if mercury.pybullet.is_colliding(box, ids2=obstacles):
                 pp.remove_body(box)
                 continue
             pp.remove_body(box)
 
-            pp.draw_point((x, y, 0.01), color=(0, 1, 0, 1))
+            pp.draw_point((x, y, 0.071), color=(0, 1, 0, 1))
             XY_valid.append((x, y))
     XY = XY_valid
 
@@ -72,7 +71,7 @@ def get_reorient_poses(env):
             c.rotate([a, b, g], wrt="world")
             pp.set_pose(env.fg_object_id, c.pose)
 
-            c.position[2] = -pp.get_aabb(env.fg_object_id)[0][2]
+            c.position[2] = -pp.get_aabb(env.fg_object_id)[0][2] + 0.07
             pp.set_pose(env.fg_object_id, c.pose)
 
             points = pp.body_collision_info(
@@ -80,7 +79,7 @@ def get_reorient_poses(env):
             )
             distance_to_plane = min(point[8] for point in points)
             assert distance_to_plane > 0
-            c.position[2] -= distance_to_plane
+            c.position[2] += -distance_to_plane
             pp.set_pose(env.fg_object_id, c.pose)
 
             reorient_poses.append(np.hstack(c.pose))
@@ -102,7 +101,7 @@ def main():
     with pp.LockRenderer():
         env.reset()
         for obj in mercury.pybullet.get_body_unique_ids():
-            if obj in [env.plane, env.ri.robot] + env.object_ids:
+            if obj in [env.plane, env.ground, env.ri.robot] + env.object_ids:
                 continue
             pp.remove_body(obj)
 

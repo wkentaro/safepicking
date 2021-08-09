@@ -6,7 +6,7 @@
   <xacro:include filename="$(find mercury_panda)/robots/include/suction_gripper.xacro"/>
   <xacro:suction_gripper ns="panda" rpy="${pi} 0 ${-pi/4}" xyz="0 0 0.0065" connected_to="panda_link8"/>
 
-  <xacro:include filename="$(find mercury_panda)/robots/include/table.xacro"/>
-  <xacro:table ns="panda" rpy="0 0 0" xyz="0.68 0 0.0375" connected_to="panda_link0"/>
+  <!-- <xacro:include filename="$(find mercury_panda)/robots/include/table.xacro"/> -->
+  <!-- <xacro:table ns="panda" rpy="0 0 0" xyz="0.68 0 0.0375" connected_to="panda_link0"/> -->
 
 </robot>
