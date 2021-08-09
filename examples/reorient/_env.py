@@ -52,6 +52,7 @@ class Env:
         step_callback=None,
         mp4=None,
         face="front",
+        real=False,
     ):
         super().__init__()
 
@@ -61,6 +62,7 @@ class Env:
         self._step_callback = step_callback
         self._mp4 = mp4
         self._face = face
+        self._real = real
 
         self.eval = False
         self.random_state = np.random.RandomState()
@@ -77,15 +79,6 @@ class Env:
         return [self.plane, self._shelf]
 
     def reset(self, pile_file=None):
-        raise_on_error = pile_file is not None
-
-        if pile_file is None:
-            if self.eval:
-                i = self.random_state.choice(self.PILE_EVAL_IDS)
-            else:
-                i = self.random_state.choice(self.PILE_TRAIN_IDS)
-            pile_file = self.PILES_DIR / f"{i:08d}.pkl"
-
         if not pp.is_connected():
             self.launch()
 
@@ -134,89 +127,104 @@ class Env:
             width=self.IMAGE_WIDTH,
         )
 
-        with open(pile_file, "rb") as f:
-            data = pickle.load(f)
+        if self._real:
+            self.object_ids = None
+            self.fg_object_id = None
+        else:
+            raise_on_error = pile_file is not None
 
-        PILE_AABB = (
-            self.PILE_POSITION + [-0.3, -0.3, -0.05],
-            self.PILE_POSITION + [0.3, 0.3, 0.50],
-        )
-        # pp.draw_aabb(PILE_AABB)
+            if pile_file is None:
+                if self.eval:
+                    i = self.random_state.choice(self.PILE_EVAL_IDS)
+                else:
+                    i = self.random_state.choice(self.PILE_TRAIN_IDS)
+                pile_file = self.PILES_DIR / f"{i:08d}.pkl"
 
-        num_instances = len(data["class_id"])
-        object_ids = []
-        fg_object_ids = []
-        for i in range(num_instances):
-            class_id = data["class_id"][i]
-            position = data["position"][i]
-            quaternion = data["quaternion"][i]
+            with open(pile_file, "rb") as f:
+                data = pickle.load(f)
 
-            position += self.PILE_POSITION
-
-            visual_file = mercury.datasets.ycb.get_visual_file(
-                class_id=class_id
+            PILE_AABB = (
+                self.PILE_POSITION + [-0.25, -0.25, -0.05],
+                self.PILE_POSITION + [0.25, 0.25, 0.50],
             )
-            collision_file = mercury.pybullet.get_collision_file(visual_file)
+            # pp.draw_aabb(PILE_AABB)
 
-            class_name = mercury.datasets.ycb.class_names[class_id]
-            visibility = data["visibility"][i]
-            logger.info(
-                f"class_id={class_id:02d}, "
-                f"class_name={class_name}, "
-                f"visibility={visibility:.1%}"
-            )
+            num_instances = len(data["class_id"])
+            object_ids = []
+            fg_object_ids = []
+            for i in range(num_instances):
+                class_id = data["class_id"][i]
+                position = data["position"][i]
+                quaternion = data["quaternion"][i]
 
-            with pp.LockRenderer():
-                object_id = mercury.pybullet.create_mesh_body(
-                    visual_file=visual_file,
-                    collision_file=collision_file,
-                    mass=mercury.datasets.ycb.masses[class_id],
-                    position=position,
-                    quaternion=quaternion,
+                position += self.PILE_POSITION
+
+                visual_file = mercury.datasets.ycb.get_visual_file(
+                    class_id=class_id
                 )
-            pp.set_dynamics(object_id, lateralFriction=0.7)
+                collision_file = mercury.pybullet.get_collision_file(
+                    visual_file
+                )
 
-            contained = pp.aabb_contains_aabb(
-                pp.get_aabb(object_id), PILE_AABB
+                class_name = mercury.datasets.ycb.class_names[class_id]
+                visibility = data["visibility"][i]
+                logger.info(
+                    f"class_id={class_id:02d}, "
+                    f"class_name={class_name}, "
+                    f"visibility={visibility:.1%}"
+                )
+
+                with pp.LockRenderer():
+                    object_id = mercury.pybullet.create_mesh_body(
+                        visual_file=visual_file,
+                        collision_file=collision_file,
+                        mass=mercury.datasets.ycb.masses[class_id],
+                        position=position,
+                        quaternion=quaternion,
+                    )
+                pp.set_dynamics(object_id, lateralFriction=0.7)
+
+                contained = pp.aabb_contains_aabb(
+                    pp.get_aabb(object_id), PILE_AABB
+                )
+                if not contained:
+                    pp.remove_body(object_id)
+                    continue
+
+                object_ids.append(object_id)
+                if class_id in self._class_ids and visibility > 0.95:
+                    fg_object_ids.append(object_id)
+
+            if not fg_object_ids:
+                if raise_on_error:
+                    raise RuntimeError
+                else:
+                    return self.reset()
+
+            self.object_ids = object_ids
+            self.fg_object_id = self.random_state.choice(fg_object_ids)
+
+            pp.draw_aabb(
+                pp.get_aabb(self.fg_object_id),
+                color=(1, 0, 0),
+                width=2,
             )
-            if not contained:
-                pp.remove_body(object_id)
-                continue
 
-            object_ids.append(object_id)
-            if class_id in self._class_ids and visibility > 0.95:
-                fg_object_ids.append(object_id)
+            self._shelf, self._place_pose = _utils.init_place_scene(
+                class_id=_utils.get_class_id(self.fg_object_id),
+                random_state=copy.deepcopy(self.random_state),
+                face=self._face,
+            )
 
-        if not fg_object_ids:
-            if raise_on_error:
-                raise RuntimeError
-            else:
-                return self.reset()
+            for _ in range(int(1 / pp.get_time_step())):
+                p.stepSimulation()
+                if self._step_callback:
+                    self._step_callback()
+                if self._gui:
+                    time.sleep(pp.get_time_step())
 
-        self.object_ids = object_ids
-        self.fg_object_id = self.random_state.choice(fg_object_ids)
-
-        pp.draw_aabb(
-            pp.get_aabb(self.fg_object_id),
-            color=(1, 0, 0),
-            width=2,
-        )
-
-        self._shelf, self._place_pose = _utils.init_place_scene(
-            class_id=_utils.get_class_id(self.fg_object_id),
-            random_state=copy.deepcopy(self.random_state),
-            face=self._face,
-        )
-
-        for _ in range(int(1 / pp.get_time_step())):
-            p.stepSimulation()
-            if self._step_callback:
-                self._step_callback()
-            if self._gui:
-                time.sleep(pp.get_time_step())
-
-        self.setj_to_camera_pose()
-        self.update_obs()
+            self.setj_to_camera_pose()
+            self.update_obs()
 
     def setj_to_camera_pose(self):
         self.ri.setj(self.ri.homej)
