@@ -51,6 +51,7 @@ class Env:
         mp4=None,
         face="front",
         real=False,
+        robot_model="franka_panda/panda_suction",
     ):
         super().__init__()
 
@@ -61,6 +62,7 @@ class Env:
         self._mp4 = mp4
         self._face = face
         self._real = real
+        self._robot_model = robot_model
 
         self.eval = False
         self.random_state = np.random.RandomState()
@@ -115,6 +117,7 @@ class Env:
             suction_surface_threshold=np.inf,
             suction_surface_alignment=False,
             planner="RRTConnect",
+            robot_model=self._robot_model,
         )
         c_cam_to_ee = mercury.geometry.Coordinate()
         c_cam_to_ee.translate([0, -0.1, -0.1])

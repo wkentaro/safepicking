@@ -197,7 +197,9 @@ class ReorientDemoInterface:
 
         self.ri = skrobot.interfaces.PandaROSRobotInterface(robot=Panda())
 
-        self.env = Env(class_ids=None, real=True)
+        self.env = Env(
+            class_ids=None, real=True, robot_model="franka_panda/panda_drl"
+        )
         self.env.reset()
 
         self.real2robot()

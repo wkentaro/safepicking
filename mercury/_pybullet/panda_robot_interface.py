@@ -27,10 +27,11 @@ class PandaRobotInterface:
         suction_surface_threshold=np.deg2rad(10),
         suction_surface_alignment=True,
         planner="RRTConnect",
+        robot_model="franka_panda/panda_suction",
     ):
         self.pose = pose
 
-        urdf_file = here / "robots/franka_panda/panda_drl.urdf"
+        urdf_file = here / f"robots/{robot_model}.urdf"
         self.robot_model = skrobot.models.urdf.RobotModelFromURDF(
             urdf_file=urdf_file
         )
