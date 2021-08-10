@@ -86,18 +86,6 @@ class ReorientDemoInterface:
     # core
     # -------------------------------------------------------------------------
 
-    joint_positions = dict(
-        reset=[
-            -0.061357464641332626,
-            -1.0520118474960327,
-            -0.03373617306351662,
-            -1.7973287105560303,
-            -0.009020943194627762,
-            0.7718567252159119,
-            0.8123827576637268,
-        ],
-    )
-
     def get_transform(self, target_frame, source_frame, time=rospy.Time(0)):
         """Get transform from TF.
 
@@ -295,7 +283,7 @@ class ReorientDemoInterface:
         self.stop_passthrough()
 
     def go_to_reset_pose(self):
-        avs = self.get_cartesian_path(av=self.joint_positions["reset"])
+        avs = self.get_cartesian_path(av=self.env.ri.homej)
         self.send_avs(avs, time_scale=3)
 
     def go_to_overlook_pose(self, xy=None, time_scale=5):
