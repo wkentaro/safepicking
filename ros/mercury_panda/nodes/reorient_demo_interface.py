@@ -3,8 +3,8 @@
 import enum
 import sys
 import tempfile
+import time
 
-import IPython
 import numpy as np
 import pybullet_planning as pp
 import skrobot
@@ -16,7 +16,6 @@ from actionlib_msgs.msg import GoalStatus
 import cv_bridge
 from franka_control.msg import ErrorRecoveryAction
 from franka_control.msg import ErrorRecoveryGoal
-from geometry_msgs.msg import Pose
 import message_filters
 import rospy
 from sensor_msgs.msg import CameraInfo
@@ -27,10 +26,12 @@ from std_srvs.srv import SetBoolRequest
 import tf
 
 from mercury_panda.msg import ObjectClassArray
+from morefusion_panda_ycb_video.msg import ObjectPoseArray
 
 sys.path.insert(0, "../../../examples/reorient")
 
 from _env import Env  # NOQA
+import _reorient  # NOQA
 
 
 class Panda(skrobot.models.Panda):
@@ -58,16 +59,19 @@ def skrobot_coords_from_matrix(matrix):
     )
 
 
-def ros_pose_msg_from_coord(coord):
-    pose_msg = Pose()
-    pose_msg.position.x = coord.position[0]
-    pose_msg.position.y = coord.position[1]
-    pose_msg.position.z = coord.position[2]
-    pose_msg.orientation.x = coord.quaternion[0]
-    pose_msg.orientation.y = coord.quaternion[1]
-    pose_msg.orientation.z = coord.quaternion[2]
-    pose_msg.orientation.w = coord.quaternion[3]
-    return pose_msg
+def pose_from_msg(msg):
+    position = (
+        msg.position.x,
+        msg.position.y,
+        msg.position.z,
+    )
+    quaternion = (
+        msg.orientation.x,
+        msg.orientation.y,
+        msg.orientation.z,
+        msg.orientation.w,
+    )
+    return position, quaternion
 
 
 class YcbObject(enum.Enum):
@@ -144,6 +148,8 @@ class ReorientDemoInterface:
             time_scale = 10
         self.ri.update_robot_state()
 
+        avs = np.asarray(avs)
+
         av_prev = self.ri.potentio_vector()
         avs_filtered = []
         for av in avs:
@@ -207,21 +213,25 @@ class ReorientDemoInterface:
     def _subscribe(self):
         self.reset_obs()
 
-        sub_class = message_filters.Subscriber(
-            "/camera/octomap_server/output/class",
-            ObjectClassArray,
-        )
         sub_depth = message_filters.Subscriber(
             "/camera/aligned_depth_to_color/image_raw",
             Image,
         )
+        sub_class = message_filters.Subscriber(
+            "/camera/mask_rcnn_instance_segmentation/output/class",
+            ObjectClassArray,
+        )
         sub_label = message_filters.Subscriber(
-            "/camera/octomap_server/output/label_rendered",
+            "/camera/mask_rcnn_instance_segmentation/output/label_ins",
             Image,
         )
-        self._subscribers = [sub_class, sub_depth, sub_label]
-        sync = message_filters.ApproximateTimeSynchronizer(
-            self._subscribers, queue_size=100, slop=0.1
+        sub_pose = message_filters.Subscriber(
+            "/singleview_3d_pose_estimation/output",
+            ObjectPoseArray,
+        )
+        self._subscribers = [sub_depth, sub_class, sub_label, sub_pose]
+        sync = message_filters.TimeSynchronizer(
+            self._subscribers, queue_size=100
         )
         sync.registerCallback(self._callback)
 
@@ -229,7 +239,7 @@ class ReorientDemoInterface:
         for sub in self._subscribers:
             sub.unregister()
 
-    def _callback(self, class_msg, depth_msg, label_ins_msg):
+    def _callback(self, depth_msg, class_msg, label_ins_msg, pose_msg):
         cam_info_msg = rospy.wait_for_message(
             "/camera/aligned_depth_to_color/camera_info", CameraInfo
         )
@@ -248,6 +258,7 @@ class ReorientDemoInterface:
         )
         self.obs["segm"] = bridge.imgmsg_to_cv2(label_ins_msg)
         self.obs["classes"] = class_msg.classes
+        self.obs["poses"] = pose_msg.poses
 
     # -------------------------------------------------------------------------
     # actions
@@ -286,9 +297,12 @@ class ReorientDemoInterface:
 
         self.stop_passthrough()
 
-    def go_to_reset_pose(self):
-        avs = self.get_cartesian_path(av=self.env.ri.homej)
-        self.send_avs(avs, time_scale=3)
+    def go_to_reset_pose(self, cartesian=True):
+        if cartesian:
+            avs = self.get_cartesian_path(av=self.env.ri.homej)
+        else:
+            avs = [self.env.ri.homej]
+        self.send_avs(avs, time_scale=5)
 
     def go_to_overlook_pose(self, xy=None, time_scale=5):
         if xy is None:
@@ -329,7 +343,7 @@ class ReorientDemoInterface:
         depth = self.obs["depth"]
 
         K = self.obs["K"]
-        mask = segm == target_id
+        mask = (segm == target_id) & (~np.isnan(self.obs["depth"]))
         pcd_in_camera = mercury.geometry.pointcloud_from_depth(
             depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
         )
@@ -361,16 +375,86 @@ class ReorientDemoInterface:
     def run(self):
         self.go_to_overlook_pose()
         self.capture_visual_observation()
-        grasp_poses = self.get_grasp_poses()
 
-        grasp_pose = grasp_poses[np.random.randint(len(grasp_poses))]
+        camera_to_base = self.obs["camera_to_base"]
+        for object_pose in self.obs["poses"]:
+            if object_pose.class_id == 2:  # target_class_id
+                obj_to_camera = pose_from_msg(object_pose.pose)
+                obj_to_base = pp.multiply(camera_to_base, obj_to_camera)
+                visual_file = mercury.datasets.ycb.get_visual_file(
+                    class_id=object_pose.class_id
+                )
+                collision_file = mercury.pybullet.get_collision_file(
+                    visual_file
+                )
+                object_id = mercury.pybullet.create_mesh_body(
+                    visual_file=visual_file,
+                    collision_file=collision_file,
+                    position=obj_to_base[0],
+                    quaternion=obj_to_base[1],
+                    mass=0.1,
+                )
+                break
+        self.env.object_ids = [object_id]
+        self.env.fg_object_id = object_id
 
-        j = self.env.ri.solve_ik(np.hsplit(grasp_pose, [3]))
+        self.env._place_pose = ([0.5, 0.5, 0.5], [0, 0, 0, 1])
+        self.env._pre_place_pose = ([0.5, 0.3, 0.5], [0, 0, 0, 1])
 
-        self.send_avs([j])
-        self.send_avs([self.env.ri.homej])
+        mercury.pybullet.duplicate(
+            self.env.fg_object_id,
+            collision=False,
+            rgba_color=(0.5, 0.5, 0.5, 0.5),
+            mass=0,
+            position=self.env.PLACE_POSE[0],
+            quaternion=self.env.PLACE_POSE[1],
+        )
+
+        self.env.update_obs()
+        self.env.ri.setj(self.env.ri.homej)
+
+        if 0:
+            grasp_poses = _reorient.get_grasp_poses(self.env)
+            result = _reorient.plan_place(self.env, grasp_poses, in_world=True)
+        else:
+            pcd_in_obj, normals_in_obj = _reorient.get_query_ocs(self.env)
+            indices = np.random.permutation(pcd_in_obj.shape[0])[:20]
+            pcd_in_obj = pcd_in_obj[indices]
+            normals_in_obj = normals_in_obj[indices]
+            quaternion_in_obj = mercury.geometry.quaternion_from_vec2vec(
+                [0, 0, -1], normals_in_obj
+            )
+            grasp_poses = np.hstack([pcd_in_obj, quaternion_in_obj])
+            result = _reorient.plan_place(self.env, grasp_poses)
+
+        if "js_place" not in result:
+            rospy.logerr("No solution found")
+            return
+
+        if 0:
+            _reorient.execute_place(self.env, result)
+        else:
+            self.send_avs(result["js_pre_grasp"], time_scale=5)
+            self.wait_interpolation()
+
+            self.send_avs(self.get_cartesian_path(av=result["j_grasp"]))
+            self.wait_interpolation()
+
+            self.start_grasp()
+
+            self.send_avs(result["js_pre_place"])
+            self.wait_interpolation()
+
+            self.send_avs(result["js_place"])
+            self.wait_interpolation()
+
+            self.stop_grasp()
+            time.sleep(5)
+
+            self.go_to_reset_pose(cartesian=False)
+            self.wait_interpolation()
 
 
 if __name__ == "__main__":
     di = ReorientDemoInterface()
-    IPython.embed()  # XXX
+    di.run()

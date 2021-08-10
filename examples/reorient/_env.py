@@ -40,9 +40,7 @@ class Env:
 
     @property
     def PRE_PLACE_POSE(self):
-        c = mercury.geometry.Coordinate(*self.PLACE_POSE)
-        c.translate([0, -0.3, 0], wrt="world")
-        return c.pose
+        return self._pre_place_pose
 
     def __init__(
         self,
@@ -130,6 +128,9 @@ class Env:
         if self._real:
             self.object_ids = None
             self.fg_object_id = None
+            self._place_pose = None
+            self._pre_place_pose = None
+            self._shelf = -1
         else:
             raise_on_error = pile_file is not None
 
@@ -215,6 +216,9 @@ class Env:
                 random_state=copy.deepcopy(self.random_state),
                 face=self._face,
             )
+            c = mercury.geometry.Coordinate(*self._place_pose)
+            c.translate([0, -0.3, 0], wrt="world")
+            self._pre_place_pose = c.pose
 
             for _ in range(int(1 / pp.get_time_step())):
                 p.stepSimulation()
@@ -279,6 +283,8 @@ class Env:
             depth=depth,
             fg_mask=fg_mask.astype(np.uint8),
             segm=segm,
+            K=self.ri.get_opengl_intrinsic_matrix(),
+            target_instance_id=self.fg_object_id,
             segmmap=segmmap,
             pointmap=pointmap,
             camera_to_world=np.hstack(camera_to_world),

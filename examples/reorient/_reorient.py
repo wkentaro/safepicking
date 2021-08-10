@@ -68,9 +68,8 @@ def get_query_ocs(env):
 def get_grasp_poses(env):
     segm = env.obs["segm"]
     depth = env.obs["depth"]
-
-    K = env.ri.get_opengl_intrinsic_matrix()
-    mask = segm == env.fg_object_id
+    K = env.obs["K"]
+    mask = (segm == env.obs["target_instance_id"]) & (~np.isnan(depth))
     pcd_in_camera = mercury.geometry.pointcloud_from_depth(
         depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
     )
@@ -423,15 +422,19 @@ def get_static_reorient_poses(env):
     return poses
 
 
-def plan_place(env, target_grasp_poses):
+def plan_place(env, target_grasp_poses, in_world=False):
     obj_to_world = pp.get_pose(env.fg_object_id)
 
     result = {}
     for grasp_pose in target_grasp_poses:
         world_saver = pp.WorldSaver()
 
-        ee_to_obj = np.hsplit(grasp_pose, [3])
-        ee_to_world = pp.multiply(obj_to_world, ee_to_obj)
+        if in_world:
+            ee_to_world = np.hsplit(grasp_pose, [3])
+        else:
+            ee_to_obj = np.hsplit(grasp_pose, [3])
+            ee_to_world = pp.multiply(obj_to_world, ee_to_obj)
+            del ee_to_obj
         j = env.ri.solve_ik(ee_to_world, rotation_axis="z")
         if j is None:
             logger.warning("j_grasp is not found")
@@ -448,6 +451,9 @@ def plan_place(env, target_grasp_poses):
         result["j_grasp"] = j
 
         env.ri.setj(j)
+
+        ee_to_world = env.ri.get_pose("tipLink")
+        ee_to_obj = pp.multiply(pp.invert(obj_to_world), ee_to_world)
 
         c = mercury.geometry.Coordinate(*ee_to_world)
         c.translate([0, 0, -0.1])
