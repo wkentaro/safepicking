@@ -356,7 +356,19 @@ class ReorientDemoInterface:
             [0, 0, 1], normals_in_base
         )
 
-        return pcd_in_base, quaternion_in_base
+        return np.hstack([pcd_in_base, quaternion_in_base])
+
+    def run(self):
+        self.go_to_overlook_pose()
+        self.capture_visual_observation()
+        grasp_poses = self.get_grasp_poses()
+
+        grasp_pose = grasp_poses[np.random.randint(len(grasp_poses))]
+
+        j = self.env.ri.solve_ik(np.hsplit(grasp_pose, [3]))
+
+        self.send_avs([j])
+        self.send_avs([self.env.ri.homej])
 
 
 if __name__ == "__main__":
