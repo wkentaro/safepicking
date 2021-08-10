@@ -1,6 +1,7 @@
 <launch>
 
   <arg name="PROCESS" default="true" />
+  <arg name="DYNAMIC" default="false" />
 
   <node name="republish_tf_static_for_rosbag"
         pkg="mercury_panda" type="republish_tf_static_for_rosbag.py"
@@ -16,6 +17,7 @@
     <arg name="GUI" value="true" />
     <arg name="PASSTHROUGH" value="true" />
     <arg name="PROCESS" value="$(arg PROCESS)" />
+    <arg name="DYNAMIC" value="$(arg DYNAMIC)" />
   </include>
 
 </launch>
