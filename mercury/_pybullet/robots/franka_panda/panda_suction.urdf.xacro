@@ -1,0 +1,20 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="panda">
+  <xacro:include filename="panda_arm.urdf" />
+
+  <xacro:include filename="suction/suction-base.urdf" />
+  <joint name="link8_to_baseLink" type="fixed">
+    <origin rpy="0 0 ${ 3.14 / 4}" xyz="0 0 0"/>
+    <parent link="panda_link8"/>
+    <child link="baseLink"/>
+    <axis xyz="0 0 0"/>
+  </joint>
+
+  <xacro:include filename="suction/suction-head.urdf" />
+  <joint name="baseLink_to_headLink" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0 0.091"/>
+    <parent link="baseLink"/>
+    <child link="headLink"/>
+    <axis xyz="0 0 0"/>
+  </joint>
+</robot>
