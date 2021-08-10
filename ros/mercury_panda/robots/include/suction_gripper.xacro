@@ -43,9 +43,9 @@
       </visual>
       <collision>
         <geometry>
-          <cylinder length="0.11" radius="0.02"/>
+          <cylinder length="0.18" radius="0.02"/>
         </geometry>
-        <origin xyz="0 0 -0.055"/>
+        <origin xyz="0 0 -0.09"/>
       </collision>
     </link>
 
