@@ -143,11 +143,15 @@ class ReorientDemoInterface:
         if time_scale is None:
             time_scale = 10
         self.ri.update_robot_state()
-        av_delta = np.linalg.norm(avs - self.ri.potentio_vector(), axis=1)
-        if (np.rad2deg(av_delta) < 5).all():
-            self.ri.angle_vector(avs[-1], time_scale=10)
-        else:
-            self.ri.angle_vector_sequence(avs, time_scale=time_scale)
+
+        av_prev = self.ri.potentio_vector()
+        avs_filtered = []
+        for av in avs:
+            av_delta = np.linalg.norm(av - av_prev)
+            if av_delta > np.deg2rad(1):
+                avs_filtered.append(av)
+                av_prev = av
+        self.ri.angle_vector_sequence(avs_filtered, time_scale=time_scale)
         if wait:
             self.wait_interpolation()
 
