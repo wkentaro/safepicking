@@ -36,6 +36,8 @@ def create_mesh_body(
     texture=True,
     mesh_scale=(1, 1, 1),
 ):
+    assert position is None or len(position) == 3
+    assert quaternion is None or len(quaternion) == 4
     if rgba_color is not None and len(rgba_color) == 3:
         rgba_color = [rgba_color[0], rgba_color[1], rgba_color[2], 1]
     if visual_file is not None:
