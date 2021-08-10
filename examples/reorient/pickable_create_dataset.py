@@ -25,18 +25,28 @@ def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+    parser.add_argument(
+        "--robot-model",
+        default="franka_panda/panda_suction",
+        choices=["franka_panda/panda_suction", "franka_panda/panda_drl"],
+        help="robot model",
+    )
     parser.add_argument("--seed", type=int, required=True, help="seed")
     parser.add_argument("--gui", action="store_true", help="gui")
     args = parser.parse_args()
 
     if (
         home
-        / "data/mercury/reorient/pickable"
+        / f"data/mercury/reorient-{args.robot_model}/pickable"
         / f"s-{args.seed:08d}/00000099.pkl"
     ).exists():
         return
 
-    env = Env(class_ids=[2, 3, 5, 11, 12, 15], gui=args.gui)
+    env = Env(
+        class_ids=[2, 3, 5, 11, 12, 15],
+        gui=args.gui,
+        robot_model=args.robot_model,
+    )
     env.random_state = np.random.RandomState(args.seed)
     env.launch()
 
