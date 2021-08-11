@@ -413,7 +413,6 @@ class ReorientDemoInterface:
         )
 
         self.env.update_obs()
-        self.env.ri.setj(self.env.ri.homej)
 
         if 0:
             grasp_poses = _reorient.get_grasp_poses(self.env)

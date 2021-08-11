@@ -435,20 +435,28 @@ def plan_place(env, target_grasp_poses, in_world=False):
             ee_to_obj = np.hsplit(grasp_pose, [3])
             ee_to_world = pp.multiply(obj_to_world, ee_to_obj)
             del ee_to_obj
-        j = env.ri.solve_ik(ee_to_world, rotation_axis="z")
-        if j is None:
-            logger.warning("j_grasp is not found")
-            world_saver.restore()
+
+        for dg in np.random.uniform(-np.pi, np.pi, size=(3,)):
+            c = mercury.geometry.Coordinate(*ee_to_world)
+            c.rotate([0, 0, dg])
+            j = env.ri.solve_ik(c.pose)
+            if j is None:
+                logger.warning("j_grasp is not found")
+                world_saver.restore()
+                continue
+            if not env.ri.validatej(
+                j,
+                obstacles=env.bg_objects,
+                min_distances=mercury.utils.StaticDict(-0.01),
+            ):
+                logger.warning("j_grasp is invalid")
+                world_saver.restore()
+                continue
+            result["j_grasp"] = j
+            break
+        else:
             continue
-        if not env.ri.validatej(
-            j,
-            obstacles=env.bg_objects,
-            min_distances=mercury.utils.StaticDict(-0.01),
-        ):
-            logger.warning("j_grasp is invalid")
-            world_saver.restore()
-            continue
-        result["j_grasp"] = j
+        ee_to_world = c.pose
 
         env.ri.setj(j)
 
