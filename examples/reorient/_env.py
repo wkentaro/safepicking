@@ -94,13 +94,13 @@ class Env:
             # Extracted from panda_table in URDF
             plane_aabb = np.array(
                 [
-                    [0.18, -0.65, 0.0125],
-                    [1.18, 0.65, 0.0625],
+                    [0.12, -0.65, 0.0125],
+                    [1.12, 0.65, 0.0625],
                 ],
                 dtype=np.float32,
             )
             plane_pose = (
-                (0.6800000071525574, 0.0, 0.03750000149011612),
+                plane_aabb.mean(axis=0),
                 (0.0, 0.0, 0.0, 1.0),
             )
             extents = plane_aabb[1] - plane_aabb[0]
