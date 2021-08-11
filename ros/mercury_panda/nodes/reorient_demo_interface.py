@@ -4,7 +4,6 @@ import enum
 import itertools
 import sys
 import tempfile
-import time
 
 import numpy as np
 import pybullet_planning as pp
@@ -142,6 +141,20 @@ class ReorientDemoInterface:
         self.ri.wait_interpolation()
         self.real2robot()
 
+    def interpolate_js(self, js):
+        lower, upper = self.env.ri.get_bounds()
+        js_interpolated = []
+        j_prev = None
+        for j in js:
+            if j_prev is None:
+                js_interpolated.append(np.clip(j, lower, upper))
+            else:
+                for j_new in np.linspace(j_prev, j, num=5):
+                    j_new = np.clip(j_new, lower, upper)
+                    js_interpolated.append(j_new)
+            j_prev = j
+        return np.array(js_interpolated)
+
     def send_avs(self, avs, time_scale=None, wait=True):
         if not self.recover_from_error():
             return
@@ -149,7 +162,7 @@ class ReorientDemoInterface:
             time_scale = 10
         self.ri.update_robot_state()
 
-        avs = np.asarray(avs)
+        avs = self.interpolate_js(avs)
 
         av_prev = self.ri.potentio_vector()
         avs_filtered = []
@@ -451,15 +464,18 @@ class ReorientDemoInterface:
             self.send_avs(self.get_cartesian_path(av=result["j_grasp"]))
             self.wait_interpolation()
 
-            self.start_grasp()
+            # self.start_grasp()
+            # time.sleep(3)
 
-            self.send_avs(result["js_place"])
+            js = result["js_place"]
+            self.send_avs(js)
             self.wait_interpolation()
 
-            self.stop_grasp()
-            time.sleep(5)
+            # self.stop_grasp()
+            # time.sleep(3)
 
-            self.go_to_reset_pose(cartesian=False)
+            js = result["js_post_place"]
+            self.send_avs(js)
             self.wait_interpolation()
 
         # result = _reorient.plan_place(self.env, grasp_poses)
@@ -494,4 +510,6 @@ class ReorientDemoInterface:
 
 if __name__ == "__main__":
     di = ReorientDemoInterface()
-    di.run()
+    import IPython
+
+    IPython.embed()  # NOQA

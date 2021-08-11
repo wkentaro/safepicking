@@ -290,6 +290,24 @@ def plan_reorient(env, grasp_pose, reorient_pose):
         [result["j_post_grasp"]], js, [result["j_place"]]
     ]
 
+    env.ri.setj(result["j_place"])
+    env.ri.attachments[0].assign()
+    env.ri.attachments = []
+
+    c = mercury.geometry.Coordinate(*env.ri.get_pose("tipLink"))
+    c.translate([0, 0, -0.1], wrt="local")
+    c.translate([0, 0, 0.2], wrt="world")
+    j = env.ri.solve_ik(c.pose, rotation_axis=False, n_init=1)
+    if j is not None:
+        env.ri.setj(j)
+    js = env.ri.planj(
+        env.ri.homej,
+        obstacles=env.bg_objects + env.object_ids,
+    )
+    if js is None:
+        js = [env.ri.homej] if j is None else [j, env.ri.homej]
+    result["js_post_place"] = js
+
     logger.success("Found the solution for reorientation")
     j_prev = result["js_place"][0]
     trajectory_length = 0
@@ -329,22 +347,9 @@ def execute_reorient(env, result):
         if pp.has_gui():
             time.sleep(pp.get_time_step())
 
-    c = mercury.geometry.Coordinate(*env.ri.get_pose("tipLink"))
-    c.translate([0, 0, -0.1], wrt="local")
-    c.translate([0, 0, 0.2], wrt="world")
-    j = env.ri.solve_ik(c.pose, rotation_axis=False)
-    js = None
-    if j is not None:
-        js = env.ri.planj(
-            j,
-            obstacles=env.bg_objects + env.object_ids,
-            min_distances_start_goal=mercury.utils.StaticDict(-0.01),
-        )
-    if js is None:
-        js = []
-
     env.ri.ungrasp()
 
+    js = result["js_post_place"]
     for _ in (_ for j in js for _ in env.ri.movej(j, timeout=1)):
         pp.step_simulation()
         if pp.has_gui():
