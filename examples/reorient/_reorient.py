@@ -150,16 +150,22 @@ def plan_reorient(env, grasp_pose, reorient_pose):
     ee_af_to_world = np.hsplit(grasp_pose, [3])
     obj_af_to_world = np.hsplit(reorient_pose, [3])
 
-    # solve j_grasp
-    j = env.ri.solve_ik(ee_af_to_world)
-    if j is not None:
-        if not env.ri.validatej(j, obstacles=bg_object_ids):
-            logger.warning("j_grasp is invalid")
-            j = None
-    else:
-        logger.warning("j_grasp is not found")
-    if j is not None:
-        result["j_grasp"] = j
+    for dg in np.random.uniform(-np.pi, np.pi, size=(3,)):
+        c = mercury.geometry.Coordinate(*ee_af_to_world)
+        c.rotate([0, 0, dg])
+
+        # solve j_grasp
+        j = env.ri.solve_ik(c.pose)
+        if j is not None:
+            if not env.ri.validatej(j, obstacles=bg_object_ids):
+                logger.warning("j_grasp is invalid")
+                j = None
+        else:
+            logger.warning("j_grasp is not found")
+        if j is not None:
+            result["j_grasp"] = j
+            break
+    ee_af_to_world = c.pose
 
     obj_to_world = pp.get_pose(env.fg_object_id)
     obj_to_ee = pp.multiply(pp.invert(ee_af_to_world), obj_to_world)
@@ -363,7 +369,7 @@ def get_static_reorient_poses(env):
     world_saver = pp.WorldSaver()
     lock_renderer = pp.LockRenderer()
 
-    XY = [[0.2, -0.4]]
+    XY = [[0.5, -0.5]]
     pp.draw_aabb(([0.15, -0.45, 0.001], [0.25, -0.35, 0.001]))
     ABG = itertools.product(
         [0],
@@ -383,7 +389,7 @@ def get_static_reorient_poses(env):
         c.rotate([a, b, g], wrt="world")
         pp.set_pose(env.fg_object_id, c.pose)
 
-        c.position[2] = -pp.get_aabb(env.fg_object_id)[0][2]
+        c.position[2] = -pp.get_aabb(env.fg_object_id)[0][2] + 0.07
         pp.set_pose(env.fg_object_id, c.pose)
 
         points = pp.body_collision_info(
@@ -392,7 +398,7 @@ def get_static_reorient_poses(env):
         distance_to_plane = min(point[8] for point in points)
         assert distance_to_plane > 0
         c.position[2] -= distance_to_plane
-        c.position[2] += 0.02
+        c.position[2] += 0.02  # slight offset
         pp.set_pose(env.fg_object_id, c.pose)
 
         if mercury.pybullet.is_colliding(env.fg_object_id):
@@ -422,19 +428,16 @@ def get_static_reorient_poses(env):
     return poses
 
 
-def plan_place(env, target_grasp_poses, in_world=False):
+def plan_place(env, target_grasp_poses):
     obj_to_world = pp.get_pose(env.fg_object_id)
 
     result = {}
     for grasp_pose in target_grasp_poses:
         world_saver = pp.WorldSaver()
 
-        if in_world:
-            ee_to_world = np.hsplit(grasp_pose, [3])
-        else:
-            ee_to_obj = np.hsplit(grasp_pose, [3])
-            ee_to_world = pp.multiply(obj_to_world, ee_to_obj)
-            del ee_to_obj
+        ee_to_obj = np.hsplit(grasp_pose, [3])
+        ee_to_world = pp.multiply(obj_to_world, ee_to_obj)
+        del ee_to_obj
 
         for dg in np.random.uniform(-np.pi, np.pi, size=(3,)):
             c = mercury.geometry.Coordinate(*ee_to_world)

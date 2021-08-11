@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import enum
+import itertools
 import sys
 import tempfile
 import time
@@ -415,9 +416,6 @@ class ReorientDemoInterface:
         self.env.update_obs()
 
         if 0:
-            grasp_poses = _reorient.get_grasp_poses(self.env)
-            result = _reorient.plan_place(self.env, grasp_poses, in_world=True)
-        else:
             pcd_in_obj, normals_in_obj = _reorient.get_query_ocs(self.env)
             indices = np.random.permutation(pcd_in_obj.shape[0])[:20]
             pcd_in_obj = pcd_in_obj[indices]
@@ -425,15 +423,27 @@ class ReorientDemoInterface:
             quaternion_in_obj = mercury.geometry.quaternion_from_vec2vec(
                 [0, 0, -1], normals_in_obj
             )
-            grasp_poses = np.hstack([pcd_in_obj, quaternion_in_obj])
-            result = _reorient.plan_place(self.env, grasp_poses)
+            grasp_poses = np.hstack([pcd_in_obj, quaternion_in_obj])  # in obj
+        else:
+            grasp_poses = _reorient.get_grasp_poses(self.env)  # in world
+            grasp_poses = list(itertools.islice(grasp_poses, 12))
 
-        if "js_place" not in result:
+        reorient_poses = _reorient.get_static_reorient_poses(self.env)
+
+        for grasp_pose, reorient_pose in itertools.product(
+            grasp_poses, reorient_poses
+        ):
+            result = _reorient.plan_reorient(
+                self.env, grasp_pose, reorient_pose
+            )
+            if "js_place" in result:
+                break
+        else:
             rospy.logerr("No solution found")
             return
 
         if 0:
-            _reorient.execute_place(self.env, result)
+            _reorient.execute_reorient(self.env, result)
         else:
             self.send_avs(result["js_pre_grasp"], time_scale=5)
             self.wait_interpolation()
@@ -443,9 +453,6 @@ class ReorientDemoInterface:
 
             self.start_grasp()
 
-            self.send_avs(result["js_pre_place"])
-            self.wait_interpolation()
-
             self.send_avs(result["js_place"])
             self.wait_interpolation()
 
@@ -454,6 +461,35 @@ class ReorientDemoInterface:
 
             self.go_to_reset_pose(cartesian=False)
             self.wait_interpolation()
+
+        # result = _reorient.plan_place(self.env, grasp_poses)
+        #
+        # if "js_place" not in result:
+        #     rospy.logerr("No solution found")
+        #     return
+        #
+        # if 0:
+        #     _reorient.execute_place(self.env, result)
+        # else:
+        #     self.send_avs(result["js_pre_grasp"], time_scale=5)
+        #     self.wait_interpolation()
+        #
+        #     self.send_avs(self.get_cartesian_path(av=result["j_grasp"]))
+        #     self.wait_interpolation()
+        #
+        #     self.start_grasp()
+        #
+        #     self.send_avs(result["js_pre_place"])
+        #     self.wait_interpolation()
+        #
+        #     self.send_avs(result["js_place"])
+        #     self.wait_interpolation()
+        #
+        #     self.stop_grasp()
+        #     time.sleep(5)
+        #
+        #     self.go_to_reset_pose(cartesian=False)
+        #     self.wait_interpolation()
 
 
 if __name__ == "__main__":
