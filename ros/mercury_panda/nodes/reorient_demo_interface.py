@@ -380,13 +380,22 @@ class ReorientDemoInterface:
 
         return np.hstack([pcd_in_base, quaternion_in_base])
 
-    def run(self):
+    # -------------------------------------------------------------------------
+
+    def init_task(self):
+        self.env._fg_class_id = 2
+        self.env._place_pose = ([0.5, 0.5, 0.5], [0, 0, 0, 1])
+        self.env._pre_place_pose = ([0.5, 0.3, 0.5], [0, 0, 0, 1])
+
+    def capture_to_reorient(self):
         self.go_to_overlook_pose()
         self.capture_visual_observation()
+        self.observation_to_env()
 
+    def observation_to_env(self):
         camera_to_base = self.obs["camera_to_base"]
         for object_pose in self.obs["poses"]:
-            if object_pose.class_id == 2:  # target_class_id
+            if object_pose.class_id == self.env._fg_class_id:
                 obj_to_camera = pose_from_msg(object_pose.pose)
                 obj_to_base = pp.multiply(camera_to_base, obj_to_camera)
                 visual_file = mercury.datasets.ycb.get_visual_file(
@@ -405,9 +414,7 @@ class ReorientDemoInterface:
                 break
         self.env.object_ids = [object_id]
         self.env.fg_object_id = object_id
-
-        self.env._place_pose = ([0.5, 0.5, 0.5], [0, 0, 0, 1])
-        self.env._pre_place_pose = ([0.5, 0.3, 0.5], [0, 0, 0, 1])
+        self.env.update_obs()
 
         mercury.pybullet.duplicate(
             self.env.fg_object_id,
@@ -418,8 +425,7 @@ class ReorientDemoInterface:
             quaternion=self.env.PLACE_POSE[1],
         )
 
-        self.env.update_obs()
-
+    def pick_and_reorient(self):
         if 0:
             pcd_in_obj, normals_in_obj = _reorient.get_query_ocs(self.env)
             indices = np.random.permutation(pcd_in_obj.shape[0])[:20]
@@ -456,48 +462,21 @@ class ReorientDemoInterface:
             self.send_avs(self.get_cartesian_path(av=result["j_grasp"]))
             self.wait_interpolation()
 
-            # self.start_grasp()
-            # time.sleep(3)
+            self.start_grasp()
+            rospy.sleep(2)
 
             js = result["js_place"]
             self.send_avs(js)
             self.wait_interpolation()
 
-            # self.stop_grasp()
-            # time.sleep(3)
+            self.stop_grasp()
+            rospy.sleep(5)
 
             js = result["js_post_place"]
-            self.send_avs(js)
+            self.send_avs(js, time_scale=5)
             self.wait_interpolation()
 
-        # result = _reorient.plan_place(self.env, grasp_poses)
-        #
-        # if "js_place" not in result:
-        #     rospy.logerr("No solution found")
-        #     return
-        #
-        # if 0:
-        #     _reorient.execute_place(self.env, result)
-        # else:
-        #     self.send_avs(result["js_pre_grasp"], time_scale=5)
-        #     self.wait_interpolation()
-        #
-        #     self.send_avs(self.get_cartesian_path(av=result["j_grasp"]))
-        #     self.wait_interpolation()
-        #
-        #     self.start_grasp()
-        #
-        #     self.send_avs(result["js_pre_place"])
-        #     self.wait_interpolation()
-        #
-        #     self.send_avs(result["js_place"])
-        #     self.wait_interpolation()
-        #
-        #     self.stop_grasp()
-        #     time.sleep(5)
-        #
-        #     self.go_to_reset_pose(cartesian=False)
-        #     self.wait_interpolation()
+        pp.set_pose(self.env.fg_object_id, np.hsplit(reorient_pose, [3]))
 
 
 if __name__ == "__main__":
