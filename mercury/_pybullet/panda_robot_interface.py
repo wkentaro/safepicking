@@ -137,7 +137,7 @@ class PandaRobotInterface:
                     return
 
     def solve_ik(
-        self, pose, move_target=None, n_init=5, random_state=None, **kwargs
+        self, pose, move_target=None, n_init=1, random_state=None, **kwargs
     ):
         if move_target is None:
             move_target = self.robot_model.tipLink
