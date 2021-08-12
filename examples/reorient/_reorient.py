@@ -426,65 +426,89 @@ def get_static_reorient_poses(env):
 def plan_place(env, target_grasp_poses):
     obj_to_world = pp.get_pose(env.fg_object_id)
 
-    result = {}
+    j_init = env.ri.getj()
+
     for grasp_pose in target_grasp_poses:
         world_saver = pp.WorldSaver()
 
-        ee_to_obj = np.hsplit(grasp_pose, [3])
-        ee_to_world = pp.multiply(obj_to_world, ee_to_obj)
-        del ee_to_obj
+        ee_to_world = pp.multiply(obj_to_world, np.hsplit(grasp_pose, [3]))
 
-        if env._robot_model == "franka_panda/panda_suction":
-            dgs = [0]
-            rotation_axis = "z"
-        else:
-            dgs = np.random.uniform(-np.pi, np.pi, size=(3,))
-            rotation_axis = True
+        # find self-collision-free j_grasp
+        for dg in np.linspace(-np.pi, np.pi, num=6, endpoint=False):
+            result = {}
 
-        for dg in dgs:
             c = mercury.geometry.Coordinate(*ee_to_world)
             c.rotate([0, 0, dg])
-            j = env.ri.solve_ik(c.pose, rotation_axis=rotation_axis)
-            if j is None:
-                logger.warning("j_grasp is not found")
+            j = env.ri.solve_ik(c.pose)
+            if j is not None:
+                env.ri.setj(j)
+            if j is None or not env.ri.validatej(j, obstacles=env.bg_objects):
                 world_saver.restore()
-                continue
-            if not env.ri.validatej(
-                j,
-                obstacles=env.bg_objects,
-                min_distances=mercury.utils.StaticDict(-0.01),
-            ):
-                logger.warning("j_grasp is invalid")
-                world_saver.restore()
+                env.ri.attachments = []
                 continue
             result["j_grasp"] = j
+
+            env.ri.setj(result["j_grasp"])
+            ee_to_world = c.pose
+
+            c = mercury.geometry.Coordinate(*env.ri.get_pose("tipLink"))
+            c.translate([0, 0, -0.1])
+            j = env.ri.solve_ik(c.pose)
+            if j is None or not env.ri.validatej(j, obstacles=env.bg_objects):
+                world_saver.restore()
+                env.ri.attachments = []
+                continue
+            result["j_pre_grasp"] = j
+
+            ee_to_obj = pp.multiply(pp.invert(obj_to_world), ee_to_world)
+            env.ri.attachments = [
+                pp.Attachment(
+                    env.ri.robot,
+                    env.ri.ee,
+                    pp.invert(ee_to_obj),
+                    env.fg_object_id,
+                )
+            ]
+
+            env.ri.setj(env.ri.homej)
+            # env.ri.attachments[0].assign()
+
+            with env.ri.enabling_attachments():
+                j = env.ri.solve_ik(
+                    env.PRE_PLACE_POSE,
+                    move_target=env.ri.robot_model.attachment_link0,
+                    n_init=5,
+                )
+            if j is None or not env.ri.validatej(j, obstacles=env.bg_objects):
+                world_saver.restore()
+                env.ri.attachments = []
+                continue
+            result["j_pre_place"] = j
+
+            env.ri.setj(result["j_pre_place"])
+            # env.ri.attachments[0].assign()
+
+            with env.ri.enabling_attachments():
+                j = env.ri.solve_ik(
+                    env.PLACE_POSE,
+                    move_target=env.ri.robot_model.attachment_link0,
+                )
+            if j is None or not env.ri.validatej(j, obstacles=env.bg_objects):
+                world_saver.restore()
+                env.ri.attachments = []
+                continue
+            result["j_place"] = j
+
             break
         else:
-            continue
-
-        env.ri.setj(j)
-
-        ee_to_world = env.ri.get_pose("tipLink")
-        ee_to_obj = pp.multiply(pp.invert(obj_to_world), ee_to_world)
-
-        c = mercury.geometry.Coordinate(*ee_to_world)
-        c.translate([0, 0, -0.1])
-        j = env.ri.solve_ik(c.pose)
-        if j is None:
-            logger.warning("j_pre_grasp is not found")
             world_saver.restore()
+            env.ri.attachments = []
             continue
-        if not env.ri.validatej(
-            j,
-            obstacles=env.bg_objects,
-            min_distances=mercury.utils.StaticDict(-0.01),
-        ):
-            logger.warning("j_pre_grasp is invalid")
-            world_saver.restore()
-            continue
-        result["j_pre_grasp"] = j
 
-        env.ri.setj(env.ri.homej)
+        attachments = env.ri.attachments
+        env.ri.attachments = []
+
+        env.ri.setj(j_init)
         js = env.ri.planj(
             result["j_pre_grasp"],
             obstacles=env.bg_objects + env.object_ids,
@@ -493,76 +517,45 @@ def plan_place(env, target_grasp_poses):
         if js is None:
             logger.warning("js_pre_grasp is not found")
             world_saver.restore()
+            env.ri.attachments = []
             continue
         result["js_pre_grasp"] = js
 
-        env.ri.setj(result["j_grasp"])
-        env.ri.attachments = [
-            pp.Attachment(
-                env.ri.robot,
-                env.ri.ee,
-                pp.invert(ee_to_obj),
-                env.fg_object_id,
-            )
-        ]
-        env.ri.attachments[0].assign()
+        obstacles = env.bg_objects + env.object_ids
+        obstacles.remove(env.fg_object_id)
 
-        with env.ri.enabling_attachments():
-            j = env.ri.solve_ik(
-                env.PRE_PLACE_POSE,
-                move_target=env.ri.robot_model.attachment_link0,
-            )
-            if j is None:
-                logger.warning("j_pre_place is invalid")
-                world_saver.restore()
-                env.ri.attachments = []
-                continue
-            result["j_pre_place"] = j
+        env.ri.attachments = attachments
+        js = env.ri.planj(
+            result["j_pre_place"],
+            obstacles=obstacles,
+            min_distances=mercury.utils.StaticDict(-0.01),
+        )
+        if js is None:
+            logger.warning("js_pre_place is not found")
+            world_saver.restore()
+            env.ri.attachments = []
+            continue
+        result["js_pre_place"] = js
 
-            env.ri.setj(env.ri.homej)
-            env.ri.attachments[0].assign()
+        env.ri.setj(result["j_pre_place"])
+        pose1 = env.ri.get_pose("tipLink")
+        env.ri.setj(result["j_place"])
+        pose2 = env.ri.get_pose("tipLink")
 
-            js = env.ri.planj(
-                result["j_pre_place"],
-                obstacles=env.bg_objects,
-            )
-            if js is None:
-                logger.warning("js_pre_place is not found")
-                world_saver.restore()
-                env.ri.attachments = []
-                continue
-            result["js_pre_place"] = js
-
-            env.ri.setj(result["j_pre_place"])
-            env.ri.attachments[0].assign()
-
-            js = []
-            for pose in pp.interpolate_poses(
-                env.PRE_PLACE_POSE, env.PLACE_POSE
-            ):
-                j = env.ri.solve_ik(
-                    pose,
-                    move_target=env.ri.robot_model.attachment_link0,
-                    n_init=1,
-                )
-                if j is None:
-                    logger.warning("js_place is not found")
-                    break
-                if not env.ri.validatej(
-                    j,
-                    obstacles=env.bg_objects,
-                    min_distances=mercury.utils.StaticDict(-0.01),
-                ):
-                    j = None
-                    logger.warning("js_place is invalid")
-                    break
-                js.append(j)
-            if j is None:
-                world_saver.restore()
-                env.ri.attachments = []
-                continue
-            result["js_place"] = js
-            break
+        env.ri.setj(result["j_pre_place"])
+        js = []
+        for pose in pp.interpolate_poses_by_num_steps(pose1, pose2):
+            j = env.ri.solve_ik(pose)
+            if j is None or not env.ri.validatej(j, obstacles=obstacles):
+                break
+            js.append(j)
+        if len(js) != 6:
+            logger.warning("js_place is not found")
+            world_saver.restore()
+            env.ri.attachments = []
+            continue
+        result["js_place"] = js
+        break
 
     world_saver.restore()
     env.ri.attachments = []

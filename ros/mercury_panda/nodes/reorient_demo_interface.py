@@ -478,6 +478,62 @@ class ReorientDemoInterface:
 
         pp.set_pose(self.env.fg_object_id, np.hsplit(reorient_pose, [3]))
 
+    def capture_to_place(self):
+        eye = [0.2, -0.3, 0.7]
+        target = [0.5, -0.5, 0.1]
+        camera_to_base = mercury.geometry.pose_from_matrix(
+            mercury.geometry.look_at(eye, target)
+        )
+        j = self.env.ri.solve_ik(
+            camera_to_base, move_target=self.env.ri.robot_model.camera_link
+        )
+        self.send_avs([j])
+
+        self.capture_visual_observation()
+        self.observation_to_env()
+
+    def pick_and_place(self):
+        pcd_in_obj, normals_in_obj = _reorient.get_query_ocs(self.env)
+        indices = np.random.permutation(pcd_in_obj.shape[0])[:20]
+        pcd_in_obj = pcd_in_obj[indices]
+        normals_in_obj = normals_in_obj[indices]
+        quaternion_in_obj = mercury.geometry.quaternion_from_vec2vec(
+            [0, 0, -1], normals_in_obj
+        )
+        grasp_poses = np.hstack([pcd_in_obj, quaternion_in_obj])  # in obj
+
+        result = _reorient.plan_place(self.env, grasp_poses)
+
+        if "js_place" not in result:
+            rospy.logerr("No solution found")
+            return
+
+        if 0:
+            _reorient.execute_place(self.env, result)
+        else:
+            self.send_avs(result["js_pre_grasp"], time_scale=10)
+            self.wait_interpolation()
+
+            self.send_avs(
+                self.get_cartesian_path(av=result["j_grasp"]), time_scale=20
+            )
+            self.wait_interpolation()
+
+            self.start_grasp()
+            rospy.sleep(2)
+
+            self.send_avs(result["js_pre_place"])
+            self.wait_interpolation()
+
+            self.send_avs(result["js_place"], time_scale=20)
+            self.wait_interpolation()
+
+            self.stop_grasp()
+            rospy.sleep(5)
+
+            self.go_to_reset_pose(cartesian=False)
+            self.wait_interpolation()
+
 
 if __name__ == "__main__":
     di = ReorientDemoInterface()
