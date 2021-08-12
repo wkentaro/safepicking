@@ -454,10 +454,17 @@ def plan_place(env, target_grasp_poses):
         ee_to_world = pp.multiply(obj_to_world, ee_to_obj)
         del ee_to_obj
 
-        for dg in np.random.uniform(-np.pi, np.pi, size=(3,)):
+        if env._robot_model == "franka_panda/panda_suction":
+            dgs = [0]
+            rotation_axis = "z"
+        else:
+            dgs = np.random.uniform(-np.pi, np.pi, size=(3,))
+            rotation_axis = True
+
+        for dg in dgs:
             c = mercury.geometry.Coordinate(*ee_to_world)
             c.rotate([0, 0, dg])
-            j = env.ri.solve_ik(c.pose)
+            j = env.ri.solve_ik(c.pose, rotation_axis=rotation_axis)
             if j is None:
                 logger.warning("j_grasp is not found")
                 world_saver.restore()
@@ -474,7 +481,6 @@ def plan_place(env, target_grasp_poses):
             break
         else:
             continue
-        ee_to_world = c.pose
 
         env.ri.setj(j)
 
