@@ -320,26 +320,18 @@ class ReorientDemoInterface:
             avs = [self.env.ri.homej]
         self.send_avs(avs, time_scale=5)
 
-    def go_to_overlook_pose(self, xy=None, time_scale=5):
-        if xy is None:
-            xy = [0.5, 0]
-        position = [xy[0], xy[1], 0.7]
+    def go_to_overlook_pose(self, position=None):
+        if position is None:
+            position = [0.5, 0, 0.7]
 
-        T_ee2cam = self.get_transform(
-            target_frame="camera_color_optical_frame",
-            source_frame="tipLink",
+        pose = self.env.ri.get_pose("camera_link")
+        j = self.env.ri.solve_ik(
+            (position, pose[1]),
+            move_target=self.env.ri.robot_model.camera_link,
+            rotation_axis="z",
         )
-        T_cam2base = mercury.geometry.transformation_matrix(
-            position,
-            mercury.geometry.quaternion_from_euler([3.14, 0, 1.57]),
-        )
-
-        T_ee2base = T_cam2base @ T_ee2cam
-
-        avs = self.get_cartesian_path(
-            pose=mercury.geometry.pose_from_matrix(T_ee2base)
-        )
-        self.send_avs(avs, time_scale=time_scale)
+        js = self.get_cartesian_path(av=j)
+        self.send_avs(js, time_scale=5)
 
     def get_grasp_poses(self):
         if not self._check_observation():

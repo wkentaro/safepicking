@@ -119,11 +119,9 @@ class Env:
             planner="RRTConnect",
             robot_model=self._robot_model,
         )
-        c_cam_to_ee = mercury.geometry.Coordinate()
-        c_cam_to_ee.translate([0, -0.1, -0.1])
         self.ri.add_camera(
-            pose=c_cam_to_ee.pose,
-            fovy=np.deg2rad(60),
+            pose=([-0.024, 0.061, -0.070], [-0.014, 0.009, 1.000, 0.010]),
+            fovy=np.deg2rad(54),
             height=self.IMAGE_HEIGHT,
             width=self.IMAGE_WIDTH,
         )
