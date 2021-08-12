@@ -168,7 +168,7 @@ class ReorientDemoInterface:
         avs_filtered = []
         for av in avs:
             av_delta = np.linalg.norm(av - av_prev)
-            if av_delta > np.deg2rad(1):
+            if av_delta > np.deg2rad(5):
                 avs_filtered.append(av)
                 av_prev = av
         self.ri.angle_vector_sequence(avs_filtered, time_scale=time_scale)
