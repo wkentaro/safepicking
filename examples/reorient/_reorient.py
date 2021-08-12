@@ -150,12 +150,19 @@ def plan_reorient(env, grasp_pose, reorient_pose):
     ee_af_to_world = np.hsplit(grasp_pose, [3])
     obj_af_to_world = np.hsplit(reorient_pose, [3])
 
-    for dg in np.random.uniform(-np.pi, np.pi, size=(3,)):
+    if env._robot_model == "franka_panda/panda_suction":
+        dgs = [0]
+        rotation_axis = "z"
+    else:
+        dgs = np.random.uniform(-np.pi, np.pi, size=(3,))
+        rotation_axis = True
+
+    for dg in dgs:
         c = mercury.geometry.Coordinate(*ee_af_to_world)
         c.rotate([0, 0, dg])
 
         # solve j_grasp
-        j = env.ri.solve_ik(c.pose)
+        j = env.ri.solve_ik(c.pose, rotation_axis=rotation_axis)
         if j is not None:
             if not env.ri.validatej(j, obstacles=bg_object_ids):
                 logger.warning("j_grasp is invalid")
@@ -165,35 +172,38 @@ def plan_reorient(env, grasp_pose, reorient_pose):
         if j is not None:
             result["j_grasp"] = j
             break
-    ee_af_to_world = c.pose
+    else:
+        logger.error("j_grasp is not found")
+        before_return()
+        return result
+
+    env.ri.setj(result["j_grasp"])
+    ee_af_to_world = env.ri.get_pose("tipLink")
 
     obj_to_world = pp.get_pose(env.fg_object_id)
     obj_to_ee = pp.multiply(pp.invert(ee_af_to_world), obj_to_world)
     attachments = [
         pp.Attachment(env.ri.robot, env.ri.ee, obj_to_ee, env.fg_object_id)
     ]
-
     env.ri.attachments = attachments
 
+    c = mercury.geometry.Coordinate(*ee_af_to_world)
+    c.translate([0, 0, 0.2], wrt="world")
+    j = env.ri.solve_ik(c.pose, n_init=1)
+    obstacles = env.bg_objects + env.object_ids
+    obstacles.remove(env.fg_object_id)
     if j is not None:
-        env.ri.setj(j)
-        c = mercury.geometry.Coordinate(*env.ri.get_pose("tipLink"))
-        c.translate([0, 0, 0.2], wrt="world")
-        j = env.ri.solve_ik(c.pose, n_init=1)
-        obstacles = env.bg_objects + env.object_ids
-        obstacles.remove(env.fg_object_id)
-        if j is not None:
-            if not env.ri.validatej(
-                j,
-                obstacles=obstacles,
-                min_distances=mercury.utils.StaticDict(-0.01),
-            ):
-                j = None
-        if j is None:
-            logger.warning("j_post_grasp is not found")
-            del result["j_grasp"]
-        else:
-            result["j_post_grasp"] = j
+        if not env.ri.validatej(
+            j,
+            obstacles=obstacles,
+            min_distances=mercury.utils.StaticDict(-0.01),
+        ):
+            j = None
+    if j is None:
+        logger.warning("j_post_grasp is not found")
+        del result["j_grasp"]
+    else:
+        result["j_post_grasp"] = j
 
     # solve j_place
     env.ri.setj(env.ri.homej)
