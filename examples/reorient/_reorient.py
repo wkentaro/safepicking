@@ -150,30 +150,43 @@ def plan_reorient(env, grasp_pose, reorient_pose):
     ee_af_to_world = np.hsplit(grasp_pose, [3])
     obj_af_to_world = np.hsplit(reorient_pose, [3])
 
-    if env._robot_model == "franka_panda/panda_suction":
-        dgs = [0]
-        rotation_axis = "z"
-    else:
-        dgs = np.random.uniform(-np.pi, np.pi, size=(3,))
-        rotation_axis = True
-
-    for dg in dgs:
+    # find self-collision-free j_grasp
+    for dg in np.linspace(-np.pi, np.pi, num=6, endpoint=False):
         c = mercury.geometry.Coordinate(*ee_af_to_world)
         c.rotate([0, 0, dg])
+        j = env.ri.solve_ik(c.pose)
+        if j is None or not env.ri.validatej(j):
+            continue
 
-        # solve j_grasp
-        j = env.ri.solve_ik(c.pose, rotation_axis=rotation_axis)
-        if j is not None:
-            if not env.ri.validatej(j, obstacles=bg_object_ids):
-                logger.warning("j_grasp is invalid")
-                j = None
-        else:
-            logger.warning("j_grasp is not found")
-        if j is not None:
-            result["j_grasp"] = j
+        result["j_grasp"] = j
+
+        obj_to_world = pp.get_pose(env.fg_object_id)
+        obj_to_ee = pp.multiply(pp.invert(c.pose), obj_to_world)
+        attachments = [
+            pp.Attachment(env.ri.robot, env.ri.ee, obj_to_ee, env.fg_object_id)
+        ]
+        env.ri.attachments = attachments
+
+        with env.ri.enabling_attachments():
+            j = env.ri.solve_ik(
+                obj_af_to_world,
+                move_target=env.ri.robot_model.attachment_link0,
+                thre=0.01,
+                rthre=np.deg2rad(10),
+            )
+        if j is not None and env.ri.validatej(j):
+            result["j_place"] = j
             break
     else:
-        logger.error("j_grasp is not found")
+        logger.warning("j_grasp and j_place are not found")
+        before_return()
+        return result
+
+    env.ri.attachments = []
+
+    # check if j_grasp is collision-free with background objects
+    if not env.ri.validatej(result["j_grasp"], obstacles=bg_object_ids):
+        logger.error("j_grasp is invalid")
         before_return()
         return result
 
@@ -190,57 +203,23 @@ def plan_reorient(env, grasp_pose, reorient_pose):
     c = mercury.geometry.Coordinate(*ee_af_to_world)
     c.translate([0, 0, 0.2], wrt="world")
     j = env.ri.solve_ik(c.pose, n_init=1)
-    obstacles = env.bg_objects + env.object_ids
-    obstacles.remove(env.fg_object_id)
-    if j is not None:
-        if not env.ri.validatej(
-            j,
-            obstacles=obstacles,
-            min_distances=mercury.utils.StaticDict(-0.01),
-        ):
-            j = None
     if j is None:
         logger.warning("j_post_grasp is not found")
-        del result["j_grasp"]
+        before_return()
+        return result
     else:
         result["j_post_grasp"] = j
 
-    # solve j_place
-    env.ri.setj(env.ri.homej)
-    with env.ri.enabling_attachments():
-        j = env.ri.solve_ik(
-            obj_af_to_world,
-            move_target=env.ri.robot_model.attachment_link0,
-            thre=0.01,
-            rthre=np.deg2rad(10),
-        )
-    if j is not None:
-        if not env.ri.validatej(
-            j,
-            obstacles=bg_object_ids,
-            min_distances=mercury.utils.StaticDict(-0.01),
-        ):
-            logger.warning("j_place is invalid")
-            j = None
-    else:
-        logger.warning("j_place is not found")
-    if j is not None:
-        result["j_place"] = j
-
-    if j is not None:
-        env.ri.setj(j)
-        c = mercury.geometry.Coordinate(*env.ri.get_pose("tipLink"))
-        c.translate([0, 0, 0.1], wrt="world")
-        j = env.ri.solve_ik(c.pose, n_init=1, rthre=np.deg2rad(30), thre=0.01)
-        if j is None:
-            logger.warning("j_pre_place is not found")
-            del result["j_place"]
-        else:
-            result["j_pre_place"] = j
-
-    if "j_grasp" not in result or "j_place" not in result:
+    env.ri.setj(result["j_place"])
+    c = mercury.geometry.Coordinate(*env.ri.get_pose("tipLink"))
+    c.translate([0, 0, 0.1], wrt="world")
+    j = env.ri.solve_ik(c.pose, n_init=1, rthre=np.deg2rad(30), thre=0.01)
+    if j is None:
+        logger.warning("j_pre_place is not found")
         before_return()
         return result
+    else:
+        result["j_pre_place"] = j
 
     # solve js_grasp
     env.ri.setj(result["j_grasp"])
@@ -413,7 +392,8 @@ def get_static_reorient_poses(env):
         distance_to_plane = min(point[8] for point in points)
         assert distance_to_plane > 0
         c.position[2] -= distance_to_plane
-        c.position[2] += 0.02  # slight offset
+        if not env._real:
+            c.position[2] += 0.02  # slight offset
         pp.set_pose(env.fg_object_id, c.pose)
 
         if mercury.pybullet.is_colliding(env.fg_object_id):
