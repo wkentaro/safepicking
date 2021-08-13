@@ -24,11 +24,12 @@ here = path.Path(__file__).abspath().parent
 
 def get_goal_oriented_reorient_poses(env):
     model = Model()
-    assert env._robot_model == "franka_panda/panda_drl"
-    model_file = (
-        here
-        / "logs/pickable/20210705_231315.319988-conv_encoder-train_size_4000/models/model_best-epoch_0072.pt"  # NOQA
-    )
+    if env._robot_model == "franka_panda/panda_drl":
+        model_file = "20210811_174549.504802-panda_drl/models/model_best-epoch_0044.pt"  # NOQA
+    else:
+        assert env._robot_model == "franka_panda/panda_suction"
+        model_file = "20210705_231315.319988-conv_encoder-train_size_4000/models/model_best-epoch_0072.pt"  # NOQA
+    model_file = here / "logs/pickable" / model_file
     model.load_state_dict(torch.load(model_file))
     model.cuda()
 
