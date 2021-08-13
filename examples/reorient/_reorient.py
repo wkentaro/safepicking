@@ -305,6 +305,8 @@ def plan_reorient(env, grasp_pose, reorient_pose):
         j_prev = j
     result["js_place_length"] = trajectory_length
 
+    result["reorient_pose"] = reorient_pose
+
     before_return()
     return result
 

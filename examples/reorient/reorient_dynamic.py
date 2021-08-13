@@ -21,11 +21,18 @@ from pickable_eval import get_goal_oriented_reorient_poses
 from reorientable_train import Model
 
 
+here = path.Path(__file__).abspath().parent
+
+
 def plan_dynamic_reorient(
     env, grasp_poses, reorient_poses, pickable, visualize=True
 ):
     model = Model()
-    model_file = "logs/reorientable/20210706_030229.595823-conv_encoder-train_size_4000/models/model_best-epoch_0059.pt"  # NOQA
+    assert env._robot_model == "franka_panda/panda_drl"
+    model_file = (
+        here
+        / "logs/reorientable/20210706_030229.595823-conv_encoder-train_size_4000/models/model_best-epoch_0059.pt"  # NOQA
+    )
     logger.info(f"Loading {model_file}")
     model.load_state_dict(torch.load(model_file, map_location="cpu"))
     model.eval()

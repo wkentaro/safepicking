@@ -384,8 +384,11 @@ class ReorientDemoInterface:
 
     def init_task(self):
         self.env._fg_class_id = 2
-        self.env._place_pose = ([0.5, 0.5, 0.5], [0, 0, 0, 1])
-        self.env._pre_place_pose = ([0.5, 0.3, 0.5], [0, 0, 0, 1])
+        c = mercury.geometry.Coordinate([0.5, 0.52, 0.54], [0, 0, 0, 1])
+        c.rotate([0, 0, np.pi])
+        self.env._place_pose = c.pose
+        c.translate([0, -0.3, 0], wrt="world")
+        self.env._pre_place_pose = c.pose
 
     def capture_to_reorient(self):
         self.go_to_overlook_pose()
@@ -423,6 +426,60 @@ class ReorientDemoInterface:
             mass=0,
             position=self.env.PLACE_POSE[0],
             quaternion=self.env.PLACE_POSE[1],
+        )
+
+    def pick_and_reorient_learned(self):
+        from pickable_eval import get_goal_oriented_reorient_poses
+        from reorient_dynamic import plan_dynamic_reorient
+
+        (
+            reorient_poses,
+            pickable,
+            target_grasp_poses,
+        ) = get_goal_oriented_reorient_poses(self.env)
+
+        grasp_poses = _reorient.get_grasp_poses(self.env)  # in world
+        grasp_poses = list(itertools.islice(grasp_poses, 100))
+
+        for threshold in np.linspace(0.9, 0.1, num=10):
+            indices = np.where(pickable > threshold)[0]
+            if indices.size > 100:
+                break
+        indices = np.random.choice(
+            indices, min(indices.size, 1000), replace=False
+        )
+        reorient_poses = reorient_poses[indices]
+        pickable = pickable[indices]
+
+        result = plan_dynamic_reorient(
+            self.env, grasp_poses, reorient_poses, pickable
+        )
+
+        if 0:
+            _reorient.execute_reorient(self.env, result)
+        else:
+            self.send_avs(result["js_pre_grasp"], time_scale=5)
+            self.wait_interpolation()
+
+            self.send_avs(self.get_cartesian_path(av=result["j_grasp"]))
+            self.wait_interpolation()
+
+            self.start_grasp()
+            rospy.sleep(2)
+
+            js = result["js_place"]
+            self.send_avs(js)
+            self.wait_interpolation()
+
+            self.stop_grasp()
+            rospy.sleep(5)
+
+            js = result["js_post_place"]
+            self.send_avs(js, time_scale=5)
+            self.wait_interpolation()
+
+        pp.set_pose(
+            self.env.fg_object_id, np.hsplit(result["reorient_pose"], [3])
         )
 
     def pick_and_reorient(self):
@@ -476,7 +533,9 @@ class ReorientDemoInterface:
             self.send_avs(js, time_scale=5)
             self.wait_interpolation()
 
-        pp.set_pose(self.env.fg_object_id, np.hsplit(reorient_pose, [3]))
+        pp.set_pose(
+            self.env.fg_object_id, np.hsplit(result["reorient_pose"], [3])
+        )
 
     def capture_to_place(self):
         eye = [0.2, -0.3, 0.7]
@@ -487,7 +546,7 @@ class ReorientDemoInterface:
         j = self.env.ri.solve_ik(
             camera_to_base, move_target=self.env.ri.robot_model.camera_link
         )
-        self.send_avs([j])
+        self.send_avs([j], time_scale=5)
 
         self.capture_visual_observation()
         self.observation_to_env()
@@ -511,7 +570,7 @@ class ReorientDemoInterface:
         if 0:
             _reorient.execute_place(self.env, result)
         else:
-            self.send_avs(result["js_pre_grasp"], time_scale=10)
+            self.send_avs(result["js_pre_grasp"], time_scale=5)
             self.wait_interpolation()
 
             self.send_avs(
@@ -522,7 +581,7 @@ class ReorientDemoInterface:
             self.start_grasp()
             rospy.sleep(2)
 
-            self.send_avs(result["js_pre_place"])
+            self.send_avs(result["js_pre_place"], time_scale=5)
             self.wait_interpolation()
 
             self.send_avs(result["js_place"], time_scale=20)
@@ -530,6 +589,9 @@ class ReorientDemoInterface:
 
             self.stop_grasp()
             rospy.sleep(5)
+
+            self.send_avs(result["js_place"][::-1], time_scale=20)
+            self.wait_interpolation()
 
             self.go_to_reset_pose(cartesian=False)
             self.wait_interpolation()
