@@ -1,6 +1,7 @@
 import itertools
 import time
 
+import cv2
 from loguru import logger
 import numpy as np
 import pybullet_planning as pp
@@ -11,57 +12,70 @@ import _utils
 
 
 def get_query_ocs(env):
-    with pp.LockRenderer(), pp.WorldSaver():
-        pp.set_pose(env.fg_object_id, env.PLACE_POSE)
+    lock_renderer = pp.LockRenderer()
+    world_saver = pp.WorldSaver()
 
-        T_camera_to_world = mercury.geometry.look_at(
-            env.PRE_PLACE_POSE[0], env.PLACE_POSE[0]
-        )
-        fovy = np.deg2rad(60)
-        height = 240
-        width = 240
-        mercury.pybullet.draw_camera(
-            fovy,
-            height,
-            width,
-            pose=mercury.geometry.pose_from_matrix(T_camera_to_world),
-        )
-        rgb, depth, segm = mercury.pybullet.get_camera_image(
-            T_camera_to_world, fovy, height, width
-        )
-        # if pp.has_gui():
-        #     import imgviz
-        #
-        #     imgviz.io.cv_imshow(
-        #         np.hstack((rgb, imgviz.depth2rgb(depth))), "get_query_ocs"
-        #     )
-        #     imgviz.io.cv_waitkey(100)
-        K = mercury.geometry.opengl_intrinsic_matrix(fovy, height, width)
-        pcd_in_camera = mercury.geometry.pointcloud_from_depth(
-            depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
-        )
-        pcd_in_world = mercury.geometry.transform_points(
-            pcd_in_camera, T_camera_to_world
-        )
-        normals_in_world = mercury.geometry.normals_from_pointcloud(
-            pcd_in_world
-        )
-        normals_in_world *= -1  # flip normals
+    pp.set_pose(env.fg_object_id, env.PLACE_POSE)
 
-        world_to_obj = pp.invert(pp.get_pose(env.fg_object_id))
-        mask = segm == env.fg_object_id
-        pcd_in_obj = mercury.geometry.transform_points(
-            pcd_in_world[mask],
+    T_camera_to_world = mercury.geometry.look_at(
+        env.PRE_PLACE_POSE[0], env.PLACE_POSE[0]
+    )
+    fovy = np.deg2rad(60)
+    height = 240
+    width = 240
+    mercury.pybullet.draw_camera(
+        fovy,
+        height,
+        width,
+        pose=mercury.geometry.pose_from_matrix(T_camera_to_world),
+    )
+    rgb, depth, segm = mercury.pybullet.get_camera_image(
+        T_camera_to_world, fovy, height, width
+    )
+    # if pp.has_gui():
+    #     import imgviz
+    #
+    #     imgviz.io.cv_imshow(
+    #         np.hstack((rgb, imgviz.depth2rgb(depth))), "get_query_ocs"
+    #     )
+    #     imgviz.io.cv_waitkey(100)
+    K = mercury.geometry.opengl_intrinsic_matrix(fovy, height, width)
+    pcd_in_camera = mercury.geometry.pointcloud_from_depth(
+        depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
+    )
+    pcd_in_world = mercury.geometry.transform_points(
+        pcd_in_camera, T_camera_to_world
+    )
+    normals_in_world = mercury.geometry.normals_from_pointcloud(pcd_in_world)
+    normals_in_world *= -1  # flip normals
+
+    mask = segm == env.fg_object_id
+
+    normals_on_obj = normals_in_world.copy()
+    normals_on_obj[~mask] = 0
+    laplacian = cv2.Laplacian(normals_on_obj, cv2.CV_64FC3)
+    magnitude = np.linalg.norm(laplacian, axis=2)
+    edge_mask = magnitude > 0.5
+    edge_mask = (
+        cv2.dilate(np.uint8(edge_mask) * 255, kernel=np.ones((5, 5))) == 255
+    )
+    mask = mask & ~edge_mask
+
+    world_to_obj = pp.invert(pp.get_pose(env.fg_object_id))
+    pcd_in_obj = mercury.geometry.transform_points(
+        pcd_in_world[mask],
+        mercury.geometry.transformation_matrix(*world_to_obj),
+    )
+    normals_in_obj = (
+        mercury.geometry.transform_points(
+            pcd_in_world[mask] + normals_in_world[mask],
             mercury.geometry.transformation_matrix(*world_to_obj),
         )
-        normals_in_obj = (
-            mercury.geometry.transform_points(
-                pcd_in_world[mask] + normals_in_world[mask],
-                mercury.geometry.transformation_matrix(*world_to_obj),
-            )
-            - pcd_in_obj
-        )
+        - pcd_in_obj
+    )
 
+    world_saver.restore()
+    lock_renderer.restore()
     return pcd_in_obj, normals_in_obj
 
 
@@ -74,6 +88,17 @@ def get_grasp_poses(env):
         depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
     )
     normals_in_camera = mercury.geometry.normals_from_pointcloud(pcd_in_camera)
+
+    normals_on_obj = normals_in_camera.copy()
+    normals_on_obj[~mask] = 0
+    laplacian = cv2.Laplacian(normals_on_obj, cv2.CV_64FC3)
+    magnitude = np.linalg.norm(laplacian, axis=2)
+    edge_mask = magnitude > 0.5
+    edge_mask = (
+        cv2.dilate(np.uint8(edge_mask) * 255, kernel=np.ones((5, 5))) == 255
+    )
+    mask = mask & ~edge_mask
+
     pcd_in_camera = pcd_in_camera[mask]
     normals_in_camera = normals_in_camera[mask]
 
