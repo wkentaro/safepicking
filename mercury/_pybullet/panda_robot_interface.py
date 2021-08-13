@@ -70,6 +70,14 @@ class PandaRobotInterface:
 
         self.planner = planner
 
+        lower, upper = self.get_bounds()
+        for joint, min_angle, max_angle in zip(self.joints, lower, upper):
+            joint_name = pybullet_planning.get_joint_name(
+                self.robot, joint
+            ).decode()
+            getattr(self.robot_model, joint_name).min_angle = min_angle
+            getattr(self.robot_model, joint_name).max_angle = max_angle
+
     def get_bounds(self):
         lower_bounds = []
         upper_bounds = []
