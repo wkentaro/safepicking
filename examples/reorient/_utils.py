@@ -214,10 +214,9 @@ def init_place_scene(class_id, random_state, face="front"):
     pp.remove_body(objects[-1])
     mercury.pybullet.create_mesh_body(
         visual_file=visual_file,
-        texture=False,
         position=place_pose[0],
         quaternion=place_pose[1],
-        rgba_color=[0, 1, 0, 0.5],
+        rgba_color=[1, 1, 1, 0.5],
     )
 
     lock_renderer.restore()
