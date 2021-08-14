@@ -137,10 +137,11 @@ def plan_reorient(env, grasp_pose, reorient_pose):
 
     obj_af = mercury.pybullet.duplicate(
         env.fg_object_id,
-        texture=False,
-        rgba_color=(0, 1, 0, 0.5),
+        collision=False,
+        rgba_color=(1, 1, 1, 0.5),
         position=reorient_pose[:3],
         quaternion=reorient_pose[3:],
+        mass=0,
     )
 
     def before_return():

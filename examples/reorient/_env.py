@@ -52,6 +52,7 @@ class Env:
         face="front",
         real=False,
         robot_model="franka_panda/panda_suction",
+        debug=True,
     ):
         super().__init__()
 
@@ -64,6 +65,7 @@ class Env:
         self._real = real
         self._robot_model = robot_model
 
+        self.debug = debug
         self.eval = False
         self.random_state = np.random.RandomState()
 

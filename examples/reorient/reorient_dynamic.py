@@ -43,9 +43,7 @@ models["franka_panda/panda_suction"].load_state_dict(torch.load(model_file))
 models["franka_panda/panda_suction"].eval()
 
 
-def plan_dynamic_reorient(
-    env, grasp_poses, reorient_poses, pickable, visualize=True
-):
+def plan_dynamic_reorient(env, grasp_poses, reorient_poses, pickable):
     model = models[env._robot_model]
     model.cuda()
 
@@ -68,12 +66,13 @@ def plan_dynamic_reorient(
         )[0]
         grasp_points.append(np.hstack([grasp_point_start, grasp_point_end]))
 
-        # pp.draw_pose(
-        #     np.hsplit(grasp_pose, [3]),
-        #     parent=env.fg_object_id,
-        #     length=0.05,
-        #     width=3,
-        # )
+        if 0:
+            pp.draw_pose(
+                np.hsplit(grasp_pose, [3]),
+                parent=env.fg_object_id,
+                length=0.05,
+                width=3,
+            )
     grasp_points = np.array(grasp_points)
 
     N_grasp = grasp_points.shape[0]
@@ -153,25 +152,9 @@ def plan_dynamic_reorient(
         ee_to_world = pp.multiply(obj_to_world, ee_to_obj)
         obj_af_to_world = np.hsplit(reorient_poses[index], [3])
 
-        if visualize:
-            obj_af = mercury.pybullet.duplicate(
-                env.fg_object_id,
-                collision=False,
-                rgba_color=(0, 1, 0, 0.5),
-                position=obj_af_to_world[0],
-                quaternion=obj_af_to_world[1],
-            )
-        else:
-            lock_renderer = pp.LockRenderer()
-
         result = _reorient.plan_reorient(
             env, np.hstack(ee_to_world), np.hstack(obj_af_to_world)
         )
-
-        if visualize:
-            pp.remove_body(obj_af)
-        else:
-            lock_renderer.restore()
 
         if "js_place" in result:
             logger.success(
@@ -208,6 +191,7 @@ def main():
     )
     parser.add_argument("--mp4", help="mp4")
     parser.add_argument("--nogui", action="store_true", help="no gui")
+    parser.add_argument("--nodebug", action="store_true", help="no debug")
     args = parser.parse_args()
 
     json_file = path.Path(
@@ -222,6 +206,7 @@ def main():
         gui=not args.nogui,
         mp4=args.mp4,
         face=args.face,
+        debug=not args.nodebug,
     )
     env.random_state = np.random.RandomState(args.seed)
     env.eval = True
@@ -234,9 +219,8 @@ def main():
     ) = get_goal_oriented_reorient_poses(env)
 
     grasp_poses = np.array(
-        list(itertools.islice(_reorient.get_grasp_poses(env), 100))
+        list(itertools.islice(_reorient.get_grasp_poses(env), 32))
     )
-
     if 0:
         for reorient_pose in reorient_poses[np.argsort(pickable)[::-1]]:
             grasp_pose = grasp_poses[

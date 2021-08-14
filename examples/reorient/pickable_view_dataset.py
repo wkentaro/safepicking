@@ -66,8 +66,7 @@ def main():
         mercury.pybullet.duplicate(
             target_obj,
             collision=False,
-            texture=False,
-            rgba_color=(0, 1, 0, 0.5),
+            rgba_color=(1, 1, 1, 0.5),
             position=obj_af_to_world[0],
             quaternion=obj_af_to_world[1],
             mass=0,

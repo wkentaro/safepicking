@@ -65,7 +65,7 @@ def get_goal_oriented_reorient_poses(env):
 
     # target grasp_pose
     pcd_in_obj, normals_in_obj = _reorient.get_query_ocs(env)
-    indices = np.random.permutation(pcd_in_obj.shape[0])[:20]
+    indices = np.random.permutation(pcd_in_obj.shape[0])[:32]
 
     pcd_in_obj = pcd_in_obj[indices]
     normals_in_obj = normals_in_obj[indices]
@@ -84,12 +84,13 @@ def get_goal_oriented_reorient_poses(env):
         )[0]
         grasp_points.append(np.hstack([grasp_point_start, grasp_point_end]))
 
-        pp.draw_pose(
-            np.hsplit(grasp_pose, [3]),
-            parent=env.fg_object_id,
-            length=0.05,
-            width=3,
-        )
+        if 0:
+            pp.draw_pose(
+                np.hsplit(grasp_pose, [3]),
+                parent=env.fg_object_id,
+                length=0.05,
+                width=3,
+            )
     grasp_points = np.array(grasp_points)
 
     object_label = object_labels[object_fg_flags == 1][0]

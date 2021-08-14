@@ -19,7 +19,8 @@ home = path.Path("~").expanduser()
 
 def get_reorient_poses(env):
     bounds = ((0.25, -0.55, 0.071), (0.75, -0.25, 0.071))
-    pp.draw_aabb(bounds)
+    if env.debug:
+        pp.draw_aabb(bounds)
 
     XY = np.array(
         list(
@@ -55,7 +56,8 @@ def get_reorient_poses(env):
                 continue
             pp.remove_body(box)
 
-            pp.draw_point((x, y, 0.071), color=(0, 1, 0, 1))
+            if env.debug:
+                pp.draw_point((x, y, 0.071), color=(0, 1, 0, 1))
             XY_valid.append((x, y))
     XY = XY_valid
 
@@ -83,9 +85,7 @@ def get_reorient_poses(env):
             c.position[2] += -distance_to_plane
 
             for x, y in XY:
-                position = [x, y, c.position[2]]
-                quaternion = c.quaternion
-                reorient_poses.append(np.hstack((position, quaternion)))
+                reorient_poses.append([x, y, c.position[2], *c.quaternion])
     return np.array(reorient_poses)
 
 
