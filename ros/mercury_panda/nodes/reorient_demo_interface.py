@@ -428,7 +428,7 @@ class ReorientDemoInterface:
             quaternion=self.env.PLACE_POSE[1],
         )
 
-    def pick_and_reorient_learned(self):
+    def pick_and_reorient(self):
         from pickable_eval import get_goal_oriented_reorient_poses
         from reorient_dynamic import plan_dynamic_reorient
 
@@ -478,11 +478,9 @@ class ReorientDemoInterface:
             self.send_avs(js, time_scale=5)
             self.wait_interpolation()
 
-        pp.set_pose(
-            self.env.fg_object_id, np.hsplit(result["reorient_pose"], [3])
-        )
+        pp.remove_body(self.env.fg_object_id)
 
-    def pick_and_reorient(self):
+    def pick_and_reorient_heuristic(self):
         if 0:
             pcd_in_obj, normals_in_obj = _reorient.get_query_ocs(self.env)
             indices = np.random.permutation(pcd_in_obj.shape[0])[:20]
@@ -553,7 +551,7 @@ class ReorientDemoInterface:
 
     def pick_and_place(self):
         pcd_in_obj, normals_in_obj = _reorient.get_query_ocs(self.env)
-        indices = np.random.permutation(pcd_in_obj.shape[0])[:20]
+        indices = np.random.permutation(pcd_in_obj.shape[0])[:32]
         pcd_in_obj = pcd_in_obj[indices]
         normals_in_obj = normals_in_obj[indices]
         quaternion_in_obj = mercury.geometry.quaternion_from_vec2vec(
