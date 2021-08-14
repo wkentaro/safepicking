@@ -61,7 +61,8 @@ def get_reorient_poses(env):
 
     reorient_poses = []
     with pp.LockRenderer(), pp.WorldSaver():
-        for (x, y), (a, b, g) in itertools.product(XY, ABG):
+        for a, b, g in ABG:
+            x, y = XY[0]
             c = mercury.geometry.Coordinate(
                 position=(x, y, 0),
                 quaternion=_utils.get_canonical_quaternion(
@@ -80,9 +81,11 @@ def get_reorient_poses(env):
             distance_to_plane = min(point[8] for point in points)
             assert distance_to_plane > 0
             c.position[2] += -distance_to_plane
-            pp.set_pose(env.fg_object_id, c.pose)
 
-            reorient_poses.append(np.hstack(c.pose))
+            for x, y in XY:
+                position = [x, y, c.position[2]]
+                quaternion = c.quaternion
+                reorient_poses.append(np.hstack((position, quaternion)))
     return np.array(reorient_poses)
 
 
