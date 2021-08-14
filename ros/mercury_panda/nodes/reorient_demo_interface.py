@@ -126,7 +126,7 @@ class ReorientDemoInterface:
         avs = []
         for p in pp.interpolate_poses_by_num_steps(p1, p2, num_steps=steps):
             av = self.env.ri.solve_ik(p, rotation_axis=rotation_axis)
-            if av is not None:
+            if av is not None and self.env.ri.validatej(av):
                 avs.append(av)
         if av_final is not None:
             avs.append(av_final)
