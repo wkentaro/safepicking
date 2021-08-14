@@ -125,26 +125,8 @@ def get_grasp_poses(env):
     obstacles.remove(env.fg_object_id)
     for pose in zip(pcd_in_world[p], quaternion_in_world[p]):
         j = env.ri.solve_ik(pose, rotation_axis="z")
-        if j is None:
-            continue
-        if not env.ri.validatej(
-            j,
-            obstacles=obstacles,
-        ):
-            continue
-
-        c = mercury.geometry.Coordinate(*pose)
-        c.translate([0, 0, -0.1])
-        j = env.ri.solve_ik(c.pose, n_init=1)
-        if j is None:
-            continue
-        if not env.ri.validatej(
-            j,
-            obstacles=obstacles,
-        ):
-            continue
-
-        yield np.hstack(pose)
+        if j is not None and env.ri.validatej(j, obstacles=obstacles):
+            yield np.hstack(pose)
 
 
 def plan_reorient(env, grasp_pose, reorient_pose):
