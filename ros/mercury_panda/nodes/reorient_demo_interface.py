@@ -152,11 +152,13 @@ class ReorientDemoInterface:
 
         av_prev = self.ri.potentio_vector()
         avs_filtered = []
-        for av in avs:
+        for i, av in enumerate(avs):
             av_delta = np.linalg.norm(av - av_prev)
-            if av_delta > np.deg2rad(1):
+            if av_delta > np.deg2rad(5):
                 avs_filtered.append(av)
                 av_prev = av
+            elif i == len(avs) - 1:
+                avs_filtered[-1] = av  # replace the last av
         self.ri.angle_vector_sequence(avs_filtered, time_scale=time_scale)
         if wait:
             self.wait_interpolation()
