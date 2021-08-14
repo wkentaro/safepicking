@@ -102,37 +102,6 @@ class ReorientDemoInterface:
         )
         return mercury.geometry.transformation_matrix(position, quaternion)
 
-    def get_cartesian_path(
-        self, av=None, pose=None, rotation_axis=True, steps=10
-    ):
-        if not (av is None) ^ (pose is None):
-            raise ValueError("Either av or coords must be given")
-
-        av1 = self.env.ri.getj()
-        p1 = self.env.ri.get_pose("tipLink")
-
-        if av is None:
-            av = self.env.ri.solve_ik(pose, rotation_axis=rotation_axis)
-            if av is None:
-                raise RuntimeError("IK failure")
-        else:
-            self.env.ri.setj(av)
-        av_final = av
-
-        p2 = self.env.ri.get_pose("tipLink")
-
-        self.env.ri.setj(av1)
-
-        avs = []
-        for p in pp.interpolate_poses_by_num_steps(p1, p2, num_steps=steps):
-            av = self.env.ri.solve_ik(p, rotation_axis=rotation_axis)
-            if av is not None and self.env.ri.validatej(av):
-                avs.append(av)
-        if av_final is not None:
-            avs.append(av_final)
-        avs = np.array(avs)
-        return avs
-
     def real2robot(self):
         self.ri.update_robot_state()
         self.env.ri.setj(self.ri.potentio_vector())
@@ -303,7 +272,7 @@ class ReorientDemoInterface:
 
     def go_to_reset_pose(self, cartesian=True):
         if cartesian:
-            avs = self.get_cartesian_path(av=self.env.ri.homej)
+            avs = self.env.ri.get_cartesian_path(j=self.env.ri.homej)
         else:
             avs = [self.env.ri.homej]
         self.send_avs(avs, time_scale=5)
@@ -318,7 +287,7 @@ class ReorientDemoInterface:
             move_target=self.env.ri.robot_model.camera_link,
             rotation_axis="z",
         )
-        js = self.get_cartesian_path(av=j)
+        js = self.env.ri.get_cartesian_path(j=j)
         self.send_avs(js, time_scale=5)
 
     def get_grasp_poses(self):
@@ -449,7 +418,7 @@ class ReorientDemoInterface:
             self.send_avs(result["js_pre_grasp"], time_scale=5)
             self.wait_interpolation()
 
-            self.send_avs(self.get_cartesian_path(av=result["j_grasp"]))
+            self.send_avs(self.env.ri.get_cartesian_path(j=result["j_grasp"]))
             self.wait_interpolation()
 
             self.start_grasp()
@@ -502,7 +471,7 @@ class ReorientDemoInterface:
             self.send_avs(result["js_pre_grasp"], time_scale=5)
             self.wait_interpolation()
 
-            self.send_avs(self.get_cartesian_path(av=result["j_grasp"]))
+            self.send_avs(self.env.ri.get_cartesian_path(j=result["j_grasp"]))
             self.wait_interpolation()
 
             self.start_grasp()
@@ -560,7 +529,8 @@ class ReorientDemoInterface:
             self.wait_interpolation()
 
             self.send_avs(
-                self.get_cartesian_path(av=result["j_grasp"]), time_scale=20
+                self.env.ri.get_cartesian_path(j=result["j_grasp"]),
+                time_scale=20,
             )
             self.wait_interpolation()
 
