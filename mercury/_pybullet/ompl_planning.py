@@ -40,27 +40,30 @@ class pbValidityChecker(ob.StateValidityChecker):
         if not self.check_joint_limits(state):
             return False
 
-        with pp.LockRenderer(), pp.WorldSaver():
-            self.ri.setj(state)
+        j = [state[i] for i in range(self.ndof)]
 
-            j = self.ri.getj()
-            if self.min_distances_start_goal:
-                if self.start is not None and np.allclose(j, self.start):
-                    min_distances = self.min_distances_start_goal
-                elif self.goal is not None and np.allclose(j, self.goal):
-                    min_distances = self.min_distances_start_goal
-                else:
-                    min_distances = self.min_distances
+        if self.min_distances_start_goal:
+            if self.start is not None and np.allclose(j, self.start):
+                min_distances = self.min_distances_start_goal
+            elif self.goal is not None and np.allclose(j, self.goal):
+                min_distances = self.min_distances_start_goal
             else:
                 min_distances = self.min_distances
+        else:
+            min_distances = self.min_distances
 
+        with pp.WorldSaver():
+            self.ri.setj(j)
             for attachment in self.ri.attachments:
                 attachment.assign()
-            return self.check_self_collision(
+
+            is_valid = self.check_self_collision(
                 min_distances=min_distances
             ) and self.check_collision(
                 self.obstacles, min_distances=min_distances
             )
+
+        return is_valid
 
     def check_self_collision(self, min_distances=None):
         min_distances = min_distances or {}
