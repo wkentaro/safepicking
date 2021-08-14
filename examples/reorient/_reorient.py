@@ -162,7 +162,7 @@ def plan_reorient(env, grasp_pose, reorient_pose):
         c = mercury.geometry.Coordinate(*ee_af_to_world)
         c.rotate([0, 0, dg])
         j = env.ri.solve_ik(c.pose)
-        if j is None or not env.ri.validatej(j):
+        if j is None or not env.ri.validatej(j, obstacles=bg_object_ids):
             continue
 
         result["j_grasp"] = j
@@ -181,7 +181,7 @@ def plan_reorient(env, grasp_pose, reorient_pose):
                 thre=0.01,
                 rthre=np.deg2rad(10),
             )
-        if j is not None and env.ri.validatej(j):
+        if j is not None and env.ri.validatej(j, obstacles=bg_object_ids):
             result["j_place"] = j
             break
     else:
@@ -190,12 +190,6 @@ def plan_reorient(env, grasp_pose, reorient_pose):
         return result
 
     env.ri.attachments = []
-
-    # check if j_grasp is collision-free with background objects
-    if not env.ri.validatej(result["j_grasp"], obstacles=bg_object_ids):
-        logger.error("j_grasp is invalid")
-        before_return()
-        return result
 
     env.ri.setj(result["j_grasp"])
     ee_af_to_world = env.ri.get_pose("tipLink")
