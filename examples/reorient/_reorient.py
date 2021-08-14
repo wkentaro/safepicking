@@ -23,12 +23,13 @@ def get_query_ocs(env):
     fovy = np.deg2rad(60)
     height = 240
     width = 240
-    mercury.pybullet.draw_camera(
-        fovy,
-        height,
-        width,
-        pose=mercury.geometry.pose_from_matrix(T_camera_to_world),
-    )
+    if env.debug:
+        mercury.pybullet.draw_camera(
+            fovy,
+            height,
+            width,
+            pose=mercury.geometry.pose_from_matrix(T_camera_to_world),
+        )
     rgb, depth, segm = mercury.pybullet.get_camera_image(
         T_camera_to_world, fovy, height, width
     )

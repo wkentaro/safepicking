@@ -203,7 +203,7 @@ def init_place_scene(class_id, random_state, face="front"):
     # apply transform
     c = mercury.geometry.Coordinate()
     c.rotate([0, 0, np.deg2rad(-90)])
-    c.translate([0, 0.7, 0.45], wrt="world")
+    c.translate([0, 0.7, 0.45 + 0.07], wrt="world")
     shelf_to_world = c.pose
     for obj in [shelf] + objects:
         obj_to_shelf = pp.get_pose(obj)

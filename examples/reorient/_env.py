@@ -93,26 +93,10 @@ class Env:
             cameraTargetPosition=(0, 0, 0),
         )
         with pp.LockRenderer():
-            # Extracted from panda_table in URDF
-            plane_aabb = np.array(
-                [
-                    [0.12, -0.65, 0.0125],
-                    [1.12, 0.65, 0.0625],
-                ],
-                dtype=np.float32,
-            )
-            plane_pose = (
-                plane_aabb.mean(axis=0),
-                (0.0, 0.0, 0.0, 1.0),
-            )
-            extents = plane_aabb[1] - plane_aabb[0]
-            self.plane = pp.create_box(*extents, color=(1, 1, 1, 1))
-            pp.set_pose(self.plane, plane_pose)
-
-            self.ground = pp.load_pybullet("plane.urdf")
-            pp.set_texture(self.ground)
-            pp.set_color(self.ground, (0.4, 0.4, 0.4, 1))
-            pp.set_pose(self.ground, ([0, 0, -1], [0, 0, 0, 1]))
+            self.plane = pp.load_pybullet("plane.urdf")
+            pp.set_texture(self.plane)
+            pp.set_color(self.plane, (0.4, 0.4, 0.4, 1))
+            pp.set_pose(self.plane, ([0, 0, 0.07], [0, 0, 0, 1]))
 
         self.ri = mercury.pybullet.PandaRobotInterface(
             suction_max_force=None,
