@@ -445,8 +445,10 @@ def plan_place(env, target_grasp_poses):
             c = mercury.geometry.Coordinate(*ee_to_world)
             c.rotate([0, 0, dg])
             j = env.ri.solve_ik(c.pose)
-            if j is not None:
-                env.ri.setj(j)
+            if j is None:
+                env.ri.setj(env.ri.homej)
+                j = env.ri.solve_ik(c.pose)
+                env.ri.setj(j_init)
             if j is None or not env.ri.validatej(j, obstacles=env.bg_objects):
                 world_saver.restore()
                 env.ri.attachments = []
@@ -482,7 +484,7 @@ def plan_place(env, target_grasp_poses):
                 j = env.ri.solve_ik(
                     env.PRE_PLACE_POSE,
                     move_target=env.ri.robot_model.attachment_link0,
-                    n_init=5,
+                    n_init=3,
                 )
             if j is None or not env.ri.validatej(j, obstacles=env.bg_objects):
                 world_saver.restore()
