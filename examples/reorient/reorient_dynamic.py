@@ -24,19 +24,29 @@ from reorientable_train import Model
 here = path.Path(__file__).abspath().parent
 
 
+models = {}
+
+models["franka_panda/panda_drl"] = Model()
+model_file = (
+    here
+    / "logs/reorientable/20210811_174552.543384-panda_drl/models/model_best-epoch_0111.pt"  # NOQA
+)
+models["franka_panda/panda_drl"].load_state_dict(torch.load(model_file))
+models["franka_panda/panda_drl"].eval()
+
+models["franka_panda/panda_suction"] = Model()
+model_file = (
+    here
+    / "logs/reorientable/20210706_030229.595823-conv_encoder-train_size_4000/models/model_best-epoch_0059.pt"  # NOQA
+)
+models["franka_panda/panda_suction"].load_state_dict(torch.load(model_file))
+models["franka_panda/panda_suction"].eval()
+
+
 def plan_dynamic_reorient(
     env, grasp_poses, reorient_poses, pickable, visualize=True
 ):
-    model = Model()
-    if env._robot_model == "franka_panda/panda_drl":
-        model_file = "20210706_030229.595823-conv_encoder-train_size_4000/models/model_best-epoch_0059.pt"  # NOQA
-    else:
-        assert env._robot_model == "franka_panda/panda_suction"
-        model_file = "20210706_030229.595823-conv_encoder-train_size_4000/models/model_best-epoch_0059.pt"  # NOQA
-    model_file = here / "logs/reorientable" / model_file
-    logger.info(f"Loading {model_file}")
-    model.load_state_dict(torch.load(model_file, map_location="cpu"))
-    model.eval()
+    model = models[env._robot_model]
     model.cuda()
 
     obj_to_world = pp.get_pose(env.fg_object_id)
