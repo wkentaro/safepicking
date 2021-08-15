@@ -5,6 +5,7 @@ import itertools
 import sys
 import tempfile
 
+import IPython
 import numpy as np
 import open3d
 import path
@@ -35,6 +36,8 @@ sys.path.insert(0, "../../../examples/reorient")
 
 from _env import Env  # NOQA
 import _reorient  # NOQA
+from pickable_eval import get_goal_oriented_reorient_poses  # NOQA
+from reorient_dynamic import plan_dynamic_reorient  # NOQA
 
 
 class Panda(skrobot.models.Panda):
@@ -167,6 +170,8 @@ class ReorientDemoInterface:
     def __init__(self):
         rospy.init_node("demo_interface")
 
+        self._reoriented_pose = None
+
         self._tf_listener = tf.listener.TransformListener(
             cache_time=rospy.Duration(60)
         )
@@ -265,37 +270,40 @@ class ReorientDemoInterface:
             client = rospy.ServiceProxy(passthrough + "/stop", Empty)
             client.call()
 
-    def capture_visual_observation(self):
+    def capture_observation(self):
         self.start_passthrough()
 
         self._subscribe()
         while not self._check_observation():
-            rospy.loginfo_throttle(10, "Waiting for visual observation")
+            rospy.loginfo_throttle(10, "Waiting for observation")
             rospy.timer.sleep(0.1)
-        rospy.loginfo("Received visual observation")
+        rospy.loginfo("Received observation")
         self._unsubsribe()
 
         self.stop_passthrough()
 
-    def go_to_reset_pose(self, cartesian=True):
+    def reset(self, cartesian=True):
         if cartesian:
             avs = self.env.ri.get_cartesian_path(j=self.env.ri.homej)
         else:
             avs = [self.env.ri.homej]
         self.send_avs(avs, time_scale=5)
 
-    def go_to_overlook_pose(self, position=None):
-        if position is None:
-            position = [0.5, 0, 0.7]
-
-        pose = self.env.ri.get_pose("camera_link")
-        j = self.env.ri.solve_ik(
-            (position, pose[1]),
-            move_target=self.env.ri.robot_model.camera_link,
-            rotation_axis="z",
+    def look_at(self, eye, target):
+        c = mercury.geometry.Coordinate.from_matrix(
+            mercury.geometry.look_at(eye, target)
         )
-        js = self.env.ri.get_cartesian_path(j=j)
-        self.send_avs(js, time_scale=5)
+        for _ in range(4):
+            c.rotate([0, 0, np.pi / 2])
+            if abs(c.euler[2] - np.pi / 2) < np.pi / 4:
+                break
+        j = self.env.ri.solve_ik(
+            c.pose, move_target=self.env.ri.robot_model.camera_link
+        )
+        if j is None or not self.env.ri.validatej(j):
+            rospy.logerr("j is not found or invalid")
+            return
+        self.send_avs([j], time_scale=5)
 
     # -------------------------------------------------------------------------
 
@@ -307,9 +315,12 @@ class ReorientDemoInterface:
         c.translate([0, -0.3, 0], wrt="world")
         self.env._pre_place_pose = c.pose
 
+    def look_at_pile(self):
+        self.look_at(eye=[0.5, 0, 0.7], target=[0.5, 0, 0])
+
     def capture_to_reorient(self):
-        self.go_to_overlook_pose()
-        self.capture_visual_observation()
+        self.look_at_pile()
+        self.capture_observation()
         self.observation_to_env()
 
     def observation_to_env(self):
@@ -375,14 +386,18 @@ class ReorientDemoInterface:
         collision_file = mercury.pybullet.get_collision_file(
             visual_file, resolution=10000
         )
-        bg_objects = mercury.pybullet.create_mesh_body(
+        bg_structure = mercury.pybullet.create_mesh_body(
             visual_file=visual_file,
             collision_file=collision_file,
             rgba_color=(0.5, 0.5, 0.5, 1),
         )
         tmp_dir.rmtree()
 
-        self.env.object_ids = [object_id, bg_objects]
+        if self.env.fg_object_id is not None:
+            pp.remove_body(self.env.fg_object_id)
+
+        self.env.bg_objects.append(bg_structure)
+        self.env.object_ids = [object_id]
         self.env.fg_object_id = object_id
         self.env.update_obs()
 
@@ -396,9 +411,6 @@ class ReorientDemoInterface:
         )
 
     def pick_and_reorient(self):
-        from pickable_eval import get_goal_oriented_reorient_poses
-        from reorient_dynamic import plan_dynamic_reorient
-
         (
             reorient_poses,
             pickable,
@@ -445,7 +457,9 @@ class ReorientDemoInterface:
             self.send_avs(js, time_scale=5)
             self.wait_interpolation()
 
-        pp.remove_body(self.env.fg_object_id)
+        pp.set_pose(
+            self.env.fg_object_id, np.hsplit(result["reorient_pose"], [3])
+        )
 
     def pick_and_reorient_heuristic(self):
         if 0:
@@ -502,18 +516,16 @@ class ReorientDemoInterface:
             self.env.fg_object_id, np.hsplit(result["reorient_pose"], [3])
         )
 
-    def capture_to_place(self):
-        eye = [0.2, -0.3, 0.7]
-        target = [0.5, -0.5, 0.1]
-        camera_to_base = mercury.geometry.pose_from_matrix(
-            mercury.geometry.look_at(eye, target)
-        )
-        j = self.env.ri.solve_ik(
-            camera_to_base, move_target=self.env.ri.robot_model.camera_link
-        )
-        self.send_avs([j], time_scale=5)
+    def look_at_reoriented(self):
+        if self.env.fg_object_id is None:
+            target = [0.5, -0.5, 0.1]
+        else:
+            target = pp.get_pose(self.env.fg_object_id)[0]
+        self.look_at(eye=[target[0] - 0.3, -0.3, 0.7], target=target)
 
-        self.capture_visual_observation()
+    def capture_to_place(self):
+        self.look_at_reoriented()
+        self.capture_observation()
         self.observation_to_env()
 
     def pick_and_place(self):
@@ -559,12 +571,10 @@ class ReorientDemoInterface:
             self.send_avs(result["js_place"][::-1], time_scale=20)
             self.wait_interpolation()
 
-            self.go_to_reset_pose(cartesian=False)
+            self.reset(cartesian=False)
             self.wait_interpolation()
 
 
 if __name__ == "__main__":
     di = ReorientDemoInterface()
-    import IPython
-
-    IPython.embed()  # NOQA
+    IPython.embed()

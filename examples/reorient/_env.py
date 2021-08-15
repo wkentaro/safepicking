@@ -76,10 +76,6 @@ class Env:
         pp.connect(use_gui=self._gui, mp4=self._mp4)
         pp.add_data_path()
 
-    @property
-    def bg_objects(self):
-        return [self.plane, self._shelf]
-
     def reset(self, pile_file=None):
         if not pp.is_connected():
             self.launch()
@@ -216,6 +212,8 @@ class Env:
 
             self.setj_to_camera_pose()
             self.update_obs()
+
+        self.bg_objects = [self.plane, self._shelf]
 
     def setj_to_camera_pose(self):
         self.ri.setj(self.ri.homej)
