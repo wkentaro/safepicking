@@ -6,8 +6,11 @@ import sys
 import tempfile
 
 import numpy as np
+import open3d
+import path
 import pybullet_planning as pp
 import skrobot
+import trimesh
 
 import mercury
 
@@ -228,8 +231,10 @@ class ReorientDemoInterface:
 
         self.obs["depth"] = depth
         self.obs["K"] = K
-        self.obs["camera_to_base"] = self._tf_listener.lookupTransform(
-            "panda_link0", "camera_color_optical_frame", time=rospy.Time(0)
+        self.obs["camera_to_base"] = np.hstack(
+            self._tf_listener.lookupTransform(
+                "panda_link0", "camera_color_optical_frame", time=rospy.Time(0)
+            )
         )
         self.obs["segm"] = bridge.imgmsg_to_cv2(label_ins_msg)
         self.obs["classes"] = class_msg.classes
@@ -308,7 +313,7 @@ class ReorientDemoInterface:
         self.observation_to_env()
 
     def observation_to_env(self):
-        camera_to_base = self.obs["camera_to_base"]
+        camera_to_base = np.hsplit(self.obs["camera_to_base"], [3])
         for object_pose in self.obs["poses"]:
             if object_pose.class_id == self.env._fg_class_id:
                 obj_to_camera = pose_from_msg(object_pose.pose)
@@ -327,7 +332,57 @@ class ReorientDemoInterface:
                     mass=0.1,
                 )
                 break
-        self.env.object_ids = [object_id]
+        target_instance_id = object_pose.instance_id
+
+        K = self.obs["K"]
+        depth = self.obs["depth"].copy()
+        segm = self.obs["segm"]
+        depth[segm == target_instance_id] = np.nan
+        T_camera_to_base = mercury.geometry.transformation_matrix(
+            *camera_to_base
+        )
+        volume = open3d.integration.ScalableTSDFVolume(
+            voxel_length=0.005,
+            sdf_trunc=0.04,
+            color_type=open3d.integration.TSDFVolumeColorType.Gray32,
+        )
+        rgbd = open3d.geometry.RGBDImage.create_from_color_and_depth(
+            open3d.geometry.Image(depth),
+            open3d.geometry.Image((depth * 1000).astype(np.uint16)),
+            depth_trunc=1.0,
+        )
+        volume.integrate(
+            rgbd,
+            open3d.camera.PinholeCameraIntrinsic(
+                width=depth.shape[1],
+                height=depth.shape[0],
+                fx=K[0, 0],
+                fy=K[1, 1],
+                cx=K[0, 2],
+                cy=K[1, 2],
+            ),
+            np.linalg.inv(T_camera_to_base),
+        )
+        mesh = volume.extract_triangle_mesh()
+        mesh = mesh.simplify_vertex_clustering(voxel_size=0.02)
+        mesh = trimesh.Trimesh(
+            vertices=np.asarray(mesh.vertices),
+            faces=np.asarray(mesh.triangles),
+        )
+        tmp_dir = path.Path(tempfile.mkdtemp())
+        visual_file = tmp_dir / "bg_objects.obj"
+        mesh.export(visual_file)
+        collision_file = mercury.pybullet.get_collision_file(
+            visual_file, resolution=10000
+        )
+        bg_objects = mercury.pybullet.create_mesh_body(
+            visual_file=visual_file,
+            collision_file=collision_file,
+            rgba_color=(0.5, 0.5, 0.5, 1),
+        )
+        tmp_dir.rmtree()
+
+        self.env.object_ids = [object_id, bg_objects]
         self.env.fg_object_id = object_id
         self.env.update_obs()
 
