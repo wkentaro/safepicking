@@ -75,13 +75,13 @@ def create_mesh_body(
     return unique_id
 
 
-def get_collision_file(visual_file):
+def get_collision_file(visual_file, resolution=200000):
     visual_file = path.Path(visual_file)
     collision_file = visual_file.stripext() + ".convex" + visual_file.ext
     if not collision_file.exists():
         cmd = (
             f"testVHACD --input {visual_file} --output {collision_file}"
-            " --log /tmp/testVHACD.log --resolution 200000"
+            " --log /tmp/testVHACD.log --resolution {resolution}"
         )
         subprocess.check_output(shlex.split(cmd))
     return collision_file
