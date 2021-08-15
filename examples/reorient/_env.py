@@ -95,7 +95,7 @@ class Env:
         with pp.LockRenderer():
             self.plane = pp.load_pybullet("plane.urdf")
             pp.set_texture(self.plane)
-            pp.set_color(self.plane, (0.4, 0.4, 0.4, 1))
+            pp.set_color(self.plane, (1, 1, 1, 1))
             pp.set_pose(self.plane, ([0, 0, 0.07], [0, 0, 0, 1]))
 
         self.ri = mercury.pybullet.PandaRobotInterface(
