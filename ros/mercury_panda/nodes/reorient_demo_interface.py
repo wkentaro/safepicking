@@ -292,53 +292,6 @@ class ReorientDemoInterface:
         js = self.env.ri.get_cartesian_path(j=j)
         self.send_avs(js, time_scale=5)
 
-    def get_grasp_poses(self):
-        if not self._check_observation():
-            rospy.logerr("Please call capture_visual_observation() first")
-            return
-
-        for cls_msg in self.obs["classes"]:
-            if cls_msg.class_id == 2:
-                rospy.loginfo(f"Target object is found: {cls_msg}")
-                break
-        else:
-            rospy.logerr(f"Target object is not found: {self.obs['classes']}")
-            return
-
-        target_id = cls_msg.instance_id
-        segm = self.obs["segm"]
-        depth = self.obs["depth"]
-
-        K = self.obs["K"]
-        mask = (segm == target_id) & (~np.isnan(self.obs["depth"]))
-        pcd_in_camera = mercury.geometry.pointcloud_from_depth(
-            depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
-        )
-        normals_in_camera = mercury.geometry.normals_from_pointcloud(
-            pcd_in_camera
-        )
-        pcd_in_camera = pcd_in_camera[mask]
-        normals_in_camera = normals_in_camera[mask]
-
-        camera_to_base = self.obs["camera_to_base"]
-        pcd_in_base = mercury.geometry.transform_points(
-            pcd_in_camera,
-            mercury.geometry.transformation_matrix(*camera_to_base),
-        )
-        normals_in_base = (
-            mercury.geometry.transform_points(
-                pcd_in_camera + normals_in_camera,
-                mercury.geometry.transformation_matrix(*camera_to_base),
-            )
-            - pcd_in_base
-        )
-
-        quaternion_in_base = mercury.geometry.quaternion_from_vec2vec(
-            [0, 0, 1], normals_in_base
-        )
-
-        return np.hstack([pcd_in_base, quaternion_in_base])
-
     # -------------------------------------------------------------------------
 
     def init_task(self):
