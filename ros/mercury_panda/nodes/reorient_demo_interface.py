@@ -117,6 +117,20 @@ class ReorientDemoInterface:
         self.ri.wait_interpolation()
         self.real2robot()
 
+    def interpolate_js(self, js):
+        lower, upper = self.env.ri.get_bounds()
+        js_interpolated = []
+        j_prev = None
+        for j in js:
+            if j_prev is None:
+                js_interpolated.append(np.clip(j, lower, upper))
+            else:
+                for j_new in np.linspace(j_prev, j, num=5):
+                    j_new = np.clip(j_new, lower, upper)
+                    js_interpolated.append(j_new)
+            j_prev = j
+        return np.array(js_interpolated)
+
     def send_avs(self, avs, time_scale=None, wait=True):
         if not self.recover_from_error():
             return
@@ -124,7 +138,7 @@ class ReorientDemoInterface:
             time_scale = 10
         self.ri.update_robot_state()
 
-        avs = np.asarray(avs)
+        avs = self.interpolate_js(avs)
 
         av_prev = self.ri.potentio_vector()
         avs_filtered = []
