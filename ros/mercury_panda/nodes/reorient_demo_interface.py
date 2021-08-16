@@ -36,6 +36,7 @@ sys.path.insert(0, "../../../examples/reorient")
 
 from _env import Env  # NOQA
 import _reorient  # NOQA
+import _utils  # NOQA
 from pickable_eval import get_goal_oriented_reorient_poses  # NOQA
 from reorient_dynamic import plan_dynamic_reorient  # NOQA
 
@@ -307,13 +308,47 @@ class ReorientDemoInterface:
 
     # -------------------------------------------------------------------------
 
-    def init_task(self):
-        self.env._fg_class_id = 2
-        c = mercury.geometry.Coordinate([0.5, 0.52, 0.54], [0, 0, 0, 1])
+    def task1(self):
+        fg_class_id = 2
+        c = mercury.geometry.Coordinate(
+            [0.5, 0.52, 0.54], _utils.get_canonical_quaternion(fg_class_id)
+        )
         c.rotate([0, 0, np.pi])
-        self.env._place_pose = c.pose
+        place_pose = c.pose
+
         c.translate([0, -0.3, 0], wrt="world")
-        self.env._pre_place_pose = c.pose
+        pre_place_pose = c.pose
+
+        self.set_task(fg_class_id, place_pose, pre_place_pose)
+
+    def task2(self):
+        fg_class_id = 5
+        c = mercury.geometry.Coordinate(
+            [0.5, 0.5, 0.11], _utils.get_canonical_quaternion(fg_class_id)
+        )
+        c.rotate([0, -np.pi / 2, 0], wrt="world")
+        c.rotate([0, 0, np.pi], wrt="world")
+        place_pose = c.pose
+
+        c.translate([0, 0, 0.2], wrt="world")
+        pre_place_pose = c.pose
+
+        self.set_task(fg_class_id, place_pose, pre_place_pose)
+
+    def set_task(self, fg_class_id, place_pose, pre_place_pose):
+        self.env._fg_class_id = fg_class_id
+        self.env._place_pose = place_pose
+        self.env._pre_place_pose = pre_place_pose
+
+        visual_file = mercury.datasets.ycb.get_visual_file(
+            self.env._fg_class_id
+        )
+        mercury.pybullet.create_mesh_body(
+            visual_file=visual_file,
+            rgba_color=(0.5, 0.5, 0.5, 0.5),
+            position=self.env.PLACE_POSE[0],
+            quaternion=self.env.PLACE_POSE[1],
+        )
 
     def look_at_pile(self):
         self.look_at(eye=[0.5, 0, 0.7], target=[0.5, 0, 0])
@@ -400,15 +435,6 @@ class ReorientDemoInterface:
         self.env.object_ids = [object_id]
         self.env.fg_object_id = object_id
         self.env.update_obs()
-
-        mercury.pybullet.duplicate(
-            self.env.fg_object_id,
-            collision=False,
-            rgba_color=(0.5, 0.5, 0.5, 0.5),
-            mass=0,
-            position=self.env.PLACE_POSE[0],
-            quaternion=self.env.PLACE_POSE[1],
-        )
 
     def pick_and_reorient(self):
         (

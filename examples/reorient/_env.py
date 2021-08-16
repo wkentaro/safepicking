@@ -90,9 +90,13 @@ class Env:
         )
         with pp.LockRenderer():
             self.plane = pp.load_pybullet("plane.urdf")
-            pp.set_texture(self.plane)
-            pp.set_color(self.plane, (1, 1, 1, 1))
             pp.set_pose(self.plane, ([0, 0, 0.07], [0, 0, 0, 1]))
+
+            self._wall = -1
+            if self._real:
+                self._wall = pp.create_box(w=1, l=0.05, h=1)
+                pp.set_color(self._wall, (1, 1, 1, 0))
+                pp.set_pose(self._wall, ([0, 0.6, 0.5], [0, 0, 0, 1]))
 
         self.ri = mercury.pybullet.PandaRobotInterface(
             suction_max_force=None,
@@ -213,7 +217,7 @@ class Env:
             self.setj_to_camera_pose()
             self.update_obs()
 
-        self.bg_objects = [self.plane, self._shelf]
+        self.bg_objects = [self.plane, self._shelf, self._wall]
 
     def setj_to_camera_pose(self):
         self.ri.setj(self.ri.homej)
