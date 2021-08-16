@@ -83,9 +83,6 @@ class PandaRobotInterface:
         upper_bounds = []
         for joint in self.joints:
             lower, upper = p.getJointInfo(self.robot, joint)[8:10]
-            middle = (upper + lower) / 2
-            upper = (upper - middle) * 0.98 + middle
-            lower = (lower - middle) * 0.98 + middle
             lower_bounds.append(lower)
             upper_bounds.append(upper)
         lower_bounds = np.array(lower_bounds)
