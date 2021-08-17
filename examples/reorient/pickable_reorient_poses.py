@@ -18,7 +18,7 @@ home = path.Path("~").expanduser()
 
 
 def get_reorient_poses(env):
-    bounds = ((0.25, -0.55, 0.071), (0.75, -0.25, 0.071))
+    bounds = ((0.35, -0.55, 0.071), (0.65, -0.35, 0.071))
     if env.debug:
         pp.draw_aabb(bounds)
 
