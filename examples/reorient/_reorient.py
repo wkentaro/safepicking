@@ -401,8 +401,7 @@ def get_static_reorient_poses(env):
         distance_to_plane = min(point[8] for point in points)
         assert distance_to_plane > 0
         c.position[2] -= distance_to_plane
-        if not env._real:
-            c.position[2] += 0.02  # slight offset
+        c.position[2] += 0.001  # slight offset
         pp.set_pose(env.fg_object_id, c.pose)
 
         if mercury.pybullet.is_colliding(env.fg_object_id):
