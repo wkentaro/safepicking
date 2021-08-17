@@ -506,6 +506,15 @@ class ReorientDemoInterface:
             rospy.sleep(2)
 
             js = result["js_place"]
+            with pp.WorldSaver():
+                self.env.ri.setj(js[-1])
+                c = mercury.geometry.Coordinate(
+                    *self.env.ri.get_pose("tipLink")
+                )
+                c.translate([0, 0, -0.05], wrt="world")
+                j = self.env.ri.solve_ik(c.pose)
+                if j is not None:
+                    js = np.r_[js, [j]]
             self.send_avs(js)
             self.wait_interpolation()
 
