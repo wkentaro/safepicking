@@ -185,8 +185,6 @@ class ReorientDemoInterface:
     def __init__(self):
         rospy.init_node("demo_interface")
 
-        self._reoriented_pose = None
-
         self._tf_listener = tf.listener.TransformListener(
             cache_time=rospy.Duration(60)
         )
@@ -194,7 +192,10 @@ class ReorientDemoInterface:
         self.ri = skrobot.interfaces.PandaROSRobotInterface(robot=Panda())
 
         self.env = Env(
-            class_ids=None, real=True, robot_model="franka_panda/panda_drl"
+            class_ids=None,
+            real=True,
+            robot_model="franka_panda/panda_drl",
+            debug=False,
         )
         self.env.reset()
 
@@ -313,7 +314,11 @@ class ReorientDemoInterface:
             if abs(c.euler[2] - np.pi / 2) < np.pi / 4:
                 break
         j = self.env.ri.solve_ik(
-            c.pose, move_target=self.env.ri.robot_model.camera_link
+            c.pose,
+            move_target=self.env.ri.robot_model.camera_link,
+            n_init=10,
+            thre=0.01,
+            rthre=np.deg2rad(10),
         )
         if j is None or not self.env.ri.validatej(j):
             rospy.logerr("j is not found or invalid")
@@ -458,7 +463,7 @@ class ReorientDemoInterface:
         ) = get_goal_oriented_reorient_poses(self.env)
 
         grasp_poses = _reorient.get_grasp_poses(self.env)  # in world
-        grasp_poses = list(itertools.islice(grasp_poses, 100))
+        grasp_poses = list(itertools.islice(grasp_poses, 25))
 
         for threshold in np.linspace(0.9, 0.1, num=10):
             indices = np.where(pickable > threshold)[0]
