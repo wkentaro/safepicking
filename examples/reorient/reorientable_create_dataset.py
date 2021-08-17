@@ -53,7 +53,7 @@ def main():
     with pp.LockRenderer():
         env.reset()
         for obj in mercury.pybullet.get_body_unique_ids():
-            if obj in [env.plane, env.ground, env.ri.robot] + env.object_ids:
+            if obj in [env.plane, env.ri.robot] + env.object_ids:
                 continue
             pp.remove_body(obj)
 
