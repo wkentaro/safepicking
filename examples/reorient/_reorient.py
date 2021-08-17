@@ -461,7 +461,7 @@ def plan_place(env, target_grasp_poses):
             env.ri.setj(result["j_grasp"])
             ee_to_world = c.pose
 
-            c = mercury.geometry.Coordinate(*env.ri.get_pose("tipLink"))
+            c = mercury.geometry.Coordinate(*ee_to_world)
             c.translate([0, 0, -0.1])
             j = env.ri.solve_ik(c.pose)
             if j is None or not env.ri.validatej(j, obstacles=env.bg_objects):
@@ -479,6 +479,17 @@ def plan_place(env, target_grasp_poses):
                     env.fg_object_id,
                 )
             ]
+
+            c = mercury.geometry.Coordinate(*ee_to_world)
+            c.translate([0, 0, 0.2], wrt="world")
+            j = env.ri.solve_ik(c.pose)
+            if j is None or not env.ri.validatej(j, obstacles=env.bg_objects):
+                world_saver.restore()
+                env.ri.attachments = []
+                continue
+            result["j_post_grasp"] = j
+
+            env.ri.setj(result["j_post_grasp"])
 
             with env.ri.enabling_attachments():
                 j = env.ri.solve_ik(
@@ -528,7 +539,7 @@ def plan_place(env, target_grasp_poses):
             continue
         result["js_pre_grasp"] = js
 
-        env.ri.setj(result["j_pre_grasp"])
+        env.ri.setj(result["j_post_grasp"])
 
         obstacles = env.bg_objects + env.object_ids
         obstacles.remove(env.fg_object_id)
