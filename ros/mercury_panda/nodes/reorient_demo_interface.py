@@ -330,7 +330,7 @@ class ReorientDemoInterface:
     def task1(self):
         fg_class_id = 2
         c = mercury.geometry.Coordinate(
-            [0.5, 0.52, 0.54], _utils.get_canonical_quaternion(fg_class_id)
+            [0.5, 0.48, 0.54], _utils.get_canonical_quaternion(fg_class_id)
         )
         c.rotate([0, 0, np.pi])
         place_pose = c.pose
