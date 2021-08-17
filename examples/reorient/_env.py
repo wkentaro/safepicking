@@ -95,7 +95,7 @@ class Env:
             self._wall = -1
             if self._real:
                 self._wall = pp.create_box(w=1, l=0.05, h=1)
-                pp.set_color(self._wall, (1, 1, 1, 0))
+                pp.set_color(self._wall, (1, 1, 1, 1))
                 pp.set_pose(self._wall, ([0, 0.6, 0.5], [0, 0, 0, 1]))
 
         self.ri = mercury.pybullet.PandaRobotInterface(
