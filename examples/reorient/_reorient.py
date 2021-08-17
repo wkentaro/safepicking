@@ -481,9 +481,6 @@ def plan_place(env, target_grasp_poses):
                 )
             ]
 
-            env.ri.setj(env.ri.homej)
-            # env.ri.attachments[0].assign()
-
             with env.ri.enabling_attachments():
                 j = env.ri.solve_ik(
                     env.PRE_PLACE_POSE,
@@ -531,6 +528,8 @@ def plan_place(env, target_grasp_poses):
             env.ri.attachments = []
             continue
         result["js_pre_grasp"] = js
+
+        env.ri.setj(result["j_pre_grasp"])
 
         obstacles = env.bg_objects + env.object_ids
         obstacles.remove(env.fg_object_id)
