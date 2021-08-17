@@ -35,11 +35,9 @@ def main():
     parser.add_argument("--visualize", action="store_true", help="visualize")
     args = parser.parse_args()
 
-    if (
-        home
-        / "data/mercury/reorient-{args.robot_model}/reorientable"
-        / f"s-{args.seed:08d}/00000099.pkl"
-    ).exists():
+    root_dir = home / f"data/mercury/reorient-{args.robot_model}/reorientable"
+
+    if (root_dir / f"s-{args.seed:08d}/00000099.pkl").exists():
         return
 
     env = Env(
@@ -126,11 +124,7 @@ def main():
         )
 
         while True:
-            pkl_file = (
-                home
-                / "data/mercury/reorient/reorientable"
-                / f"s-{args.seed:08d}/{n_saved:08d}.pkl"
-            )
+            pkl_file = root_dir / f"s-{args.seed:08d}/{n_saved:08d}.pkl"
             if not pkl_file.exists():
                 break
             n_saved += 1
