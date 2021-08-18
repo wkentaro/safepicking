@@ -125,7 +125,9 @@ class Model(torch.nn.Module):
 
 class Dataset(torch.utils.data.Dataset):
 
-    ROOT_DIR = home / "data/mercury/reorient/reorientable"
+    ROOT_DIR = (
+        home / "data/mercury/reorient/franka_panda/panda_suction/reorientable"
+    )
 
     def __init__(self, split):
         self._split = split

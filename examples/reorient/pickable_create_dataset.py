@@ -35,7 +35,7 @@ def main():
     parser.add_argument("--gui", action="store_true", help="gui")
     args = parser.parse_args()
 
-    root_dir = home / f"data/mercury/reorient-{args.robot_model}/pickable"
+    root_dir = home / f"data/mercury/reorient/{args.robot_model}/pickable"
 
     if (root_dir / f"s-{args.seed:08d}/00000099.pkl").exists():
         return

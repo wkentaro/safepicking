@@ -35,7 +35,7 @@ def main():
     parser.add_argument("--visualize", action="store_true", help="visualize")
     args = parser.parse_args()
 
-    root_dir = home / f"data/mercury/reorient-{args.robot_model}/reorientable"
+    root_dir = home / f"data/mercury/reorient/{args.robot_model}/reorientable"
 
     if (root_dir / f"s-{args.seed:08d}/00000099.pkl").exists():
         return
