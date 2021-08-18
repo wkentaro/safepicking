@@ -305,7 +305,7 @@ class ReorientDemoInterface:
             avs = [self.env.ri.homej]
         self.send_avs(avs, time_scale=5)
 
-    def look_at(self, eye, target):
+    def look_at(self, eye, target, rotation_axis=True):
         c = mercury.geometry.Coordinate.from_matrix(
             mercury.geometry.look_at(eye, target)
         )
@@ -319,6 +319,7 @@ class ReorientDemoInterface:
             n_init=10,
             thre=0.01,
             rthre=np.deg2rad(10),
+            rotation_axis=rotation_axis,
         )
         if j is None or not self.env.ri.validatej(j):
             rospy.logerr("j is not found or invalid")
@@ -589,7 +590,9 @@ class ReorientDemoInterface:
             target = [0.5, -0.5, 0.1]
         else:
             target = pp.get_pose(self.env.fg_object_id)[0]
-        self.look_at(eye=[target[0] - 0.3, -0.3, 0.7], target=target)
+        self.look_at(
+            eye=[target[0] - 0.3, -0.3, 0.7], target=target, rotation_axis="z"
+        )
 
     def capture_to_place(self):
         self.look_at_reoriented()
