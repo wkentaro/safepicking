@@ -575,7 +575,7 @@ class ReorientDemoInterface:
             self.wait_interpolation()
 
             self.stop_grasp()
-            rospy.sleep(5)
+            rospy.sleep(4)
 
             js = result["js_post_place"]
             self.send_avs(js, time_scale=5)
