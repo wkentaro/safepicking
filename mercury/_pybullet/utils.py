@@ -168,12 +168,16 @@ def get_camera_image(
         farVal=far,
         nearVal=near,
     )
+    if pybullet_planning.has_gui():
+        renderer = pybullet.ER_BULLET_HARDWARE_OPENGL
+    else:
+        renderer = pybullet.ER_TINY_RENDERER
     _, _, rgba, depth, segm = pybullet.getCameraImage(
         width=width,
         height=height,
         viewMatrix=view_matrix,
         projectionMatrix=projection_matrix,
-        renderer=pybullet.ER_BULLET_HARDWARE_OPENGL,
+        renderer=renderer,
     )
     rgb = rgba[:, :, :3]
     depth = np.asarray(depth, dtype=np.float32).reshape(height, width)
