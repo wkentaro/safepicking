@@ -34,7 +34,7 @@ models["franka_panda/panda_drl"].eval()
 models["franka_panda/panda_suction"] = Model()
 model_file = (
     here
-    / "logs/pickable/20210705_231315.319988-conv_encoder-train_size_4000/models/model_best-epoch_0072.pt"  # NOQA
+    / "logs/pickable/20210819_035214.799043-panda_suction/models/model_best-epoch_0050.pt"  # NOQA
 )
 models["franka_panda/panda_suction"].load_state_dict(torch.load(model_file))
 models["franka_panda/panda_suction"].eval()
