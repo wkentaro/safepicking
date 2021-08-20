@@ -217,6 +217,8 @@ def init_place_scene(class_id, random_state, face="front"):
         position=place_pose[0],
         quaternion=place_pose[1],
         rgba_color=[1, 1, 1, 0.5],
+        # for virtual rendering, it must be smaller than env.fg_object_id
+        mesh_scale=[0.95, 0.95, 0.95],
     )
 
     lock_renderer.restore()
