@@ -369,6 +369,18 @@ class ReorientDemoInterface:
 
         self.set_task(fg_class_id, place_pose, pre_place_pose)
 
+    def task4(self):
+        fg_class_id = 2
+        c = mercury.geometry.Coordinate(
+            [0.49, 0.39, 0.52], _utils.get_canonical_quaternion(fg_class_id)
+        )
+        place_pose = c.pose
+
+        c.translate([0, -0.3, 0], wrt="world")
+        pre_place_pose = c.pose
+
+        self.set_task(fg_class_id, place_pose, pre_place_pose)
+
     def set_task(self, fg_class_id, place_pose, pre_place_pose):
         self.env._fg_class_id = fg_class_id
         self.env._place_pose = place_pose
