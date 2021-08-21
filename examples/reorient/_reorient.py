@@ -166,7 +166,11 @@ def plan_reorient(env, grasp_pose, reorient_pose):
         c = mercury.geometry.Coordinate(*ee_af_to_world)
         c.rotate([0, 0, dg])
         j = env.ri.solve_ik(c.pose)
-        if j is None or not env.ri.validatej(j, obstacles=bg_object_ids):
+        if j is None or not env.ri.validatej(
+            j,
+            obstacles=bg_object_ids,
+            min_distances=mercury.utils.StaticDict(-0.01),
+        ):
             continue
 
         result["j_grasp"] = j
@@ -187,7 +191,11 @@ def plan_reorient(env, grasp_pose, reorient_pose):
                 n_init=10,
             )
         env.ri.attachments = []  # skip env.ri.attachments from validatej
-        if j is not None and env.ri.validatej(j, obstacles=bg_object_ids):
+        if j is not None and env.ri.validatej(
+            j,
+            obstacles=bg_object_ids,
+            min_distances=mercury.utils.StaticDict(-0.01),
+        ):
             result["j_place"] = j
             break
     else:
