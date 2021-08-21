@@ -500,7 +500,17 @@ class ReorientDemoInterface:
             self.send_avs(result["js_pre_grasp"], time_scale=5)
             self.wait_interpolation()
 
-            self.send_avs(self.env.ri.get_cartesian_path(j=result["j_grasp"]))
+            js = self.env.ri.get_cartesian_path(j=result["j_grasp"])
+            with pp.WorldSaver():
+                self.env.ri.setj(js[-1])
+                c = mercury.geometry.Coordinate(
+                    *self.env.ri.get_pose("tipLink")
+                )
+                c.translate([0, 0, 0.02])
+                j = self.env.ri.solve_ik(c.pose)
+                if j is not None:
+                    js = np.r_[js, [j]]
+            self.send_avs(js)
             self.wait_interpolation()
 
             self.start_grasp()
