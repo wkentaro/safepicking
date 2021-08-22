@@ -372,12 +372,19 @@ class ReorientDemoInterface:
     def task4(self):
         fg_class_id = 2
         c = mercury.geometry.Coordinate(
-            [0.49, 0.39, 0.52], _utils.get_canonical_quaternion(fg_class_id)
+            [0.51, 0.40, 0.53], _utils.get_canonical_quaternion(fg_class_id)
         )
         place_pose = c.pose
 
         c.translate([0, -0.3, 0], wrt="world")
         pre_place_pose = c.pose
+
+        # shelf = _utils.create_shelf(X=0.29, Y=0.4, Z=0.29)
+        # c = mercury.geometry.Coordinate()
+        # c.rotate([0, 0, -np.pi / 2])
+        # c.translate([0.45, 0.43, 0.55], wrt="world")
+        # pp.set_pose(shelf, c.pose)
+        # self.env.bg_objects.append(shelf)
 
         self.set_task(fg_class_id, place_pose, pre_place_pose)
 
@@ -530,16 +537,15 @@ class ReorientDemoInterface:
             rospy.sleep(2)
 
             js = result["js_place"]
-            if _utils.get_class_id(self.env.fg_object_id) == 5:
-                with pp.WorldSaver():
-                    self.env.ri.setj(js[-1])
-                    c = mercury.geometry.Coordinate(
-                        *self.env.ri.get_pose("tipLink")
-                    )
-                    c.translate([0, 0, -0.05], wrt="world")
-                    j = self.env.ri.solve_ik(c.pose)
-                    if j is not None:
-                        js = np.r_[js, [j]]
+            with pp.WorldSaver():
+                self.env.ri.setj(js[-1])
+                c = mercury.geometry.Coordinate(
+                    *self.env.ri.get_pose("tipLink")
+                )
+                c.translate([0, 0, -0.05], wrt="world")
+                j = self.env.ri.solve_ik(c.pose)
+                if j is not None:
+                    js = np.r_[js, [j]]
             self.send_avs(js)
             self.wait_interpolation()
 
@@ -599,7 +605,7 @@ class ReorientDemoInterface:
             self.wait_interpolation()
 
             self.stop_grasp()
-            rospy.sleep(4)
+            rospy.sleep(5)
 
             js = result["js_post_place"]
             self.send_avs(js, time_scale=5)
