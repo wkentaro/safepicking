@@ -298,7 +298,7 @@ class ReorientDemoInterface:
 
         self.stop_passthrough()
 
-    def reset(self, cartesian=True):
+    def reset_pose(self, cartesian=True):
         if cartesian:
             avs = self.env.ri.get_cartesian_path(j=self.env.ri.homej)
         else:
@@ -672,7 +672,7 @@ class ReorientDemoInterface:
             self.send_avs(result["js_place"][::-1], time_scale=20)
             self.wait_interpolation()
 
-            self.reset(cartesian=False)
+            self.reset_pose(cartesian=False)
             self.wait_interpolation()
 
 
