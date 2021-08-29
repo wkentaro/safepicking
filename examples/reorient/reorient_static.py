@@ -49,6 +49,8 @@ def main():
     env.eval = True
     env.reset()
 
+    t_start = time.time()
+
     reorient_poses = _reorient.get_static_reorient_poses(env)
     grasp_poses = np.array(
         list(itertools.islice(_reorient.get_grasp_poses(env), 100))
@@ -62,6 +64,8 @@ def main():
                 break
         if "js_place" in result:
             break
+
+    planning_time = time.time() - t_start
 
     if "js_place" not in result:
         logger.error("No solution is found")
@@ -118,6 +122,7 @@ def main():
         with open(json_file, "w") as f:
             json.dump(
                 dict(
+                    planning_time=planning_time,
                     success_reorient=success_reorient,
                     success=success,
                     trajectory_length=trajectory_length,
