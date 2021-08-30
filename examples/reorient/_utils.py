@@ -220,8 +220,12 @@ def init_place_scene(env, class_id, random_state, face="front"):
         quaternion=place_pose[1],
         rgba_color=[1, 1, 1, 0.5],
         # for virtual rendering, it must be smaller than env.fg_object_id
-        mesh_scale=[0.95, 0.95, 0.95],
+        mesh_scale=[0.99, 0.99, 0.99],
     )
+    mesh = trimesh.load_mesh(visual_file)
+    mesh.apply_transform(mercury.geometry.transformation_matrix(*place_pose))
+    aabb = (mesh.vertices.min(axis=0), mesh.vertices.max(axis=0))
+    pp.draw_aabb(aabb, width=2, color=(0, 1, 0, 1))
 
     lock_renderer.restore()
 
