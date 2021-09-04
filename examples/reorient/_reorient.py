@@ -160,12 +160,12 @@ def plan_reorient(env, grasp_pose, reorient_pose):
     obj_af_to_world = np.hsplit(reorient_pose, [3])
 
     # find self-collision-free j_grasp
-    for dg in np.linspace(-np.pi, np.pi, num=6, endpoint=False):
+    for dg in np.linspace(-np.pi, np.pi, num=8, endpoint=False):
         env.ri.attachments = []
 
         c = mercury.geometry.Coordinate(*ee_af_to_world)
         c.rotate([0, 0, dg])
-        j = env.ri.solve_ik(c.pose)
+        j = env.ri.solve_ik(c.pose, n_init=3)
         if j is None or not env.ri.validatej(
             j,
             obstacles=bg_object_ids,
@@ -188,7 +188,7 @@ def plan_reorient(env, grasp_pose, reorient_pose):
                 move_target=env.ri.robot_model.attachment_link0,
                 thre=0.01,
                 rthre=np.deg2rad(10),
-                n_init=10,
+                n_init=5,
             )
         env.ri.attachments = []  # skip env.ri.attachments from validatej
         if j is not None and env.ri.validatej(
