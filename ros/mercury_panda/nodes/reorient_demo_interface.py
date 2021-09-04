@@ -149,7 +149,8 @@ class ReorientDemoInterface:
                 if avs_filtered:
                     # replace the last av
                     avs_filtered[-1] = av
-        self.env.ri.setj(avs_filtered[-1])
+        if avs_filtered:
+            self.env.ri.setj(avs_filtered[-1])
         self.ri.angle_vector_sequence(avs_filtered, time_scale=time_scale)
         if wait:
             self.wait_interpolation()

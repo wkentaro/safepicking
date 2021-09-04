@@ -73,7 +73,7 @@ class Env:
         pp.disconnect()
 
     def launch(self):
-        pp.connect(use_gui=self._gui, mp4=self._mp4)
+        pp.connect(use_gui=self._gui, mp4=self._mp4, width=800, height=600)
         pp.add_data_path()
 
     def reset(self, pile_file=None):
@@ -82,12 +82,7 @@ class Env:
 
         pp.reset_simulation()
         pp.enable_gravity()
-        p.resetDebugVisualizerCamera(
-            cameraDistance=1.5,
-            cameraYaw=90,
-            cameraPitch=-60,
-            cameraTargetPosition=(0, 0, 0),
-        )
+        pp.set_camera_pose((1, -0.5, 1), (0, 0.3, 0.3))
         with pp.LockRenderer():
             self.plane = pp.load_pybullet("plane.urdf")
             pp.set_pose(self.plane, ([0, 0, 0.07], [0, 0, 0, 1]))
