@@ -588,13 +588,31 @@ class ReorientDemoInterface:
 
     def plan_place(self):
         pcd_in_obj, normals_in_obj = _reorient.get_query_ocs(self.env)
-        indices = np.random.permutation(pcd_in_obj.shape[0])[:32]
+        dist_from_centroid = np.linalg.norm(pcd_in_obj, axis=1)
+
+        indices = np.arange(pcd_in_obj.shape[0])
+        p = dist_from_centroid.max() - dist_from_centroid
+
+        keep = dist_from_centroid < np.median(dist_from_centroid)
+        indices = indices[keep]
+        p = p[keep]
+        indices = np.random.choice(indices, 5, p=p / p.sum())
+
         pcd_in_obj = pcd_in_obj[indices]
         normals_in_obj = normals_in_obj[indices]
         quaternion_in_obj = mercury.geometry.quaternion_from_vec2vec(
             [0, 0, -1], normals_in_obj
         )
         grasp_poses = np.hstack([pcd_in_obj, quaternion_in_obj])  # in obj
+
+        if 0:
+            for grasp_pose in grasp_poses:
+                pp.draw_pose(
+                    np.hsplit(grasp_pose, [3]),
+                    parent=self._obj_goal,
+                    width=2,
+                    length=0.05,
+                )
 
         result = _reorient.plan_place(self.env, grasp_poses)
 
