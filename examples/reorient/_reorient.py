@@ -302,15 +302,7 @@ def plan_reorient(env, grasp_pose, reorient_pose):
     c.translate([0, 0, -0.1], wrt="local")
     c.translate([0, 0, 0.2], wrt="world")
     j = env.ri.solve_ik(c.pose, rotation_axis=False, n_init=1)
-    if j is not None:
-        env.ri.setj(j)
-    js = env.ri.planj(
-        env.ri.homej,
-        obstacles=env.bg_objects + env.object_ids,
-    )
-    if js is None:
-        js = [env.ri.homej] if j is None else [j, env.ri.homej]
-    result["js_post_place"] = js
+    result["js_post_place"] = [j]
 
     logger.success("Found the solution for reorientation")
     j_prev = result["js_place"][0]

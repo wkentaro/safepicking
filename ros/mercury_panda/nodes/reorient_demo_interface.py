@@ -542,7 +542,10 @@ class ReorientDemoInterface:
                 c = mercury.geometry.Coordinate(
                     *self.env.ri.get_pose("tipLink")
                 )
-                c.translate([0, 0, -0.05], wrt="world")
+                if _utils.get_class_id(self.env.fg_object_id) == 5:
+                    c.translate([0, 0, -0.05], wrt="world")
+                else:
+                    c.translate([0, 0, -0.01], wrt="world")
                 j = self.env.ri.solve_ik(c.pose)
                 if j is not None:
                     js = np.r_[js, [j]]
@@ -553,7 +556,9 @@ class ReorientDemoInterface:
             rospy.sleep(5)
 
             js = result["js_post_place"]
-            self.send_avs(js, time_scale=5)
+            self.send_avs(js, time_scale=10)
+
+            self.send_avs([self.env.ri.homej], time_scale=3)
             self.wait_interpolation()
 
         pp.set_pose(
@@ -608,7 +613,9 @@ class ReorientDemoInterface:
             rospy.sleep(5)
 
             js = result["js_post_place"]
-            self.send_avs(js, time_scale=5)
+            self.send_avs(js, time_scale=10)
+
+            self.send_avs([self.env.ri.homej], time_scale=3)
             self.wait_interpolation()
 
         pp.set_pose(
