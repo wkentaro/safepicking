@@ -131,11 +131,9 @@ class ReorientDemoInterface:
             j_prev = j
         return np.array(js_interpolated)
 
-    def send_avs(self, avs, time_scale=None, wait=True):
+    def send_avs(self, avs, time_scale=10, wait=True):
         if not self.recover_from_error():
             return
-        if time_scale is None:
-            time_scale = 10
         self.ri.update_robot_state()
 
         avs = self.interpolate_js(avs)
@@ -151,6 +149,7 @@ class ReorientDemoInterface:
                 if avs_filtered:
                     # replace the last av
                     avs_filtered[-1] = av
+        self.env.ri.setj(avs_filtered[-1])
         self.ri.angle_vector_sequence(avs_filtered, time_scale=time_scale)
         if wait:
             self.wait_interpolation()
@@ -183,6 +182,8 @@ class ReorientDemoInterface:
     # -------------------------------------------------------------------------
 
     def __init__(self):
+        self._initialized = False
+
         rospy.init_node("demo_interface")
 
         self._tf_listener = tf.listener.TransformListener(
@@ -287,12 +288,21 @@ class ReorientDemoInterface:
             client.call()
 
     def capture_observation(self):
+        if not self._initialized:
+            rospy.logerr("Task is not initialized yet")
+            return
+
         self.start_passthrough()
 
         self._subscribe()
-        while not self._check_observation():
+        for i in range(30):
+            if self._check_observation():
+                break
             rospy.loginfo_throttle(10, "Waiting for observation")
             rospy.timer.sleep(0.1)
+        else:
+            rospy.logerr("Timeout")
+            return
         rospy.loginfo("Received observation")
         self._unsubsribe()
 
@@ -328,48 +338,7 @@ class ReorientDemoInterface:
 
     # -------------------------------------------------------------------------
 
-    def task1(self):
-        fg_class_id = 2
-        c = mercury.geometry.Coordinate(
-            [0.49, 0.37, 0.50], _utils.get_canonical_quaternion(fg_class_id)
-        )
-        c.rotate([0, 0, -np.pi / 2])
-        place_pose = c.pose
-
-        c.translate([0, -0.3, 0], wrt="world")
-        pre_place_pose = c.pose
-
-        self.set_task(fg_class_id, place_pose, pre_place_pose)
-
-    def task2(self):
-        fg_class_id = 5
-        c = mercury.geometry.Coordinate(
-            [0.5, 0.48, 0.11], _utils.get_canonical_quaternion(fg_class_id)
-        )
-        c.rotate([0, -np.pi / 2, 0], wrt="world")
-        c.rotate([0, 0, np.pi], wrt="world")
-        place_pose = c.pose
-
-        c.translate([0, 0, 0.2], wrt="world")
-        pre_place_pose = c.pose
-
-        self.set_task(fg_class_id, place_pose, pre_place_pose)
-
-    def task3(self):
-        fg_class_id = 3
-        c = mercury.geometry.Coordinate(
-            [0.48, 0.36, 0.11], _utils.get_canonical_quaternion(fg_class_id)
-        )
-        c.rotate([0, -np.pi / 2, 0], wrt="world")
-        c.rotate([0, 0, -np.pi / 2], wrt="world")
-        place_pose = c.pose
-
-        c.translate([0, 0, 0.2], wrt="world")
-        pre_place_pose = c.pose
-
-        self.set_task(fg_class_id, place_pose, pre_place_pose)
-
-    def task4(self):
+    def init(self):
         fg_class_id = 2
         c = mercury.geometry.Coordinate(
             [0.51, 0.40, 0.53], _utils.get_canonical_quaternion(fg_class_id)
@@ -379,16 +348,13 @@ class ReorientDemoInterface:
         c.translate([0, -0.3, 0], wrt="world")
         pre_place_pose = c.pose
 
-        # shelf = _utils.create_shelf(X=0.29, Y=0.4, Z=0.29)
-        # c = mercury.geometry.Coordinate()
-        # c.rotate([0, 0, -np.pi / 2])
-        # c.translate([0.45, 0.43, 0.55], wrt="world")
-        # pp.set_pose(shelf, c.pose)
-        # self.env.bg_objects.append(shelf)
+        shelf = _utils.create_shelf(X=0.29, Y=0.4, Z=0.29)
+        c = mercury.geometry.Coordinate()
+        c.rotate([0, 0, -np.pi / 2])
+        c.translate([0.45, 0.43, 0.55], wrt="world")
+        pp.set_pose(shelf, c.pose)
+        self.env.bg_objects.append(shelf)
 
-        self.set_task(fg_class_id, place_pose, pre_place_pose)
-
-    def set_task(self, fg_class_id, place_pose, pre_place_pose):
         self.env._fg_class_id = fg_class_id
         self.env._place_pose = place_pose
         self.env._pre_place_pose = pre_place_pose
@@ -396,18 +362,53 @@ class ReorientDemoInterface:
         visual_file = mercury.datasets.ycb.get_visual_file(
             self.env._fg_class_id
         )
-        mercury.pybullet.create_mesh_body(
+        self._obj_goal = mercury.pybullet.create_mesh_body(
             visual_file=visual_file,
             rgba_color=(0.5, 0.5, 0.5, 0.5),
             position=self.env.PLACE_POSE[0],
             quaternion=self.env.PLACE_POSE[1],
         )
 
+        self._initialized = True
+
+    def reset(self):
+        self.env.reset()
+        self.env._fg_class_id = None
+        self.env._place_pose = None
+        self.env._pre_place_pose = None
+
+        pp.remove_body(self._obj_goal)
+        self._obj_goal = None
+
+        self._initialized = False
+
     def look_at_pile(self):
         self.look_at(eye=[0.5, 0, 0.7], target=[0.5, 0, 0])
 
-    def capture_to_reorient(self):
+    def scan_pile(self):
+        if not self._initialized:
+            rospy.logerr("Task is not initialized yet")
+            return
+
         self.look_at_pile()
+        self.capture_observation()
+        self.observation_to_env()
+
+    def look_at_reoriented(self):
+        if self.env.fg_object_id is None:
+            target = [0.5, -0.5, 0.1]
+        else:
+            target = pp.get_pose(self.env.fg_object_id)[0]
+        self.look_at(
+            eye=[target[0] - 0.3, -0.3, 0.7], target=target, rotation_axis="z"
+        )
+
+    def scan_reoriented(self):
+        if not self._initialized:
+            rospy.logerr("Task is not initialized yet")
+            return
+
+        self.look_at_reoriented()
         self.capture_observation()
         self.observation_to_env()
 
@@ -489,154 +490,102 @@ class ReorientDemoInterface:
         self.env.fg_object_id = object_id
         self.env.update_obs()
 
-    def pick_and_reorient(self):
-        (
-            reorient_poses,
-            pickable,
-            target_grasp_poses,
-        ) = get_goal_oriented_reorient_poses(self.env)
+    def plan_reorient(self, heuristic=False):
+        if heuristic:
+            grasp_poses = _reorient.get_grasp_poses(self.env)
+            grasp_poses = list(itertools.islice(grasp_poses, 12))
+            reorient_poses = _reorient.get_static_reorient_poses(self.env)
 
-        grasp_poses = _reorient.get_grasp_poses(self.env)  # in world
-        grasp_poses = list(itertools.islice(grasp_poses, 25))
-
-        for threshold in np.linspace(0.9, 0.1, num=10):
-            indices = np.where(pickable > threshold)[0]
-            if indices.size > 100:
-                break
-        indices = np.random.choice(
-            indices, min(indices.size, 1000), replace=False
-        )
-        reorient_poses = reorient_poses[indices]
-        pickable = pickable[indices]
-
-        result = plan_dynamic_reorient(
-            self.env, grasp_poses, reorient_poses, pickable
-        )
-
-        if 0:
-            _reorient.execute_reorient(self.env, result)
+            result = {}
+            for grasp_pose, reorient_pose in itertools.product(
+                grasp_poses, reorient_poses
+            ):
+                result = _reorient.plan_reorient(
+                    self.env, grasp_pose, reorient_pose
+                )
+                if "js_place" in result:
+                    break
+            else:
+                rospy.logerr("No solution found")
         else:
-            self.send_avs(result["js_pre_grasp"], time_scale=5)
-            self.wait_interpolation()
+            (
+                reorient_poses,
+                pickable,
+                target_grasp_poses,
+            ) = get_goal_oriented_reorient_poses(self.env)
 
-            js = self.env.ri.get_cartesian_path(j=result["j_grasp"])
-            if _utils.get_class_id(self.env.fg_object_id) == 5:
-                with pp.WorldSaver():
-                    self.env.ri.setj(js[-1])
-                    c = mercury.geometry.Coordinate(
-                        *self.env.ri.get_pose("tipLink")
-                    )
-                    c.translate([0, 0, 0.02])
-                    j = self.env.ri.solve_ik(c.pose)
-                    if j is not None:
-                        js = np.r_[js, [j]]
-            self.send_avs(js)
-            self.wait_interpolation()
+            grasp_poses = _reorient.get_grasp_poses(self.env)  # in world
+            grasp_poses = list(itertools.islice(grasp_poses, 25))
 
-            self.start_grasp()
-            rospy.sleep(2)
+            for threshold in np.linspace(0.9, 0.1, num=10):
+                indices = np.where(pickable > threshold)[0]
+                if indices.size > 100:
+                    break
+            indices = np.random.choice(
+                indices, min(indices.size, 1000), replace=False
+            )
+            reorient_poses = reorient_poses[indices]
+            pickable = pickable[indices]
 
-            js = result["js_place"]
+            result = plan_dynamic_reorient(
+                self.env, grasp_poses, reorient_poses, pickable
+            )
+        return result
+
+    def pick_and_reorient(self, heuristic=False):
+        result = self.plan_reorient(heuristic=heuristic)
+        if "js_place" not in result:
+            rospy.logerr("Failed to plan reorientation")
+            return
+
+        self.send_avs(result["js_pre_grasp"], time_scale=5)
+        self.wait_interpolation()
+
+        js = self.env.ri.get_cartesian_path(j=result["j_grasp"])
+        if _utils.get_class_id(self.env.fg_object_id) == 5:
             with pp.WorldSaver():
                 self.env.ri.setj(js[-1])
                 c = mercury.geometry.Coordinate(
                     *self.env.ri.get_pose("tipLink")
                 )
-                if _utils.get_class_id(self.env.fg_object_id) == 5:
-                    c.translate([0, 0, -0.05], wrt="world")
-                else:
-                    c.translate([0, 0, -0.01], wrt="world")
+                c.translate([0, 0, 0.02])
                 j = self.env.ri.solve_ik(c.pose)
                 if j is not None:
                     js = np.r_[js, [j]]
-            self.send_avs(js)
-            self.wait_interpolation()
+        self.send_avs(js)
+        self.wait_interpolation()
 
-            self.stop_grasp()
-            rospy.sleep(5)
+        self.start_grasp()
+        rospy.sleep(2)
 
-            js = result["js_post_place"]
-            self.send_avs(js, time_scale=10)
+        js = result["js_place"]
+        with pp.WorldSaver():
+            self.env.ri.setj(js[-1])
+            c = mercury.geometry.Coordinate(*self.env.ri.get_pose("tipLink"))
+            if _utils.get_class_id(self.env.fg_object_id) == 5:
+                c.translate([0, 0, -0.05], wrt="world")
+            else:
+                c.translate([0, 0, -0.01], wrt="world")
+            j = self.env.ri.solve_ik(c.pose)
+            if j is not None:
+                js = np.r_[js, [j]]
+        self.send_avs(js, time_scale=5)
+        self.wait_interpolation()
 
-            self.send_avs([self.env.ri.homej], time_scale=3)
-            self.wait_interpolation()
+        self.stop_grasp()
+        rospy.sleep(5)
 
-        pp.set_pose(
-            self.env.fg_object_id, np.hsplit(result["reorient_pose"], [3])
-        )
+        js = result["js_post_place"]
+        self.send_avs(js, time_scale=5)
 
-    def pick_and_reorient_heuristic(self):
-        if 0:
-            pcd_in_obj, normals_in_obj = _reorient.get_query_ocs(self.env)
-            indices = np.random.permutation(pcd_in_obj.shape[0])[:20]
-            pcd_in_obj = pcd_in_obj[indices]
-            normals_in_obj = normals_in_obj[indices]
-            quaternion_in_obj = mercury.geometry.quaternion_from_vec2vec(
-                [0, 0, -1], normals_in_obj
-            )
-            grasp_poses = np.hstack([pcd_in_obj, quaternion_in_obj])  # in obj
-        else:
-            grasp_poses = _reorient.get_grasp_poses(self.env)  # in world
-            grasp_poses = list(itertools.islice(grasp_poses, 12))
-
-        reorient_poses = _reorient.get_static_reorient_poses(self.env)
-
-        for grasp_pose, reorient_pose in itertools.product(
-            grasp_poses, reorient_poses
-        ):
-            result = _reorient.plan_reorient(
-                self.env, grasp_pose, reorient_pose
-            )
-            if "js_place" in result:
-                break
-        else:
-            rospy.logerr("No solution found")
-            return
-
-        if 0:
-            _reorient.execute_reorient(self.env, result)
-        else:
-            self.send_avs(result["js_pre_grasp"], time_scale=5)
-            self.wait_interpolation()
-
-            self.send_avs(self.env.ri.get_cartesian_path(j=result["j_grasp"]))
-            self.wait_interpolation()
-
-            self.start_grasp()
-            rospy.sleep(2)
-
-            js = result["js_place"]
-            self.send_avs(js)
-            self.wait_interpolation()
-
-            self.stop_grasp()
-            rospy.sleep(5)
-
-            js = result["js_post_place"]
-            self.send_avs(js, time_scale=10)
-
-            self.send_avs([self.env.ri.homej], time_scale=3)
-            self.wait_interpolation()
+        self.send_avs([self.env.ri.homej], time_scale=3)
+        self.wait_interpolation()
 
         pp.set_pose(
             self.env.fg_object_id, np.hsplit(result["reorient_pose"], [3])
         )
 
-    def look_at_reoriented(self):
-        if self.env.fg_object_id is None:
-            target = [0.5, -0.5, 0.1]
-        else:
-            target = pp.get_pose(self.env.fg_object_id)[0]
-        self.look_at(
-            eye=[target[0] - 0.3, -0.3, 0.7], target=target, rotation_axis="z"
-        )
-
-    def capture_to_place(self):
-        self.look_at_reoriented()
-        self.capture_observation()
-        self.observation_to_env()
-
-    def pick_and_place(self):
+    def plan_place(self):
         pcd_in_obj, normals_in_obj = _reorient.get_query_ocs(self.env)
         indices = np.random.permutation(pcd_in_obj.shape[0])[:32]
         pcd_in_obj = pcd_in_obj[indices]
@@ -648,41 +597,46 @@ class ReorientDemoInterface:
 
         result = _reorient.plan_place(self.env, grasp_poses)
 
+        return result
+
+    def pick_and_place(self):
+        result = self.plan_place()
         if "js_place" not in result:
-            rospy.logerr("No solution found")
+            rospy.logerr("Failed to plan placement")
             return
 
-        if 0:
-            _reorient.execute_place(self.env, result)
-        else:
-            self.send_avs(result["js_pre_grasp"], time_scale=5)
-            self.wait_interpolation()
+        self.send_avs(result["js_pre_grasp"], time_scale=5)
+        self.wait_interpolation()
 
-            self.send_avs(
-                self.env.ri.get_cartesian_path(j=result["j_grasp"]),
-                time_scale=20,
-            )
-            self.wait_interpolation()
+        self.send_avs(
+            self.env.ri.get_cartesian_path(j=result["j_grasp"]),
+            time_scale=20,
+        )
+        self.wait_interpolation()
 
-            self.start_grasp()
-            rospy.sleep(2)
+        self.start_grasp()
+        rospy.sleep(2)
 
-            self.send_avs(result["js_pre_place"], time_scale=5)
-            self.wait_interpolation()
+        self.send_avs(result["js_pre_place"], time_scale=5)
+        self.wait_interpolation()
 
-            self.send_avs(result["js_place"], time_scale=20)
-            self.wait_interpolation()
+        self.send_avs(result["js_place"], time_scale=20)
+        self.wait_interpolation()
 
-            self.stop_grasp()
-            rospy.sleep(5)
+        self.stop_grasp()
+        rospy.sleep(5)
 
-            self.send_avs(result["js_place"][::-1], time_scale=20)
-            self.wait_interpolation()
+        self.send_avs(result["js_place"][::-1], time_scale=5)
+        self.wait_interpolation()
 
-            self.reset_pose(cartesian=False)
-            self.wait_interpolation()
+        self.reset_pose(cartesian=False)
+        self.wait_interpolation()
 
 
 if __name__ == "__main__":
     di = ReorientDemoInterface()
+    di.sp = di.scan_pile
+    di.sr = di.scan_reoriented
+    di.pp = di.pick_and_place
+    di.pr = di.pick_and_reorient
     IPython.embed()
