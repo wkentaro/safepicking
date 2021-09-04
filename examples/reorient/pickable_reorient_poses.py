@@ -18,7 +18,10 @@ home = path.Path("~").expanduser()
 
 
 def get_reorient_poses(env):
-    bounds = ((0.35, -0.55, 0.071), (0.65, -0.35, 0.071))
+    bounds = (
+        (0.35, -0.55, env.TABLE_OFFSET + 0.001),
+        (0.65, -0.35, env.TABLE_OFFSET + 0.001),
+    )
     if env.debug:
         pp.draw_aabb(bounds)
 
@@ -57,7 +60,9 @@ def get_reorient_poses(env):
             pp.remove_body(box)
 
             if env.debug:
-                pp.draw_point((x, y, 0.071), color=(0, 1, 0, 1))
+                pp.draw_point(
+                    (x, y, env.TABLE_OFFSET + 0.001), color=(0, 1, 0, 1)
+                )
             XY_valid.append((x, y))
     XY = XY_valid
 
@@ -74,7 +79,9 @@ def get_reorient_poses(env):
             c.rotate([a, b, g], wrt="world")
             pp.set_pose(env.fg_object_id, c.pose)
 
-            c.position[2] = -pp.get_aabb(env.fg_object_id)[0][2] + 0.07
+            c.position[2] = (
+                -pp.get_aabb(env.fg_object_id)[0][2] + env.TABLE_OFFSET
+            )
             pp.set_pose(env.fg_object_id, c.pose)
 
             points = pp.body_collision_info(

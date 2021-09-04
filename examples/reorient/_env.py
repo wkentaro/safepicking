@@ -27,10 +27,12 @@ class Env:
     HEIGHTMAP_IMAGE_SIZE = 128
     HEIGHTMAP_SIZE = HEIGHTMAP_PIXEL_SIZE * HEIGHTMAP_IMAGE_SIZE
 
+    TABLE_OFFSET = 0.01
+
     PILES_DIR = home / "data/mercury/pile_generation"
     PILE_TRAIN_IDS = np.arange(0, 1000)
     PILE_EVAL_IDS = np.arange(1000, 1200)
-    PILE_POSITION = np.array([0.5, 0, 0.07])
+    PILE_POSITION = np.array([0.5, 0, TABLE_OFFSET])
 
     CAMERA_POSITION = np.array([PILE_POSITION[0], PILE_POSITION[1], 0.7])
 
@@ -85,7 +87,7 @@ class Env:
         pp.set_camera_pose((1, -0.5, 1), (0, 0.3, 0.3))
         with pp.LockRenderer():
             self.plane = pp.load_pybullet("plane.urdf")
-            pp.set_pose(self.plane, ([0, 0, 0.07], [0, 0, 0, 1]))
+            pp.set_pose(self.plane, ([0, 0, self.TABLE_OFFSET], [0, 0, 0, 1]))
 
             self._walls = []
             if self._real:
@@ -200,6 +202,7 @@ class Env:
             )
 
             self._shelf, self._place_pose = _utils.init_place_scene(
+                env=self,
                 class_id=_utils.get_class_id(self.fg_object_id),
                 random_state=copy.deepcopy(self.random_state),
                 face=self._face,

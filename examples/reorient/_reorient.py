@@ -392,7 +392,7 @@ def get_static_reorient_poses(env):
         c.rotate([a, b, g], wrt="world")
         pp.set_pose(env.fg_object_id, c.pose)
 
-        c.position[2] = -pp.get_aabb(env.fg_object_id)[0][2] + 0.07
+        c.position[2] = -pp.get_aabb(env.fg_object_id)[0][2] + env.TABLE_OFFSET
         pp.set_pose(env.fg_object_id, c.pose)
 
         points = pp.body_collision_info(

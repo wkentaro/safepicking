@@ -116,7 +116,7 @@ def create_shelf(X, Y, Z):
     return unique_id
 
 
-def init_place_scene(class_id, random_state, face="front"):
+def init_place_scene(env, class_id, random_state, face="front"):
     lock_renderer = pp.LockRenderer()
 
     place_aabb_extents = [0.25, 0.6, 0.3]
@@ -203,7 +203,7 @@ def init_place_scene(class_id, random_state, face="front"):
     # apply transform
     c = mercury.geometry.Coordinate()
     c.rotate([0, 0, np.deg2rad(-90)])
-    c.translate([0, 0.7, 0.45 + 0.07], wrt="world")
+    c.translate([0, 0.7, 0.45 + env.TABLE_OFFSET], wrt="world")
     shelf_to_world = c.pose
     for obj in [shelf] + objects:
         obj_to_shelf = pp.get_pose(obj)

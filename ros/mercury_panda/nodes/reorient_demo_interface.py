@@ -342,7 +342,7 @@ class ReorientDemoInterface:
     def init(self):
         fg_class_id = 2
         c = mercury.geometry.Coordinate(
-            [0.51, 0.40, 0.53], _utils.get_canonical_quaternion(fg_class_id)
+            [0.51, 0.40, 0.47], _utils.get_canonical_quaternion(fg_class_id)
         )
         place_pose = c.pose
 
@@ -658,4 +658,6 @@ if __name__ == "__main__":
     di.sr = di.scan_reoriented
     di.pp = di.pick_and_place
     di.pr = di.pick_and_reorient
+    di.rs = di.reset
+    di.rp = di.reset_pose
     IPython.embed()
