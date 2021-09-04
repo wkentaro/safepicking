@@ -94,11 +94,14 @@ class Env:
 
             self._walls = []
             if self._real:
-                wall = pp.create_box(w=1, l=0.05, h=1, color=(1, 1, 1, 1))
+                wall = pp.create_box(w=2, l=0.01, h=2, color=(1, 1, 1, 1))
                 pp.set_pose(wall, ([0, 0.6, 0.5], [0, 0, 0, 1]))
                 self._walls.append(wall)
-                wall = pp.create_box(w=0.05, l=1, h=1, color=(1, 1, 1, 1))
+                wall = pp.create_box(w=0.01, l=2, h=2, color=(1, 1, 1, 1))
                 pp.set_pose(wall, ([-0.4, 0, 0.5], [0, 0, 0, 1]))
+                self._walls.append(wall)
+                wall = pp.create_box(w=2, l=2, h=0.01, color=(1, 1, 1, 0))
+                pp.set_pose(wall, ([0, 0, 1.05], [0, 0, 0, 1]))
                 self._walls.append(wall)
 
         self.ri = mercury.pybullet.PandaRobotInterface(
