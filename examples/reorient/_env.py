@@ -84,21 +84,39 @@ class Env:
 
         pp.reset_simulation()
         pp.enable_gravity()
-        pp.set_camera_pose((1, -0.5, 1), (0, 0.3, 0.3))
+        pp.set_camera_pose((1, -0.5, 0.8), (0, 0.3, 0.3))
+        p.configureDebugVisualizer(
+            p.COV_ENABLE_SHADOWS, True, lightPosition=(100, -100, 0.5)
+        )
         with pp.LockRenderer():
             self.plane = pp.load_pybullet("plane.urdf")
+            pp.set_texture(self.plane)
+            pp.set_color(self.plane, (0.8, 0.8, 0.8))
             pp.set_pose(self.plane, ([0, 0, self.TABLE_OFFSET], [0, 0, 0, 1]))
+
+            for x in np.linspace(-5, 5, num=21):
+                pp.add_line(
+                    (x, -10, 0.072), (x, 10, 0.072), color=(0.5, 0.5, 0.5, 1)
+                )
+            for y in np.linspace(-5, 5, num=21):
+                pp.add_line(
+                    (-10, y, 0.072), (10, y, 0.072), color=(0.5, 0.5, 0.5, 1)
+                )
 
             self._walls = []
             if self._real:
-                wall = pp.create_box(w=2, l=0.01, h=2, color=(1, 1, 1, 1))
-                pp.set_pose(wall, ([0, 0.6, 0.5], [0, 0, 0, 1]))
+                wall = pp.create_box(
+                    w=2, l=0.01, h=1.05, color=(0.6, 0.6, 0.6, 1)
+                )
+                pp.set_pose(wall, ([0, 0.6, 1.05 / 2], [0, 0, 0, 1]))
                 self._walls.append(wall)
-                wall = pp.create_box(w=0.01, l=2, h=2, color=(1, 1, 1, 1))
-                pp.set_pose(wall, ([-0.4, 0, 0.5], [0, 0, 0, 1]))
+                wall = pp.create_box(
+                    w=0.01, l=2, h=1.05, color=(0.7, 0.7, 0.7, 1)
+                )
+                pp.set_pose(wall, ([-0.4, 0, 1.05 / 2], [0, 0, 0, 1]))
                 self._walls.append(wall)
-                wall = pp.create_box(w=2, l=2, h=0.01, color=(1, 1, 1, 0))
-                pp.set_pose(wall, ([0, 0, 1.05], [0, 0, 0, 1]))
+                wall = pp.create_box(w=2, l=2, h=0.5, color=(1, 1, 1, 1))
+                pp.set_pose(wall, ([0, 0, 0.25 + 1.05], [0, 0, 0, 1]))
                 self._walls.append(wall)
 
         self.ri = mercury.pybullet.PandaRobotInterface(
