@@ -436,6 +436,10 @@ def plan_place(env, target_grasp_poses):
 
     j_init = env.ri.getj()
 
+    c = mercury.geometry.Coordinate(*env.PLACE_POSE)
+    c.translate([0, 0, 0.05], wrt="world")
+    LAST_PRE_PLACE_POSE = c.pose
+
     for grasp_pose in target_grasp_poses:
         world_saver = pp.WorldSaver()
 
@@ -508,6 +512,17 @@ def plan_place(env, target_grasp_poses):
 
             with env.ri.enabling_attachments():
                 j = env.ri.solve_ik(
+                    LAST_PRE_PLACE_POSE,
+                    move_target=env.ri.robot_model.attachment_link0,
+                )
+            if j is None or not env.ri.validatej(j, obstacles=env.bg_objects):
+                world_saver.restore()
+                env.ri.attachments = []
+                continue
+            result["j_last_pre_place"] = j
+
+            with env.ri.enabling_attachments():
+                j = env.ri.solve_ik(
                     env.PLACE_POSE,
                     move_target=env.ri.robot_model.attachment_link0,
                 )
@@ -559,7 +574,7 @@ def plan_place(env, target_grasp_poses):
 
         env.ri.setj(result["j_pre_place"])
         pose1 = env.ri.get_pose("tipLink")
-        env.ri.setj(result["j_place"])
+        env.ri.setj(result["j_last_pre_place"])
         pose2 = env.ri.get_pose("tipLink")
 
         env.ri.setj(result["j_pre_place"])
@@ -574,6 +589,7 @@ def plan_place(env, target_grasp_poses):
             world_saver.restore()
             env.ri.attachments = []
             continue
+        js.append(result["j_place"])
         result["js_place"] = js
         break
 

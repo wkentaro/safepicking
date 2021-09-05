@@ -457,16 +457,16 @@ class ReorientDemoInterface:
     # -------------------------------------------------------------------------
 
     def init(self):
-        shelf = _utils.create_shelf(X=0.29, Y=0.4, Z=0.285, N=2)
+        shelf = _utils.create_shelf(X=0.29, Y=0.41, Z=0.285, N=2)
         c = mercury.geometry.Coordinate()
         c.rotate([0, 0, -np.pi / 2])
-        c.translate([0.47, 0.45, self.env.TABLE_OFFSET], wrt="world")
+        c.translate([0.465, 0.45, self.env.TABLE_OFFSET], wrt="world")
         pp.set_pose(shelf, c.pose)
         self.env.bg_objects.append(shelf)
 
         fg_class_id = 2
         c = mercury.geometry.Coordinate(
-            [0.315, 0.39, 0.44], _utils.get_canonical_quaternion(fg_class_id)
+            [0.305, 0.39, 0.44], _utils.get_canonical_quaternion(fg_class_id)
         )
         place_pose = c.pose
 
