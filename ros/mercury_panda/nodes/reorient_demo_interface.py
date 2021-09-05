@@ -59,13 +59,6 @@ class Panda(skrobot.models.Panda):
         return model
 
 
-def skrobot_coords_from_matrix(matrix):
-    return skrobot.coordinates.Coordinates(
-        pos=matrix[:3, 3],
-        rot=matrix[:3, :3],
-    )
-
-
 def pose_from_msg(msg):
     position = (
         msg.position.x,
@@ -89,6 +82,41 @@ class YcbObject(enum.Enum):
     CLEANSER = 12
     DRILL = 15
     WOOD_BLOCK = 16
+
+
+def tsdf_from_depth(depth, camera_to_base, K):
+    T_camera_to_base = mercury.geometry.transformation_matrix(*camera_to_base)
+    volume = open3d.integration.ScalableTSDFVolume(
+        voxel_length=0.005,
+        sdf_trunc=0.04,
+        color_type=open3d.integration.TSDFVolumeColorType.Gray32,
+    )
+    rgbd = open3d.geometry.RGBDImage.create_from_color_and_depth(
+        open3d.geometry.Image(depth),
+        open3d.geometry.Image((depth * 1000).astype(np.uint16)),
+        depth_trunc=1.0,
+    )
+    volume.integrate(
+        rgbd,
+        open3d.camera.PinholeCameraIntrinsic(
+            width=depth.shape[1],
+            height=depth.shape[0],
+            fx=K[0, 0],
+            fy=K[1, 1],
+            cx=K[0, 2],
+            cy=K[1, 2],
+        ),
+        np.linalg.inv(T_camera_to_base),
+    )
+    mesh = volume.extract_triangle_mesh()
+    mesh = mesh.simplify_vertex_clustering(voxel_size=0.02)
+    vertices = np.asarray(mesh.vertices)
+    faces = np.asarray(mesh.triangles)
+    mesh = trimesh.Trimesh(
+        vertices=vertices,
+        faces=np.r_[faces, faces[:, ::-1]],
+    )
+    return mesh
 
 
 class ReorientDemoInterface:
@@ -207,12 +235,20 @@ class ReorientDemoInterface:
     # sensor inputs
     # -------------------------------------------------------------------------
 
-    def reset_obs(self):
-        obs_keys = ["depth", "K", "camera_to_base", "segm", "classes"]
+    def _subscribe_geometry(self):
+        obs_keys = ["depth", "K", "camera_to_base"]
         self.obs = {key: None for key in obs_keys}
 
+        sub_depth = rospy.Subscriber(
+            "/camera/aligned_depth_to_color/image_raw",
+            Image,
+            self._callback,
+        )
+        self._subscribers = [sub_depth]
+
     def _subscribe(self):
-        self.reset_obs()
+        obs_keys = ["depth", "K", "camera_to_base", "segm", "classes", "poses"]
+        self.obs = {key: None for key in obs_keys}
 
         sub_depth = message_filters.Subscriber(
             "/camera/aligned_depth_to_color/image_raw",
@@ -240,7 +276,9 @@ class ReorientDemoInterface:
         for sub in self._subscribers:
             sub.unregister()
 
-    def _callback(self, depth_msg, class_msg, label_ins_msg, pose_msg):
+    def _callback(
+        self, depth_msg, class_msg=None, label_ins_msg=None, pose_msg=None
+    ):
         cam_info_msg = rospy.wait_for_message(
             "/camera/aligned_depth_to_color/camera_info", CameraInfo
         )
@@ -259,18 +297,17 @@ class ReorientDemoInterface:
                 "panda_link0", "camera_color_optical_frame", time=rospy.Time(0)
             )
         )
-        self.obs["segm"] = bridge.imgmsg_to_cv2(label_ins_msg)
-        self.obs["classes"] = class_msg.classes
-        self.obs["poses"] = pose_msg.poses
+
+        if class_msg is not None:
+            self.obs["classes"] = class_msg.classes
+        if label_ins_msg is not None:
+            self.obs["segm"] = bridge.imgmsg_to_cv2(label_ins_msg)
+        if pose_msg is not None:
+            self.obs["poses"] = pose_msg.poses
 
     # -------------------------------------------------------------------------
     # actions
     # -------------------------------------------------------------------------
-
-    def _check_observation(self):
-        if any(value is None for value in self.obs.values()):
-            return False
-        return True
 
     def start_passthrough(self):
         passthroughs = [
@@ -288,7 +325,43 @@ class ReorientDemoInterface:
             client = rospy.ServiceProxy(passthrough + "/stop", Empty)
             client.call()
 
-    def capture_observation(self):
+    def capture_geometry(self):
+        self._subscribe_geometry()
+        for i in range(30):
+            rospy.loginfo_throttle(10, "Waiting for observation")
+            rospy.timer.sleep(0.1)
+            if all(
+                self.obs[key] is not None
+                for key in ["depth", "K", "camera_to_base"]
+            ):
+                rospy.loginfo("Received observation")
+                self._unsubsribe()
+                break
+        else:
+            rospy.logerr("Timeout")
+
+    def geometry_to_env(self):
+        K = self.obs["K"]
+        depth = self.obs["depth"]
+        camera_to_base = np.hsplit(self.obs["camera_to_base"], [3])
+        tsdf = tsdf_from_depth(depth, camera_to_base, K)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            visual_file = path.Path(tmp_dir) / "bg_structure.obj"
+            tsdf.export(visual_file)
+            collision_file = mercury.pybullet.get_collision_file(
+                visual_file, resolution=10000
+            )
+            mercury.pybullet.create_mesh_body(
+                visual_file=visual_file,
+                collision_file=collision_file,
+                rgba_color=(0.5, 0.5, 0.5, 1),
+            )
+
+    def scan_geometry(self):
+        self.capture_geometry()
+        self.geometry_to_env()
+
+    def capture_obs(self):
         if not self._initialized:
             rospy.logerr("Task is not initialized yet")
             return
@@ -297,17 +370,61 @@ class ReorientDemoInterface:
 
         self._subscribe()
         for i in range(30):
-            if self._check_observation():
-                break
             rospy.loginfo_throttle(10, "Waiting for observation")
             rospy.timer.sleep(0.1)
+            if all(value is not None for value in self.obs.values()):
+                rospy.loginfo("Received observation")
+                self.stop_passthrough()
+                self._unsubsribe()
+                break
         else:
             rospy.logerr("Timeout")
-            return
-        rospy.loginfo("Received observation")
-        self._unsubsribe()
 
-        self.stop_passthrough()
+    def obs_to_env(self):
+        camera_to_base = np.hsplit(self.obs["camera_to_base"], [3])
+        for object_pose in self.obs["poses"]:
+            if object_pose.class_id == self.env._fg_class_id:
+                obj_to_camera = pose_from_msg(object_pose.pose)
+                obj_to_base = pp.multiply(camera_to_base, obj_to_camera)
+                visual_file = mercury.datasets.ycb.get_visual_file(
+                    class_id=object_pose.class_id
+                )
+                collision_file = mercury.pybullet.get_collision_file(
+                    visual_file
+                )
+                if self.env.fg_object_id is not None:
+                    pp.remove_body(self.env.fg_object_id)
+                object_id = mercury.pybullet.create_mesh_body(
+                    visual_file=visual_file,
+                    collision_file=collision_file,
+                    position=obj_to_base[0],
+                    quaternion=obj_to_base[1],
+                    mass=0.1,
+                )
+                break
+        target_instance_id = object_pose.instance_id
+
+        K = self.obs["K"]
+        depth = self.obs["depth"].copy()
+        segm = self.obs["segm"]
+        depth[segm == target_instance_id] = np.nan
+        tsdf = tsdf_from_depth(depth, camera_to_base, K)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            visual_file = path.Path(tmp_dir) / "bg_structure.obj"
+            tsdf.export(visual_file)
+            collision_file = mercury.pybullet.get_collision_file(
+                visual_file, resolution=10000
+            )
+            bg_structure = mercury.pybullet.create_mesh_body(
+                visual_file=visual_file,
+                collision_file=collision_file,
+                rgba_color=(0.5, 0.5, 0.5, 1),
+            )
+
+        self.env.bg_objects.append(bg_structure)
+        self.env.object_ids = [object_id]
+        self.env.fg_object_id = object_id
+        self.env.update_obs()
 
     def reset_pose(self, cartesian=True):
         if cartesian:
@@ -340,21 +457,21 @@ class ReorientDemoInterface:
     # -------------------------------------------------------------------------
 
     def init(self):
+        shelf = _utils.create_shelf(X=0.29, Y=0.4, Z=0.285, N=2)
+        c = mercury.geometry.Coordinate()
+        c.rotate([0, 0, -np.pi / 2])
+        c.translate([0.47, 0.45, self.env.TABLE_OFFSET], wrt="world")
+        pp.set_pose(shelf, c.pose)
+        self.env.bg_objects.append(shelf)
+
         fg_class_id = 2
         c = mercury.geometry.Coordinate(
-            [0.51, 0.40, 0.47], _utils.get_canonical_quaternion(fg_class_id)
+            [0.315, 0.39, 0.44], _utils.get_canonical_quaternion(fg_class_id)
         )
         place_pose = c.pose
 
-        c.translate([0, -0.3, 0], wrt="world")
+        c.translate([0, -0.3, 0.05], wrt="world")
         pre_place_pose = c.pose
-
-        shelf = _utils.create_shelf(X=0.29, Y=0.4, Z=0.29)
-        c = mercury.geometry.Coordinate()
-        c.rotate([0, 0, -np.pi / 2])
-        c.translate([0.45, 0.43, 0.55], wrt="world")
-        pp.set_pose(shelf, c.pose)
-        self.env.bg_objects.append(shelf)
 
         self.env._fg_class_id = fg_class_id
         self.env._place_pose = place_pose
@@ -392,8 +509,8 @@ class ReorientDemoInterface:
             return
 
         self.look_at_pile()
-        self.capture_observation()
-        self.observation_to_env()
+        self.capture_obs()
+        self.obs_to_env()
 
     def look_at_reoriented(self):
         if self.env.fg_object_id is None:
@@ -410,86 +527,8 @@ class ReorientDemoInterface:
             return
 
         self.look_at_reoriented()
-        self.capture_observation()
-        self.observation_to_env()
-
-    def observation_to_env(self):
-        camera_to_base = np.hsplit(self.obs["camera_to_base"], [3])
-        for object_pose in self.obs["poses"]:
-            if object_pose.class_id == self.env._fg_class_id:
-                obj_to_camera = pose_from_msg(object_pose.pose)
-                obj_to_base = pp.multiply(camera_to_base, obj_to_camera)
-                visual_file = mercury.datasets.ycb.get_visual_file(
-                    class_id=object_pose.class_id
-                )
-                collision_file = mercury.pybullet.get_collision_file(
-                    visual_file
-                )
-                object_id = mercury.pybullet.create_mesh_body(
-                    visual_file=visual_file,
-                    collision_file=collision_file,
-                    position=obj_to_base[0],
-                    quaternion=obj_to_base[1],
-                    mass=0.1,
-                )
-                break
-        target_instance_id = object_pose.instance_id
-
-        K = self.obs["K"]
-        depth = self.obs["depth"].copy()
-        segm = self.obs["segm"]
-        depth[segm == target_instance_id] = np.nan
-        T_camera_to_base = mercury.geometry.transformation_matrix(
-            *camera_to_base
-        )
-        volume = open3d.integration.ScalableTSDFVolume(
-            voxel_length=0.005,
-            sdf_trunc=0.04,
-            color_type=open3d.integration.TSDFVolumeColorType.Gray32,
-        )
-        rgbd = open3d.geometry.RGBDImage.create_from_color_and_depth(
-            open3d.geometry.Image(depth),
-            open3d.geometry.Image((depth * 1000).astype(np.uint16)),
-            depth_trunc=1.0,
-        )
-        volume.integrate(
-            rgbd,
-            open3d.camera.PinholeCameraIntrinsic(
-                width=depth.shape[1],
-                height=depth.shape[0],
-                fx=K[0, 0],
-                fy=K[1, 1],
-                cx=K[0, 2],
-                cy=K[1, 2],
-            ),
-            np.linalg.inv(T_camera_to_base),
-        )
-        mesh = volume.extract_triangle_mesh()
-        mesh = mesh.simplify_vertex_clustering(voxel_size=0.02)
-        mesh = trimesh.Trimesh(
-            vertices=np.asarray(mesh.vertices),
-            faces=np.asarray(mesh.triangles),
-        )
-        tmp_dir = path.Path(tempfile.mkdtemp())
-        visual_file = tmp_dir / "bg_objects.obj"
-        mesh.export(visual_file)
-        collision_file = mercury.pybullet.get_collision_file(
-            visual_file, resolution=10000
-        )
-        bg_structure = mercury.pybullet.create_mesh_body(
-            visual_file=visual_file,
-            collision_file=collision_file,
-            rgba_color=(0.5, 0.5, 0.5, 1),
-        )
-        tmp_dir.rmtree()
-
-        if self.env.fg_object_id is not None:
-            pp.remove_body(self.env.fg_object_id)
-
-        self.env.bg_objects.append(bg_structure)
-        self.env.object_ids = [object_id]
-        self.env.fg_object_id = object_id
-        self.env.update_obs()
+        self.capture_obs()
+        self.obs_to_env()
 
     def plan_reorient(self, heuristic=False):
         if heuristic:

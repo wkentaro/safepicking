@@ -51,13 +51,14 @@ def get_aabb(obj):
     return visual.bounds
 
 
-def create_shelf(X, Y, Z):
+def create_shelf(X, Y, Z, N=3):
+    T = 0.01
     color = (0.8, 0.8, 0.8, 1)
 
-    def get_parts(origin, X, Y, Z, T=0.01):
+    def get_parts(origin, X, Y, Z, T):
         extents = np.array(
             [
-                # [X, Y, T],
+                [X, Y, T],
                 [X, Y, T],
                 [X, T, Z],
                 [X, T, Z],
@@ -68,7 +69,7 @@ def create_shelf(X, Y, Z):
         positions = (
             np.array(
                 [
-                    # [0, 0, Z / 2],
+                    [0, 0, Z / 2],
                     [0, 0, -Z / 2],
                     [0, Y / 2, 0],
                     [0, -Y / 2, 0],
@@ -82,8 +83,9 @@ def create_shelf(X, Y, Z):
 
     extents = []
     positions = []
-    for origin in [[0, 0, -Z], [0, 0, 0], [0, 0, Z]]:
-        parts = get_parts(origin, X, Y, Z)
+    for i in range(N):
+        origin = [0, 0, T + Z / 2 + i * (T + Z)]
+        parts = get_parts(origin, X, Y, Z, T)
         extents.extend(parts[0])
         positions.extend(parts[1])
 
