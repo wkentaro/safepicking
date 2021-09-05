@@ -329,7 +329,7 @@ class ReorientDemoInterface:
         self._subscribe_geometry()
         for i in range(30):
             rospy.loginfo_throttle(10, "Waiting for observation")
-            rospy.timer.sleep(0.1)
+            rospy.sleep(0.1)
             if all(
                 self.obs[key] is not None
                 for key in ["depth", "K", "camera_to_base"]
@@ -371,7 +371,7 @@ class ReorientDemoInterface:
         self._subscribe()
         for i in range(30):
             rospy.loginfo_throttle(10, "Waiting for observation")
-            rospy.timer.sleep(0.1)
+            rospy.sleep(0.1)
             if all(value is not None for value in self.obs.values()):
                 rospy.loginfo("Received observation")
                 self.stop_passthrough()
@@ -456,21 +456,31 @@ class ReorientDemoInterface:
 
     # -------------------------------------------------------------------------
 
-    def init(self):
+    def init(self, nth=1):
         shelf = _utils.create_shelf(X=0.29, Y=0.41, Z=0.285, N=2)
         c = mercury.geometry.Coordinate()
         c.rotate([0, 0, -np.pi / 2])
-        c.translate([0.465, 0.45, self.env.TABLE_OFFSET], wrt="world")
+        c.translate([0.575, 0.45, self.env.TABLE_OFFSET], wrt="world")
         pp.set_pose(shelf, c.pose)
         self.env.bg_objects.append(shelf)
 
         fg_class_id = 2
         c = mercury.geometry.Coordinate(
-            [0.305, 0.39, 0.44], _utils.get_canonical_quaternion(fg_class_id)
+            [0.415, 0.39, 0.43], _utils.get_canonical_quaternion(fg_class_id)
         )
+        for _ in range(nth - 1):
+            c.translate([0.065, 0, 0], wrt="world")
+        # mercury.pybullet.create_mesh_body(
+        #     visual_file=mercury.datasets.ycb.get_visual_file(
+        #         fg_class_id
+        #     ),
+        #     position=c.position,
+        #     quaternion=c.quaternion,
+        # )
+        # c.translate([0.07, 0, 0], wrt="world")
         place_pose = c.pose
 
-        c.translate([0, -0.3, 0.05], wrt="world")
+        c.translate([0, -0.3, 0.1], wrt="world")
         pre_place_pose = c.pose
 
         self.env._fg_class_id = fg_class_id
@@ -682,7 +692,7 @@ class ReorientDemoInterface:
         self.wait_interpolation()
 
         self.stop_grasp()
-        rospy.sleep(5)
+        rospy.sleep(6)
 
         self.send_avs(result["js_place"][::-1], time_scale=5)
         self.wait_interpolation()

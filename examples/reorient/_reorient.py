@@ -437,7 +437,7 @@ def plan_place(env, target_grasp_poses):
     j_init = env.ri.getj()
 
     c = mercury.geometry.Coordinate(*env.PLACE_POSE)
-    c.translate([0, 0, 0.05], wrt="world")
+    c.translate([0.05, 0, 0.05], wrt="world")
     LAST_PRE_PLACE_POSE = c.pose
 
     for grasp_pose in target_grasp_poses:
@@ -446,7 +446,7 @@ def plan_place(env, target_grasp_poses):
         ee_to_world = pp.multiply(obj_to_world, np.hsplit(grasp_pose, [3]))
 
         # find self-collision-free j_grasp
-        for dg in np.linspace(-np.pi, np.pi, num=6, endpoint=False):
+        for dg in np.random.uniform(-np.pi, np.pi, size=(6,)):
             result = {}
 
             c = mercury.geometry.Coordinate(*ee_to_world)
@@ -471,11 +471,12 @@ def plan_place(env, target_grasp_poses):
             if j is None or not env.ri.validatej(j, obstacles=env.bg_objects):
                 world_saver.restore()
                 env.ri.attachments = []
+                print("no j_pre_grasp")
                 continue
             result["j_pre_grasp"] = j
 
             ee_to_obj = pp.multiply(pp.invert(obj_to_world), ee_to_world)
-            env.ri.attachments = [
+            attachments = [
                 pp.Attachment(
                     env.ri.robot,
                     env.ri.ee,
@@ -483,6 +484,7 @@ def plan_place(env, target_grasp_poses):
                     env.fg_object_id,
                 )
             ]
+            env.ri.attachments = attachments
 
             c = mercury.geometry.Coordinate(*ee_to_world)
             c.translate([0, 0, 0.2], wrt="world")
@@ -526,10 +528,12 @@ def plan_place(env, target_grasp_poses):
                     env.PLACE_POSE,
                     move_target=env.ri.robot_model.attachment_link0,
                 )
+            env.ri.attachments = []
             if j is None or not env.ri.validatej(j, obstacles=env.bg_objects):
                 world_saver.restore()
                 env.ri.attachments = []
                 continue
+            env.ri.attachments = attachments
             result["j_place"] = j
 
             break
@@ -579,10 +583,14 @@ def plan_place(env, target_grasp_poses):
 
         env.ri.setj(result["j_pre_place"])
         js = []
-        for pose in pp.interpolate_poses_by_num_steps(pose1, pose2):
+        env.ri.attachments = []
+        for pose in pp.interpolate_poses_by_num_steps(
+            pose1, pose2, num_steps=5
+        ):
             j = env.ri.solve_ik(pose)
             if j is None or not env.ri.validatej(j, obstacles=obstacles):
                 break
+            env.ri.setj(j)
             js.append(j)
         if len(js) != 6:
             logger.warning("js_place is not found")
