@@ -599,6 +599,22 @@ def plan_place(env, target_grasp_poses):
             continue
         js.append(result["j_place"])
         result["js_place"] = js
+
+        env.ri.setj(result["j_place"])
+        pose1 = env.ri.get_pose("tipLink")
+        env.ri.setj(result["j_pre_place"])
+        pose2 = env.ri.get_pose("tipLink")
+        js = []
+        for pose in pp.interpolate_poses_by_num_steps(
+            pose1, pose2, num_steps=5
+        ):
+            j = env.ri.solve_ik(pose)
+            env.ri.setj(j)
+            if j is not None:
+                js.append(j)
+        js.append(result["j_pre_place"])
+        result["js_post_place"] = js
+
         break
 
     world_saver.restore()

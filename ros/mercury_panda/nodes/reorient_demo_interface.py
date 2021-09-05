@@ -692,9 +692,9 @@ class ReorientDemoInterface:
         self.wait_interpolation()
 
         self.stop_grasp()
-        rospy.sleep(6)
+        rospy.sleep(5)
 
-        self.send_avs(result["js_place"][::-1], time_scale=5)
+        self.send_avs(result["js_post_place"], time_scale=5)
         self.wait_interpolation()
 
         self.reset_pose(cartesian=False)
