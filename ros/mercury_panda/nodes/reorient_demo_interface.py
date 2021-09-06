@@ -496,7 +496,7 @@ class ReorientDemoInterface:
         last_pre_place_pose = c.pose
 
         c = mercury.geometry.Coordinate(*place_pose)
-        c.translate([0, -0.2, 0.1], wrt="world")
+        c.translate([0.05, -0.2, 0.05], wrt="world")
         pre_place_pose = c.pose
 
         self.env._fg_class_id = fg_class_id
