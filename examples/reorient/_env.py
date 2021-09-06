@@ -67,7 +67,7 @@ class Env:
         pp.disconnect()
 
     def launch(self):
-        pp.connect(use_gui=self._gui, mp4=self._mp4, width=800, height=600)
+        pp.connect(use_gui=self._gui, mp4=self._mp4)
         pp.add_data_path()
 
     def reset(self, pile_file=None):
@@ -76,7 +76,7 @@ class Env:
 
         pp.reset_simulation()
         pp.enable_gravity()
-        pp.set_camera_pose((1, -0.5, 0.8), (0, 0.3, 0.3))
+        pp.set_camera_pose((1, -0.7, 0.8), (0, 0.1, 0.3))
         p.configureDebugVisualizer(
             p.COV_ENABLE_SHADOWS, True, lightPosition=(100, -100, 0.5)
         )
@@ -98,12 +98,12 @@ class Env:
             self._walls = []
             if self._real:
                 wall = pp.create_box(
-                    w=2, l=0.01, h=1.05, color=(0.6, 0.6, 0.6, 1)
+                    w=3, l=0.01, h=1.05, color=(0.6, 0.6, 0.6, 1)
                 )
                 pp.set_pose(wall, ([0, 0.6, 1.05 / 2], [0, 0, 0, 1]))
                 self._walls.append(wall)
                 wall = pp.create_box(
-                    w=0.01, l=2, h=1.05, color=(0.7, 0.7, 0.7, 1)
+                    w=0.01, l=3, h=1.05, color=(0.7, 0.7, 0.7, 1)
                 )
                 pp.set_pose(wall, ([-0.4, 0, 1.05 / 2], [0, 0, 0, 1]))
                 self._walls.append(wall)
