@@ -476,7 +476,7 @@ def plan_place(env, target_grasp_poses):
             result["j_pre_grasp"] = j
 
             ee_to_obj = pp.multiply(pp.invert(obj_to_world), ee_to_world)
-            attachments = [
+            result["attachments"] = [
                 pp.Attachment(
                     env.ri.robot,
                     env.ri.ee,
@@ -484,7 +484,7 @@ def plan_place(env, target_grasp_poses):
                     env.fg_object_id,
                 )
             ]
-            env.ri.attachments = attachments
+            env.ri.attachments = result["attachments"]
 
             c = mercury.geometry.Coordinate(*ee_to_world)
             c.translate([0, 0, 0.2], wrt="world")
@@ -533,7 +533,7 @@ def plan_place(env, target_grasp_poses):
                 world_saver.restore()
                 env.ri.attachments = []
                 continue
-            env.ri.attachments = attachments
+            env.ri.attachments = result["attachments"]
             result["j_place"] = j
 
             break
@@ -542,7 +542,6 @@ def plan_place(env, target_grasp_poses):
             env.ri.attachments = []
             continue
 
-        attachments = env.ri.attachments
         env.ri.attachments = []
 
         env.ri.setj(j_init)
@@ -563,7 +562,7 @@ def plan_place(env, target_grasp_poses):
         obstacles = env.bg_objects + env.object_ids
         obstacles.remove(env.fg_object_id)
 
-        env.ri.attachments = attachments
+        env.ri.attachments = result["attachments"]
         js = env.ri.planj(
             result["j_pre_place"],
             obstacles=obstacles,

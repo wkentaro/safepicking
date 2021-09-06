@@ -140,10 +140,19 @@ class ReorientDemoInterface:
     def real2robot(self):
         self.ri.update_robot_state()
         self.env.ri.setj(self.ri.potentio_vector())
+        for attachment in self.env.ri.attachments:
+            attachment.assign()
 
     def wait_interpolation(self):
-        self.ri.wait_interpolation()
-        self.real2robot()
+        controller_actions = self.ri.controller_table[self.ri.controller_type]
+        while True:
+            states = [action.get_state() for action in controller_actions]
+            if all(s >= GoalStatus.SUCCEEDED for s in states):
+                break
+            self.real2robot()
+            rospy.sleep(0.01)
+        if not all(s == GoalStatus.SUCCEEDED for s in states):
+            rospy.logwarn("Some joint control requests have failed")
 
     def interpolate_js(self, js):
         lower, upper = self.env.ri.get_bounds()
@@ -177,8 +186,6 @@ class ReorientDemoInterface:
                 if avs_filtered:
                     # replace the last av
                     avs_filtered[-1] = av
-        if avs_filtered:
-            self.env.ri.setj(avs_filtered[-1])
         self.ri.angle_vector_sequence(avs_filtered, time_scale=time_scale)
         if wait:
             self.wait_interpolation()
@@ -196,6 +203,10 @@ class ReorientDemoInterface:
             "/franka_control/error_recovery", ErrorRecoveryAction
         )
         client.wait_for_server()
+
+        if client.get_state() == GoalStatus.SUCCEEDED:
+            return
+
         goal = ErrorRecoveryGoal()
         state = client.send_goal_and_wait(goal)
         succeeded = state == GoalStatus.SUCCEEDED
@@ -681,6 +692,7 @@ class ReorientDemoInterface:
 
         self.start_grasp()
         rospy.sleep(2)
+        self.env.ri.attachments = result["attachments"]
 
         self.send_avs(result["js_pre_place"], time_scale=5)
         self.wait_interpolation()
@@ -690,6 +702,7 @@ class ReorientDemoInterface:
 
         self.stop_grasp()
         rospy.sleep(7)
+        self.env.ri.attachments = []
 
         self.send_avs(result["js_post_place"], time_scale=5)
         self.wait_interpolation()
