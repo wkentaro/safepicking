@@ -518,8 +518,18 @@ class ReorientDemoInterface:
         self._initialized = True
 
     def reset(self):
-        self.env.reset()
         self.env._fg_class_id = None
+
+        # [plane, -1, wall1, wall2, wall3]
+        for obj in self.env.bg_objects[5:]:
+            pp.remove_body(obj)
+        self.env.bg_objects = self.env.bg_objects[:5]
+        for obj in mercury.pybullet.get_body_unique_ids():
+            if obj not in [self.env.ri.robot] + self.env.bg_objects:
+                pp.remove_body(obj)
+
+        self.env.object_ids = []
+        self.env.fg_object_id = None
         self.env.PLACE_POSE = None
         self.env.LAST_PRE_PLACE_POSE = None
         self.env.PRE_PLACE_POSE = None
@@ -680,7 +690,7 @@ class ReorientDemoInterface:
         )
         grasp_poses = np.hstack([pcd_in_obj, quaternion_in_obj])  # in obj
 
-        if 1:
+        if 0:
             for grasp_pose in grasp_poses:
                 pp.draw_pose(
                     np.hsplit(grasp_pose, [3]),
