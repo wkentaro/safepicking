@@ -168,9 +168,11 @@ class ReorientDemoInterface:
             j_prev = j
         return np.array(js_interpolated)
 
-    def send_avs(self, avs, time_scale=10, wait=True):
+    def send_avs(self, avs, time_scale=None, wait=True):
         if not self.recover_from_error():
             return
+        if time_scale is None:
+            time_scale = 10
         self.ri.update_robot_state()
 
         avs = self.interpolate_js(avs)
@@ -444,7 +446,7 @@ class ReorientDemoInterface:
             avs = [self.env.ri.homej]
         self.send_avs(avs, time_scale=5)
 
-    def look_at(self, eye, target, rotation_axis=True):
+    def look_at(self, eye, target, rotation_axis=True, time_scale=None):
         c = mercury.geometry.Coordinate.from_matrix(
             mercury.geometry.look_at(eye, target)
         )
@@ -463,7 +465,7 @@ class ReorientDemoInterface:
         if j is None or not self.env.ri.validatej(j):
             rospy.logerr("j is not found or invalid")
             return
-        self.send_avs([j], time_scale=5)
+        self.send_avs([j], time_scale=time_scale)
 
     # -------------------------------------------------------------------------
 
@@ -519,7 +521,7 @@ class ReorientDemoInterface:
         self._initialized = False
 
     def look_at_pile(self):
-        self.look_at(eye=[0.5, 0, 0.7], target=[0.5, 0, 0])
+        self.look_at(eye=[0.5, 0, 0.7], target=[0.5, 0, 0], time_scale=2)
 
     def scan_pile(self):
         if not self._initialized:
@@ -681,7 +683,7 @@ class ReorientDemoInterface:
             rospy.logerr("Failed to plan placement")
             return False
 
-        self.send_avs(result["js_pre_grasp"], time_scale=5)
+        self.send_avs(result["js_pre_grasp"], time_scale=3)
         self.wait_interpolation()
 
         self.send_avs(
@@ -694,7 +696,7 @@ class ReorientDemoInterface:
         rospy.sleep(2)
         self.env.ri.attachments = result["attachments"]
 
-        self.send_avs(result["js_pre_place"], time_scale=5)
+        self.send_avs(result["js_pre_place"], time_scale=3)
         self.wait_interpolation()
 
         self.send_avs(result["js_place"], time_scale=20)
