@@ -439,12 +439,12 @@ class ReorientDemoInterface:
         self.env.fg_object_id = object_id
         self.env.update_obs()
 
-    def reset_pose(self, cartesian=True):
+    def reset_pose(self, cartesian=False, time_scale=None):
         if cartesian:
             avs = self.env.ri.get_cartesian_path(j=self.env.ri.homej)
         else:
             avs = [self.env.ri.homej]
-        self.send_avs(avs, time_scale=5)
+        self.send_avs(avs, time_scale=time_scale)
 
     def look_at(self, eye, target, rotation_axis=True, time_scale=None):
         c = mercury.geometry.Coordinate.from_matrix(
@@ -538,7 +538,10 @@ class ReorientDemoInterface:
         else:
             target = pp.get_pose(self.env.fg_object_id)[0]
         self.look_at(
-            eye=[target[0] - 0.3, -0.3, 0.7], target=target, rotation_axis="z"
+            eye=[target[0] - 0.3, -0.3, 0.7],
+            target=target,
+            rotation_axis="z",
+            time_scale=3,
         )
 
     def scan_reoriented(self):
@@ -598,7 +601,7 @@ class ReorientDemoInterface:
             rospy.logerr("Failed to plan reorientation")
             return
 
-        self.send_avs(result["js_pre_grasp"], time_scale=5)
+        self.send_avs(result["js_pre_grasp"], time_scale=3)
         self.wait_interpolation()
 
         js = self.env.ri.get_cartesian_path(j=result["j_grasp"])
@@ -612,7 +615,7 @@ class ReorientDemoInterface:
                 j = self.env.ri.solve_ik(c.pose)
                 if j is not None:
                     js = np.r_[js, [j]]
-        self.send_avs(js)
+        self.send_avs(js, time_scale=10)
         self.wait_interpolation()
 
         self.start_grasp()
@@ -638,7 +641,7 @@ class ReorientDemoInterface:
         self.env.ri.attachments = []
 
         js = result["js_post_place"]
-        self.send_avs(js, time_scale=5)
+        self.send_avs(js, time_scale=10)
 
         self.send_avs([self.env.ri.homej], time_scale=3)
         self.wait_interpolation()
@@ -694,10 +697,10 @@ class ReorientDemoInterface:
         rospy.sleep(2)
         self.env.ri.attachments = result["attachments"]
 
-        self.send_avs(result["js_pre_place"], time_scale=3)
+        self.send_avs(result["js_pre_place"], time_scale=5)
         self.wait_interpolation()
 
-        self.send_avs(result["js_place"], time_scale=20)
+        self.send_avs(result["js_place"], time_scale=10)
         self.wait_interpolation()
 
         self.stop_grasp()
@@ -707,7 +710,7 @@ class ReorientDemoInterface:
         self.send_avs(result["js_post_place"], time_scale=5)
         self.wait_interpolation()
 
-        self.reset_pose(cartesian=False)
+        self.reset_pose(time_scale=5)
         self.wait_interpolation()
 
         return True
