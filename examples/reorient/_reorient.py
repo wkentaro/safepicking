@@ -215,8 +215,8 @@ def plan_reorient(env, grasp_pose, reorient_pose):
     env.ri.attachments = result["attachments"]
 
     c = mercury.geometry.Coordinate(*ee_af_to_world)
-    c.translate([0, 0, 0.2], wrt="world")
-    j = env.ri.solve_ik(c.pose, n_init=1)
+    c.translate([0, 0, -0.2], wrt="local")
+    j = env.ri.solve_ik(c.pose)
     if j is None:
         logger.warning("j_post_grasp is not found")
         before_return()
@@ -435,10 +435,6 @@ def plan_place(env, target_grasp_poses):
 
     j_init = env.ri.getj()
 
-    c = mercury.geometry.Coordinate(*env.PLACE_POSE)
-    c.translate([0.05, 0, 0.05], wrt="world")
-    LAST_PRE_PLACE_POSE = c.pose
-
     for grasp_pose in target_grasp_poses:
         world_saver = pp.WorldSaver()
 
@@ -458,6 +454,7 @@ def plan_place(env, target_grasp_poses):
             if j is None or not env.ri.validatej(j, obstacles=env.bg_objects):
                 world_saver.restore()
                 env.ri.attachments = []
+                print("no j_grasp")
                 continue
             result["j_grasp"] = j
 
@@ -486,11 +483,12 @@ def plan_place(env, target_grasp_poses):
             env.ri.attachments = result["attachments"]
 
             c = mercury.geometry.Coordinate(*ee_to_world)
-            c.translate([0, 0, 0.2], wrt="world")
+            c.translate([0, 0, -0.2], wrt="local")
             j = env.ri.solve_ik(c.pose)
             if j is None or not env.ri.validatej(j, obstacles=env.bg_objects):
                 world_saver.restore()
                 env.ri.attachments = []
+                print("no j_post_grasp")
                 continue
             result["j_post_grasp"] = j
 
@@ -500,11 +498,12 @@ def plan_place(env, target_grasp_poses):
                 j = env.ri.solve_ik(
                     env.PRE_PLACE_POSE,
                     move_target=env.ri.robot_model.attachment_link0,
-                    n_init=3,
+                    n_init=8,
                 )
-            if j is None or not env.ri.validatej(j, obstacles=env.bg_objects):
+            if j is None or not env.ri.validatej(j):
                 world_saver.restore()
                 env.ri.attachments = []
+                print("no j_pre_place")
                 continue
             result["j_pre_place"] = j
 
@@ -513,12 +512,14 @@ def plan_place(env, target_grasp_poses):
 
             with env.ri.enabling_attachments():
                 j = env.ri.solve_ik(
-                    LAST_PRE_PLACE_POSE,
+                    env.LAST_PRE_PLACE_POSE,
                     move_target=env.ri.robot_model.attachment_link0,
+                    n_init=3,
                 )
             if j is None or not env.ri.validatej(j, obstacles=env.bg_objects):
                 world_saver.restore()
                 env.ri.attachments = []
+                print("no j_last_pre_place")
                 continue
             result["j_last_pre_place"] = j
 
@@ -531,6 +532,7 @@ def plan_place(env, target_grasp_poses):
             if j is None or not env.ri.validatej(j, obstacles=env.bg_objects):
                 world_saver.restore()
                 env.ri.attachments = []
+                print("no j_place")
                 continue
             env.ri.attachments = result["attachments"]
             result["j_place"] = j
@@ -595,7 +597,13 @@ def plan_place(env, target_grasp_poses):
             world_saver.restore()
             env.ri.attachments = []
             continue
-        js.append(result["j_place"])
+        env.ri.setj(result["j_place"])
+        pose = env.ri.get_pose("tipLink")
+        j = env.ri.solve_ik(pose)
+        if j is None:
+            js.append(result["j_place"])
+        else:
+            js.append(j)
         result["js_place"] = js
 
         env.ri.setj(result["j_place"])

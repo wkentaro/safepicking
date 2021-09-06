@@ -36,14 +36,6 @@ class Env:
 
     CAMERA_POSITION = np.array([PILE_POSITION[0], PILE_POSITION[1], 0.7])
 
-    @property
-    def PLACE_POSE(self):
-        return self._place_pose
-
-    @property
-    def PRE_PLACE_POSE(self):
-        return self._pre_place_pose
-
     def __init__(
         self,
         class_ids,
@@ -136,8 +128,9 @@ class Env:
         if self._real:
             self.object_ids = None
             self.fg_object_id = None
-            self._place_pose = None
-            self._pre_place_pose = None
+            self.PLACE_POSE = None
+            self.LAST_PRE_PLACE_POSE = None
+            self.PRE_PLACE_POSE = None
             self._shelf = -1
         else:
             raise_on_error = pile_file is not None
@@ -219,15 +212,16 @@ class Env:
                 width=2,
             )
 
-            self._shelf, self._place_pose = _utils.init_place_scene(
+            self._shelf, self.PLACE_POSE = _utils.init_place_scene(
                 env=self,
                 class_id=_utils.get_class_id(self.fg_object_id),
                 random_state=copy.deepcopy(self.random_state),
                 face=self._face,
             )
+            self.LAST_PRE_PLACE_POSE = self.PLACE_POSE
             c = mercury.geometry.Coordinate(*self._place_pose)
             c.translate([0, -0.3, 0], wrt="world")
-            self._pre_place_pose = c.pose
+            self.PRE_PLACE_POSE = c.pose
 
             for _ in range(int(1 / pp.get_time_step())):
                 p.stepSimulation()

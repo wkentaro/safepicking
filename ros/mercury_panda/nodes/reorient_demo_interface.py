@@ -207,7 +207,7 @@ class ReorientDemoInterface:
         client.wait_for_server()
 
         if client.get_state() == GoalStatus.SUCCEEDED:
-            return
+            return True
 
         goal = ErrorRecoveryGoal()
         state = client.send_goal_and_wait(goal)
@@ -224,6 +224,7 @@ class ReorientDemoInterface:
     # -------------------------------------------------------------------------
 
     def __init__(self):
+        self._obj_goal = None
         self._initialized = False
 
         rospy.init_node("demo_interface")
@@ -490,18 +491,25 @@ class ReorientDemoInterface:
             c.translate([0.06, 0, 0], wrt="world")
         place_pose = c.pose
 
+        c = mercury.geometry.Coordinate(*place_pose)
+        c.translate([0.05, 0, 0.05], wrt="world")
+        last_pre_place_pose = c.pose
+
+        c = mercury.geometry.Coordinate(*place_pose)
         c.translate([0, -0.3, 0.1], wrt="world")
         pre_place_pose = c.pose
 
         self.env._fg_class_id = fg_class_id
-        self.env._place_pose = place_pose
-        self.env._pre_place_pose = pre_place_pose
+        self.env.PLACE_POSE = place_pose
+        self.env.LAST_PRE_PLACE_POSE = last_pre_place_pose
+        self.env.PRE_PLACE_POSE = pre_place_pose
 
-        visual_file = mercury.datasets.ycb.get_visual_file(
-            self.env._fg_class_id
-        )
+        if self._obj_goal is not None:
+            pp.remove_body(self._obj_goal)
         self._obj_goal = mercury.pybullet.create_mesh_body(
-            visual_file=visual_file,
+            visual_file=mercury.datasets.ycb.get_visual_file(
+                self.env._fg_class_id
+            ),
             rgba_color=(0.5, 0.5, 0.5, 0.5),
             position=self.env.PLACE_POSE[0],
             quaternion=self.env.PLACE_POSE[1],
@@ -512,8 +520,9 @@ class ReorientDemoInterface:
     def reset(self):
         self.env.reset()
         self.env._fg_class_id = None
-        self.env._place_pose = None
-        self.env._pre_place_pose = None
+        self.env.PLACE_POSE = None
+        self.env.LAST_PRE_PLACE_POSE = None
+        self.env.PRE_PLACE_POSE = None
 
         pp.remove_body(self._obj_goal)
         self._obj_goal = None
@@ -521,7 +530,7 @@ class ReorientDemoInterface:
         self._initialized = False
 
     def look_at_pile(self):
-        self.look_at(eye=[0.5, 0, 0.7], target=[0.5, 0, 0], time_scale=2)
+        self.look_at(eye=[0.5, 0, 0.7], target=[0.5, 0, 0], time_scale=2.5)
 
     def scan_pile(self):
         if not self._initialized:
@@ -532,7 +541,7 @@ class ReorientDemoInterface:
         self.capture_obs()
         self.obs_to_env()
 
-    def look_at_reoriented(self):
+    def look_at_target(self):
         if self.env.fg_object_id is None:
             target = [0.5, -0.5, 0.1]
         else:
@@ -541,15 +550,15 @@ class ReorientDemoInterface:
             eye=[target[0] - 0.3, -0.3, 0.7],
             target=target,
             rotation_axis="z",
-            time_scale=3,
+            time_scale=4,
         )
 
-    def scan_reoriented(self):
+    def scan_target(self):
         if not self._initialized:
             rospy.logerr("Task is not initialized yet")
             return
 
-        self.look_at_reoriented()
+        self.look_at_target()
         self.capture_obs()
         self.obs_to_env()
 
@@ -591,7 +600,10 @@ class ReorientDemoInterface:
             pickable = pickable[indices]
 
             result = plan_dynamic_reorient(
-                self.env, grasp_poses, reorient_poses, pickable
+                self.env,
+                grasp_poses,
+                reorient_poses,
+                pickable,
             )
         return result
 
@@ -601,7 +613,7 @@ class ReorientDemoInterface:
             rospy.logerr("Failed to plan reorientation")
             return
 
-        self.send_avs(result["js_pre_grasp"], time_scale=3)
+        self.send_avs(result["js_pre_grasp"], time_scale=4)
         self.wait_interpolation()
 
         js = self.env.ri.get_cartesian_path(j=result["j_grasp"])
@@ -643,7 +655,7 @@ class ReorientDemoInterface:
         js = result["js_post_place"]
         self.send_avs(js, time_scale=10)
 
-        self.send_avs([self.env.ri.homej], time_scale=3)
+        self.send_avs([self.env.ri.homej], time_scale=4)
         self.wait_interpolation()
 
     def plan_place(self):
@@ -656,7 +668,10 @@ class ReorientDemoInterface:
         keep = dist_from_centroid < np.median(dist_from_centroid)
         indices = indices[keep]
         p = p[keep]
-        indices = np.random.choice(indices, 5, p=p / p.sum())
+        indices = np.r_[
+            np.random.choice(indices, 5, p=p / p.sum()),
+            np.random.permutation(pcd_in_obj.shape[0])[:5],
+        ]
 
         pcd_in_obj = pcd_in_obj[indices]
         normals_in_obj = normals_in_obj[indices]
@@ -665,7 +680,7 @@ class ReorientDemoInterface:
         )
         grasp_poses = np.hstack([pcd_in_obj, quaternion_in_obj])  # in obj
 
-        if 0:
+        if 1:
             for grasp_pose in grasp_poses:
                 pp.draw_pose(
                     np.hsplit(grasp_pose, [3]),
@@ -682,9 +697,9 @@ class ReorientDemoInterface:
         result = self.plan_place()
         if "js_place" not in result:
             rospy.logerr("Failed to plan placement")
-            return False
+            return result
 
-        self.send_avs(result["js_pre_grasp"], time_scale=3)
+        self.send_avs(result["js_pre_grasp"], time_scale=4)
         self.wait_interpolation()
 
         self.send_avs(
@@ -713,35 +728,103 @@ class ReorientDemoInterface:
         self.reset_pose(time_scale=5)
         self.wait_interpolation()
 
-        return True
+        return result
 
-    def run(self):
+    def run_three_cracker_boxes(self):
         di.init(nth=2)
         di.scan_pile()
-        while not di.pick_and_place():
+        while "js_place" not in di.pick_and_place():
             di.pick_and_reorient()
-            di.scan_reoriented()
+            di.scan_target()
         di.reset()
 
         di.init(nth=3)
         di.scan_pile()
-        while not di.pick_and_place():
+        while "js_place" not in di.pick_and_place():
             di.pick_and_reorient()
-            di.scan_reoriented()
+            di.scan_target()
         di.reset()
 
         di.init(nth=4)
         di.scan_pile()
-        while not di.pick_and_place():
+        while "js_place" not in di.pick_and_place():
             di.pick_and_reorient()
-            di.scan_reoriented()
+            di.scan_target()
         di.reset()
+
+    def run_reverse_rearrangement_01(self):
+        self.init(nth=4)
+        self.scan_pile()
+        init_pose = pp.get_pose(self.env.fg_object_id)
+        result = self.pick_and_place()
+
+        js = self.env.ri.planj(
+            result["j_pre_place"], obstacles=self.env.bg_objects
+        )
+        self.send_avs(js, time_scale=5)
+
+        self.env.PLACE_POSE = init_pose
+        c = mercury.geometry.Coordinate(*self.env.PLACE_POSE)
+        c.translate([0, 0, 0.05], wrt="world")
+        self.env.LAST_PRE_PLACE_POSE = c.pose
+        c.translate([0, 0, 0.25], wrt="world")
+        self.env.PRE_PLACE_POSE = c.pose
+
+        if self._obj_goal is not None:
+            pp.remove_body(self._obj_goal)
+        self._obj_goal = mercury.pybullet.create_mesh_body(
+            visual_file=mercury.datasets.ycb.get_visual_file(
+                self.env._fg_class_id
+            ),
+            rgba_color=(0.5, 0.5, 0.5, 0.5),
+            position=self.env.PLACE_POSE[0],
+            quaternion=self.env.PLACE_POSE[1],
+        )
+
+        self.pick_and_place()
+
+    def run_reverse_rearrangement_02(self):
+        self.init(nth=4)
+        self.scan_pile()
+        init_pose = pp.get_pose(self.env.fg_object_id)
+        self.pick_and_reorient()
+        self.scan_target()
+        result = self.pick_and_place()
+
+        js = self.env.ri.planj(
+            result["j_pre_place"], obstacles=self.env.bg_objects
+        )
+        self.send_avs(js, time_scale=5)
+
+        self.env.PLACE_POSE = init_pose
+        c = mercury.geometry.Coordinate(*self.env.PLACE_POSE)
+        c.translate([0, 0, 0.05], wrt="world")
+        self.env.LAST_PRE_PLACE_POSE = c.pose
+        c.translate([0, 0, 0.15], wrt="world")
+        self.env.PRE_PLACE_POSE = c.pose
+
+        if self._obj_goal is not None:
+            pp.remove_body(self._obj_goal)
+        self._obj_goal = mercury.pybullet.create_mesh_body(
+            visual_file=mercury.datasets.ycb.get_visual_file(
+                self.env._fg_class_id
+            ),
+            rgba_color=(0.5, 0.5, 0.5, 0.5),
+            position=self.env.PLACE_POSE[0],
+            quaternion=self.env.PLACE_POSE[1],
+        )
+
+        self.env.update_obs()
+        self.pick_and_reorient()
+
+        self.scan_target()
+        self.pick_and_place()
 
 
 if __name__ == "__main__":
     di = ReorientDemoInterface()
     di.sp = di.scan_pile
-    di.sr = di.scan_reoriented
+    di.st = di.scan_target
     di.pp = di.pick_and_place
     di.pr = di.pick_and_reorient
     di.rs = di.reset
