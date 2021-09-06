@@ -466,18 +466,15 @@ class ReorientDemoInterface:
 
         fg_class_id = 2
         c = mercury.geometry.Coordinate(
-            [0.415, 0.39, 0.43], _utils.get_canonical_quaternion(fg_class_id)
+            [0.415, 0.395, 0.43], _utils.get_canonical_quaternion(fg_class_id)
         )
         for _ in range(nth - 1):
-            c.translate([0.065, 0, 0], wrt="world")
-        # mercury.pybullet.create_mesh_body(
-        #     visual_file=mercury.datasets.ycb.get_visual_file(
-        #         fg_class_id
-        #     ),
-        #     position=c.position,
-        #     quaternion=c.quaternion,
-        # )
-        # c.translate([0.07, 0, 0], wrt="world")
+            mercury.pybullet.create_mesh_body(
+                visual_file=mercury.datasets.ycb.get_visual_file(fg_class_id),
+                position=c.position,
+                quaternion=c.quaternion,
+            )
+            c.translate([0.06, 0, 0], wrt="world")
         place_pose = c.pose
 
         c.translate([0, -0.3, 0.1], wrt="world")
@@ -623,7 +620,7 @@ class ReorientDemoInterface:
         self.wait_interpolation()
 
         self.stop_grasp()
-        rospy.sleep(5)
+        rospy.sleep(6)
 
         js = result["js_post_place"]
         self.send_avs(js, time_scale=5)
@@ -671,7 +668,7 @@ class ReorientDemoInterface:
         result = self.plan_place()
         if "js_place" not in result:
             rospy.logerr("Failed to plan placement")
-            return
+            return False
 
         self.send_avs(result["js_pre_grasp"], time_scale=5)
         self.wait_interpolation()
@@ -692,13 +689,37 @@ class ReorientDemoInterface:
         self.wait_interpolation()
 
         self.stop_grasp()
-        rospy.sleep(5)
+        rospy.sleep(7)
 
         self.send_avs(result["js_post_place"], time_scale=5)
         self.wait_interpolation()
 
         self.reset_pose(cartesian=False)
         self.wait_interpolation()
+
+        return True
+
+    def run(self):
+        di.init(nth=2)
+        di.scan_pile()
+        while not di.pick_and_place():
+            di.pick_and_reorient()
+            di.scan_reoriented()
+        di.reset()
+
+        di.init(nth=3)
+        di.scan_pile()
+        while not di.pick_and_place():
+            di.pick_and_reorient()
+            di.scan_reoriented()
+        di.reset()
+
+        di.init(nth=4)
+        di.scan_pile()
+        while not di.pick_and_place():
+            di.pick_and_reorient()
+            di.scan_reoriented()
+        di.reset()
 
 
 if __name__ == "__main__":
