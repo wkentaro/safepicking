@@ -496,7 +496,7 @@ class ReorientDemoInterface:
         last_pre_place_pose = c.pose
 
         c = mercury.geometry.Coordinate(*place_pose)
-        c.translate([0, -0.3, 0.1], wrt="world")
+        c.translate([0, -0.2, 0.1], wrt="world")
         pre_place_pose = c.pose
 
         self.env._fg_class_id = fg_class_id
@@ -731,26 +731,13 @@ class ReorientDemoInterface:
         return result
 
     def run_three_cracker_boxes(self):
-        di.init(nth=2)
-        di.scan_pile()
-        while "js_place" not in di.pick_and_place():
-            di.pick_and_reorient()
-            di.scan_target()
-        di.reset()
-
-        di.init(nth=3)
-        di.scan_pile()
-        while "js_place" not in di.pick_and_place():
-            di.pick_and_reorient()
-            di.scan_target()
-        di.reset()
-
-        di.init(nth=4)
-        di.scan_pile()
-        while "js_place" not in di.pick_and_place():
-            di.pick_and_reorient()
-            di.scan_target()
-        di.reset()
+        for nth in [2, 3, 4]:
+            self.init(nth=nth)
+            self.scan_pile()
+            while "js_place" not in self.pick_and_place():
+                self.pick_and_reorient()
+                self.scan_target()
+            self.reset()
 
     def run_reverse_rearrangement_01(self):
         self.init(nth=4)
