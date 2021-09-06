@@ -761,10 +761,9 @@ class ReorientDemoInterface:
         self.send_avs(js, time_scale=5)
 
         self.env.PLACE_POSE = init_pose
+        self.env.LAST_PRE_PLACE_POSE = None
         c = mercury.geometry.Coordinate(*self.env.PLACE_POSE)
-        c.translate([0, 0, 0.05], wrt="world")
-        self.env.LAST_PRE_PLACE_POSE = c.pose
-        c.translate([0, 0, 0.25], wrt="world")
+        c.translate([0, 0, 0.2], wrt="world")
         self.env.PRE_PLACE_POSE = c.pose
 
         if self._obj_goal is not None:
@@ -781,12 +780,23 @@ class ReorientDemoInterface:
         self.pick_and_place()
 
     def run_reverse_rearrangement_02(self):
+        # self.init(nth=3)
+        # self.scan_pile()
+        # init_pose1 = pp.get_pose(self.env.fg_object_id)
+        # self.pick_and_reorient()
+        # self.scan_target()
+        # result1 = self.pick_and_place()
+        # self.reset()
+
         self.init(nth=4)
         self.scan_pile()
-        init_pose = pp.get_pose(self.env.fg_object_id)
+        init_pose2 = pp.get_pose(self.env.fg_object_id)
         self.pick_and_reorient()
         self.scan_target()
-        result = self.pick_and_place()
+        result2 = self.pick_and_place()
+
+        init_pose = init_pose2
+        result = result2
 
         js = self.env.ri.planj(
             result["j_pre_place"], obstacles=self.env.bg_objects
@@ -794,10 +804,9 @@ class ReorientDemoInterface:
         self.send_avs(js, time_scale=5)
 
         self.env.PLACE_POSE = init_pose
+        self.env.LAST_PRE_PLACE_POSE = None
         c = mercury.geometry.Coordinate(*self.env.PLACE_POSE)
-        c.translate([0, 0, 0.05], wrt="world")
-        self.env.LAST_PRE_PLACE_POSE = c.pose
-        c.translate([0, 0, 0.15], wrt="world")
+        c.translate([0, 0, 0.2], wrt="world")
         self.env.PRE_PLACE_POSE = c.pose
 
         if self._obj_goal is not None:

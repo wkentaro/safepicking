@@ -510,18 +510,23 @@ def plan_place(env, target_grasp_poses):
             env.ri.setj(result["j_pre_place"])
             # env.ri.attachments[0].assign()
 
-            with env.ri.enabling_attachments():
-                j = env.ri.solve_ik(
-                    env.LAST_PRE_PLACE_POSE,
-                    move_target=env.ri.robot_model.attachment_link0,
-                    n_init=3,
-                )
-            if j is None or not env.ri.validatej(j, obstacles=env.bg_objects):
-                world_saver.restore()
-                env.ri.attachments = []
-                print("no j_last_pre_place")
-                continue
-            result["j_last_pre_place"] = j
+            if env.LAST_PRE_PLACE_POSE is None:
+                result["j_last_pre_place"] = None
+            else:
+                with env.ri.enabling_attachments():
+                    j = env.ri.solve_ik(
+                        env.LAST_PRE_PLACE_POSE,
+                        move_target=env.ri.robot_model.attachment_link0,
+                        n_init=3,
+                    )
+                if j is None or not env.ri.validatej(
+                    j, obstacles=env.bg_objects
+                ):
+                    world_saver.restore()
+                    env.ri.attachments = []
+                    print("no j_last_pre_place")
+                    continue
+                result["j_last_pre_place"] = j
 
             with env.ri.enabling_attachments():
                 j = env.ri.solve_ik(
@@ -578,7 +583,10 @@ def plan_place(env, target_grasp_poses):
 
         env.ri.setj(result["j_pre_place"])
         pose1 = env.ri.get_pose("tipLink")
-        env.ri.setj(result["j_last_pre_place"])
+        if result["j_last_pre_place"] is None:
+            env.ri.setj(result["j_place"])
+        else:
+            env.ri.setj(result["j_last_pre_place"])
         pose2 = env.ri.get_pose("tipLink")
 
         env.ri.setj(result["j_pre_place"])
