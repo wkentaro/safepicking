@@ -617,6 +617,7 @@ class ReorientDemoInterface:
 
         self.start_grasp()
         rospy.sleep(2)
+        self.env.ri.attachments = result["attachments"]
 
         js = result["js_place"]
         with pp.WorldSaver():
@@ -634,16 +635,13 @@ class ReorientDemoInterface:
 
         self.stop_grasp()
         rospy.sleep(6)
+        self.env.ri.attachments = []
 
         js = result["js_post_place"]
         self.send_avs(js, time_scale=5)
 
         self.send_avs([self.env.ri.homej], time_scale=3)
         self.wait_interpolation()
-
-        pp.set_pose(
-            self.env.fg_object_id, np.hsplit(result["reorient_pose"], [3])
-        )
 
     def plan_place(self):
         pcd_in_obj, normals_in_obj = _reorient.get_query_ocs(self.env)

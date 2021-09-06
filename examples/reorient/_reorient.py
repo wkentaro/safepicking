@@ -177,10 +177,9 @@ def plan_reorient(env, grasp_pose, reorient_pose):
 
         obj_to_world = pp.get_pose(env.fg_object_id)
         obj_to_ee = pp.multiply(pp.invert(c.pose), obj_to_world)
-        attachments = [
+        env.ri.attachments = [
             pp.Attachment(env.ri.robot, env.ri.ee, obj_to_ee, env.fg_object_id)
         ]
-        env.ri.attachments = attachments
 
         with env.ri.enabling_attachments():
             j = env.ri.solve_ik(
@@ -210,10 +209,10 @@ def plan_reorient(env, grasp_pose, reorient_pose):
 
     obj_to_world = pp.get_pose(env.fg_object_id)
     obj_to_ee = pp.multiply(pp.invert(ee_af_to_world), obj_to_world)
-    attachments = [
+    result["attachments"] = [
         pp.Attachment(env.ri.robot, env.ri.ee, obj_to_ee, env.fg_object_id)
     ]
-    env.ri.attachments = attachments
+    env.ri.attachments = result["attachments"]
 
     c = mercury.geometry.Coordinate(*ee_af_to_world)
     c.translate([0, 0, 0.2], wrt="world")
@@ -275,7 +274,7 @@ def plan_reorient(env, grasp_pose, reorient_pose):
     result["js_pre_grasp"] = js
 
     env.ri.setj(result["j_post_grasp"])
-    env.ri.attachments = attachments
+    env.ri.attachments = result["attachments"]
     env.ri.attachments[0].assign()
 
     # solve js_place
