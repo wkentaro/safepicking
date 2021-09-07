@@ -2,6 +2,7 @@ import itertools
 import time
 
 import cv2
+import imgviz
 from loguru import logger
 import numpy as np
 import pybullet_planning as pp
@@ -58,9 +59,16 @@ def get_query_ocs(env):
     magnitude = np.linalg.norm(laplacian, axis=2)
     edge_mask = magnitude > 0.5
     edge_mask = (
-        cv2.dilate(np.uint8(edge_mask) * 255, kernel=np.ones((20, 20))) == 255
+        cv2.dilate(
+            np.uint8(edge_mask) * 255, kernel=np.ones((12, 12)), iterations=2
+        )
+        == 255
     )
     mask = mask & ~edge_mask
+
+    imgviz.io.imsave(
+        "edge_mask-get_query_ocs.jpg", imgviz.bool2ubyte(edge_mask)
+    )
 
     world_to_obj = pp.invert(pp.get_pose(env.fg_object_id))
     pcd_in_obj = mercury.geometry.transform_points(
@@ -96,9 +104,16 @@ def get_grasp_poses(env):
     magnitude = np.linalg.norm(laplacian, axis=2)
     edge_mask = magnitude > 0.5
     edge_mask = (
-        cv2.dilate(np.uint8(edge_mask) * 255, kernel=np.ones((20, 20))) == 255
+        cv2.dilate(
+            np.uint8(edge_mask) * 255, kernel=np.ones((12, 12)), iterations=2
+        )
+        == 255
     )
     mask = mask & ~edge_mask
+
+    imgviz.io.imsave(
+        "edge_mask-get_grasp_poses.jpg", imgviz.bool2ubyte(edge_mask)
+    )
 
     pcd_in_camera = pcd_in_camera[mask]
     normals_in_camera = normals_in_camera[mask]
@@ -435,7 +450,12 @@ def plan_place(env, target_grasp_poses):
 
     j_init = env.ri.getj()
 
+    nfail_j_grasp = 0
+    max_nfail_j_grasp = 18
     for grasp_pose in target_grasp_poses:
+        if nfail_j_grasp >= max_nfail_j_grasp:
+            continue
+
         world_saver = pp.WorldSaver()
 
         ee_to_world = pp.multiply(obj_to_world, np.hsplit(grasp_pose, [3]))
@@ -455,6 +475,7 @@ def plan_place(env, target_grasp_poses):
                 world_saver.restore()
                 env.ri.attachments = []
                 print("no j_grasp")
+                nfail_j_grasp += 1
                 continue
             result["j_grasp"] = j
 
@@ -498,7 +519,7 @@ def plan_place(env, target_grasp_poses):
                 j = env.ri.solve_ik(
                     env.PRE_PLACE_POSE,
                     move_target=env.ri.robot_model.attachment_link0,
-                    n_init=8,
+                    n_init=5,
                 )
             if j is None or not env.ri.validatej(j):
                 world_saver.restore()

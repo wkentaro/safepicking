@@ -470,24 +470,28 @@ class ReorientDemoInterface:
 
     # -------------------------------------------------------------------------
 
-    def init(self, nth=1):
-        shelf = _utils.create_shelf(X=0.29, Y=0.41, Z=0.285, N=2)
-        c = mercury.geometry.Coordinate()
-        c.rotate([0, 0, -np.pi / 2])
-        c.translate([0.575, 0.45, self.env.TABLE_OFFSET], wrt="world")
-        pp.set_pose(shelf, c.pose)
-        self.env.bg_objects.append(shelf)
+    def init(self, nth=1, target_only=False):
+        if not target_only:
+            shelf = _utils.create_shelf(X=0.29, Y=0.41, Z=0.285, N=2)
+            c = mercury.geometry.Coordinate()
+            c.rotate([0, 0, -np.pi / 2])
+            c.translate([0.575, 0.45, self.env.TABLE_OFFSET], wrt="world")
+            pp.set_pose(shelf, c.pose)
+            self.env.bg_objects.append(shelf)
 
         fg_class_id = 2
         c = mercury.geometry.Coordinate(
-            [0.415, 0.395, 0.43], _utils.get_canonical_quaternion(fg_class_id)
+            [0.415, 0.395, 0.44], _utils.get_canonical_quaternion(fg_class_id)
         )
-        for _ in range(nth - 1):
-            mercury.pybullet.create_mesh_body(
-                visual_file=mercury.datasets.ycb.get_visual_file(fg_class_id),
-                position=c.position,
-                quaternion=c.quaternion,
-            )
+        for i in range(nth - 1):
+            if not target_only:
+                mercury.pybullet.create_mesh_body(
+                    visual_file=mercury.datasets.ycb.get_visual_file(
+                        fg_class_id
+                    ),
+                    position=c.position,
+                    quaternion=c.quaternion,
+                )
             c.translate([0.06, 0, 0], wrt="world")
         place_pose = c.pose
 
@@ -496,7 +500,7 @@ class ReorientDemoInterface:
         last_pre_place_pose = c.pose
 
         c = mercury.geometry.Coordinate(*place_pose)
-        c.translate([0.05, -0.2, 0.05], wrt="world")
+        c.translate([0.05, -0.3, 0.05], wrt="world")
         pre_place_pose = c.pose
 
         self.env._fg_class_id = fg_class_id
@@ -518,23 +522,17 @@ class ReorientDemoInterface:
         self._initialized = True
 
     def reset(self):
+        self.env.reset()
         self.env._fg_class_id = None
-
-        # [plane, -1, wall1, wall2, wall3]
-        for obj in self.env.bg_objects[5:]:
-            pp.remove_body(obj)
-        self.env.bg_objects = self.env.bg_objects[:5]
-        for obj in mercury.pybullet.get_body_unique_ids():
-            if obj not in [self.env.ri.robot] + self.env.bg_objects:
-                pp.remove_body(obj)
-
         self.env.object_ids = []
         self.env.fg_object_id = None
         self.env.PLACE_POSE = None
         self.env.LAST_PRE_PLACE_POSE = None
         self.env.PRE_PLACE_POSE = None
 
-        pp.remove_body(self._obj_goal)
+        # [plane, -1, wall1, wall2, wall3]
+        self.env.bg_objects = self.env.bg_objects[:5]
+
         self._obj_goal = None
 
         self._initialized = False
@@ -780,51 +778,71 @@ class ReorientDemoInterface:
         self.pick_and_place()
 
     def run_reverse_rearrangement_02(self):
-        # self.init(nth=3)
-        # self.scan_pile()
-        # init_pose1 = pp.get_pose(self.env.fg_object_id)
-        # self.pick_and_reorient()
-        # self.scan_target()
-        # result1 = self.pick_and_place()
-        # self.reset()
+        history = []
 
-        self.init(nth=4)
-        self.scan_pile()
-        init_pose2 = pp.get_pose(self.env.fg_object_id)
-        self.pick_and_reorient()
-        self.scan_target()
-        result2 = self.pick_and_place()
+        for nth in [2, 3, 4]:
+            self.init(nth=nth, target_only=nth != 2)
 
-        init_pose = init_pose2
-        result = result2
+            self.scan_pile()
+            init_pose = pp.get_pose(self.env.fg_object_id)
+            while True:
+                result = self.pick_and_place()
+                if "js_place" in result:
+                    break
+                self.pick_and_reorient()
+                self.scan_target()
+            history.append((self.env.fg_object_id, init_pose, result))
 
-        js = self.env.ri.planj(
-            result["j_pre_place"], obstacles=self.env.bg_objects
-        )
-        self.send_avs(js, time_scale=5)
+            if nth != 4:
+                for obj in self.env.bg_objects[6:]:
+                    pp.remove_body(obj)
+                self.env.bg_objects = self.env.bg_objects[:6]
 
-        self.env.PLACE_POSE = init_pose
-        self.env.LAST_PRE_PLACE_POSE = None
-        c = mercury.geometry.Coordinate(*self.env.PLACE_POSE)
-        c.translate([0, 0, 0.2], wrt="world")
-        self.env.PRE_PLACE_POSE = c.pose
+            self.env.fg_object_id = None
+            self.env.object_ids = []
 
-        if self._obj_goal is not None:
-            pp.remove_body(self._obj_goal)
-        self._obj_goal = mercury.pybullet.create_mesh_body(
-            visual_file=mercury.datasets.ycb.get_visual_file(
-                self.env._fg_class_id
-            ),
-            rgba_color=(0.5, 0.5, 0.5, 0.5),
-            position=self.env.PLACE_POSE[0],
-            quaternion=self.env.PLACE_POSE[1],
-        )
+        for fg_object_id, init_pose, result in history[::-1]:
+            self.env.fg_object_id = fg_object_id
+            self.env.object_ids.append(fg_object_id)
+            self.env.PLACE_POSE = init_pose
+            self.env.LAST_PRE_PLACE_POSE = None
+            c = mercury.geometry.Coordinate(*self.env.PLACE_POSE)
+            c.translate([0, 0, 0.2], wrt="world")
+            self.env.PRE_PLACE_POSE = c.pose
 
-        self.env.update_obs()
-        self.pick_and_reorient()
+            if self._obj_goal is not None:
+                pp.remove_body(self._obj_goal)
+            self._obj_goal = mercury.pybullet.create_mesh_body(
+                visual_file=mercury.datasets.ycb.get_visual_file(
+                    self.env._fg_class_id
+                ),
+                rgba_color=(0.5, 0.5, 0.5, 0.5),
+                position=self.env.PLACE_POSE[0],
+                quaternion=self.env.PLACE_POSE[1],
+            )
 
-        self.scan_target()
-        self.pick_and_place()
+            self.env.ri.setj(result["j_pre_place"])
+            pre_place_pose = self.env.ri.get_pose("tipLink")
+            j = self.env.ri.solve_ik(
+                pre_place_pose,
+                move_target=self.env.ri.robot_model.camera_link,
+                rotation_axis="z",
+            )
+            self.env.ri.setj(j)
+            self.env.update_obs()
+            self.real2robot()
+
+            js = self.env.ri.planj(
+                result["j_pre_place"], obstacles=self.env.bg_objects
+            )
+            self.send_avs(js, time_scale=5)
+
+            while True:
+                result = self.pick_and_place()
+                if "js_place" in result:
+                    break
+                self.pick_and_reorient()
+                self.scan_target()
 
 
 if __name__ == "__main__":
@@ -835,4 +853,8 @@ if __name__ == "__main__":
     di.pr = di.pick_and_reorient
     di.rs = di.reset
     di.rp = di.reset_pose
+
+    di.rp()
+    di.run_reverse_rearrangement_02()
+
     IPython.embed()

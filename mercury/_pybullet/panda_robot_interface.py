@@ -85,7 +85,7 @@ class PandaRobotInterface:
             lower, upper = p.getJointInfo(self.robot, joint)[8:10]
             center = (upper + lower) / 2
             width = upper - lower
-            width = width * 0.98
+            width = width * 0.96
             upper = center + width / 2
             lower = center - width / 2
             lower_bounds.append(lower)
