@@ -18,10 +18,16 @@ home = path.Path("~").expanduser()
 
 
 def get_reorient_poses(env):
-    bounds = (
-        (0.35, -0.55, env.TABLE_OFFSET + 0.001),
-        (0.65, -0.35, env.TABLE_OFFSET + 0.001),
-    )
+    if _utils.get_class_id(env.fg_object_id) == 11:  # large
+        bounds = (
+            (0.35, -0.40, env.TABLE_OFFSET + 0.001),
+            (0.65, -0.30, env.TABLE_OFFSET + 0.001),
+        )
+    else:
+        bounds = (
+            (0.35, -0.55, env.TABLE_OFFSET + 0.001),
+            (0.65, -0.35, env.TABLE_OFFSET + 0.001),
+        )
     if env.debug:
         pp.draw_aabb(bounds)
 

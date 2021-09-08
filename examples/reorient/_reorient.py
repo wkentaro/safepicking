@@ -2,7 +2,6 @@ import itertools
 import time
 
 import cv2
-import imgviz
 from loguru import logger
 import numpy as np
 import pybullet_planning as pp
@@ -66,9 +65,9 @@ def get_query_ocs(env):
     )
     mask = mask & ~edge_mask
 
-    imgviz.io.imsave(
-        "edge_mask-get_query_ocs.jpg", imgviz.bool2ubyte(edge_mask)
-    )
+    # imgviz.io.imsave(
+    #     "edge_mask-get_query_ocs.jpg", imgviz.bool2ubyte(edge_mask)
+    # )
 
     world_to_obj = pp.invert(pp.get_pose(env.fg_object_id))
     pcd_in_obj = mercury.geometry.transform_points(
@@ -103,20 +102,26 @@ def get_grasp_poses(env):
     laplacian = cv2.Laplacian(normals_on_obj, cv2.CV_64FC3)
     magnitude = np.linalg.norm(laplacian, axis=2)
     edge_mask = magnitude > 0.5
-    edge_mask = (
-        cv2.dilate(
-            np.uint8(edge_mask) * 255, kernel=np.ones((12, 12)), iterations=2
-        )
-        == 255
-    )
+    # edge_mask = (
+    #     cv2.dilate(
+    #         np.uint8(edge_mask) * 255, kernel=np.ones((12, 12)), iterations=1
+    #     )
+    #     == 255
+    # )
     mask = mask & ~edge_mask
 
-    imgviz.io.imsave(
-        "edge_mask-get_grasp_poses.jpg", imgviz.bool2ubyte(edge_mask)
-    )
+    # imgviz.io.imsave(
+    #     "edge_mask-get_grasp_poses.jpg", imgviz.bool2ubyte(edge_mask)
+    # )
 
     pcd_in_camera = pcd_in_camera[mask]
     normals_in_camera = normals_in_camera[mask]
+
+    if _utils.get_class_id(env.fg_object_id) == 11:  # heavy
+        dist_from_centroid = np.linalg.norm(pcd_in_camera, axis=1)
+        keep = dist_from_centroid < np.median(dist_from_centroid)
+        pcd_in_camera = pcd_in_camera[keep]
+        normals_in_camera = normals_in_camera[keep]
 
     camera_to_world = np.hsplit(env.obs["camera_to_world"], [3])
     pcd_in_world = mercury.geometry.transform_points(

@@ -574,16 +574,16 @@ class ReorientDemoInterface:
         self.wait_interpolation()
 
         js = self.env.ri.get_cartesian_path(j=result["j_grasp"])
-        if _utils.get_class_id(self.env.fg_object_id) == 5:
-            with pp.WorldSaver():
-                self.env.ri.setj(js[-1])
-                c = mercury.geometry.Coordinate(
-                    *self.env.ri.get_pose("tipLink")
-                )
-                c.translate([0, 0, 0.02])
-                j = self.env.ri.solve_ik(c.pose)
-                if j is not None:
-                    js = np.r_[js, [j]]
+        # if _utils.get_class_id(self.env.fg_object_id) == 5:
+        #     with pp.WorldSaver():
+        #         self.env.ri.setj(js[-1])
+        #         c = mercury.geometry.Coordinate(
+        #             *self.env.ri.get_pose("tipLink")
+        #         )
+        #         c.translate([0, 0, 0.02])
+        #         j = self.env.ri.solve_ik(c.pose)
+        #         if j is not None:
+        #             js = np.r_[js, [j]]
         self.send_avs(js, time_scale=10)
         self.wait_interpolation()
 
@@ -610,7 +610,7 @@ class ReorientDemoInterface:
         self.env.ri.attachments = []
 
         js = result["js_post_place"]
-        self.send_avs(js, time_scale=10)
+        self.send_avs(js, time_scale=5)
 
         self.send_avs([self.env.ri.homej], time_scale=4)
         self.wait_interpolation()
@@ -659,10 +659,18 @@ class ReorientDemoInterface:
         self.send_avs(result["js_pre_grasp"], time_scale=4)
         self.wait_interpolation()
 
-        self.send_avs(
-            self.env.ri.get_cartesian_path(j=result["j_grasp"]),
-            time_scale=20,
-        )
+        js = self.env.ri.get_cartesian_path(j=result["j_grasp"])
+        # if _utils.get_class_id(self.env.fg_object_id) == 11:
+        #     with pp.WorldSaver():
+        #         self.env.ri.setj(js[-1])
+        #         c = mercury.geometry.Coordinate(
+        #             *self.env.ri.get_pose("tipLink")
+        #         )
+        #         c.translate([0, 0, 0.02])
+        #         j = self.env.ri.solve_ik(c.pose)
+        #         if j is not None:
+        #             js = np.r_[js, [j]]
+        self.send_avs(js, time_scale=10)
         self.wait_interpolation()
 
         self.start_grasp()
@@ -682,7 +690,13 @@ class ReorientDemoInterface:
         self.send_avs(result["js_post_place"], time_scale=5)
         self.wait_interpolation()
 
-        self.reset_pose(time_scale=5)
+        js = self.env.ri.planj(
+            self.env.ri.homej, obstacles=self.env.bg_objects
+        )
+        if js is None:
+            self.reset_pose(time_scale=5)
+        else:
+            self.send_avs(js, time_scale=5)
         self.wait_interpolation()
 
         return result
@@ -762,6 +776,9 @@ class ReorientDemoInterface:
             self.env.fg_object_id = None
             self.env.object_ids = []
 
+        if not reverse:
+            return
+
         for fg_object_id, init_pose, result in history[::-1]:
             self.env.fg_object_id = fg_object_id
             self.env.object_ids.append(fg_object_id)
@@ -805,6 +822,141 @@ class ReorientDemoInterface:
                 self.pick_and_reorient()
                 self.scan_target()
 
+    def init_box_packing(self, i=0, target_only=True):
+        if i == 0:
+            color = (0.7, 0.7, 0.7, 1)
+            create = None  # [0, 1, 2]
+
+            box1 = mercury.pybullet.create_bin(
+                X=0.3, Y=0.3, Z=0.11, color=color, create=create
+            )
+            c = mercury.geometry.Coordinate()
+            c.rotate([np.deg2rad(9), 0, 0])
+            c.translate([0.30, 0.44, 0.08], wrt="world")
+            pp.set_pose(box1, c.pose)
+
+            box2 = mercury.pybullet.create_bin(
+                X=0.3, Y=0.3, Z=0.11, color=color, create=create
+            )
+            c.translate([0.31, 0, 0], wrt="world")
+            pp.set_pose(box2, c.pose)
+
+            self.env.bg_objects.append(box1)
+            self.env.bg_objects.append(box2)
+
+            self._box1 = box1
+            self._box2 = box2
+        else:
+            box1 = self._box1
+            box2 = self._box2
+
+        if i == 0:
+            class_id = 11
+            box_to_world = pp.get_pose(box1)
+            obj_to_box = (0, 0, 0), _utils.get_canonical_quaternion(class_id)
+            c = mercury.geometry.Coordinate(*obj_to_box)
+            c.rotate([0, 0, np.deg2rad(-60)])
+            c.rotate([np.deg2rad(-90), 0, 0], wrt="world")
+            c.translate([0.01, 0.03, 0.01], wrt="world")
+            obj_to_box = c.pose
+            obj_to_world = pp.multiply(box_to_world, obj_to_box)
+            obj_goal = mercury.pybullet.create_mesh_body(
+                visual_file=mercury.datasets.ycb.get_visual_file(
+                    class_id=class_id
+                ),
+                rgba_color=(0.5, 0.5, 0.5, 0.5),
+                position=obj_to_world[0],
+                quaternion=obj_to_world[1],
+            )
+            place_pose = obj_to_world
+
+            c.translate([0, 0.05, 0.2], wrt="world")
+            obj_to_box = c.pose
+            obj_to_world = pp.multiply(box_to_world, obj_to_box)
+            pre_place_pose = obj_to_world
+        elif i == 1:
+            class_id = 5
+            box_to_world = pp.get_pose(box2)
+            obj_to_box = (0, 0, 0), _utils.get_canonical_quaternion(class_id)
+            c = mercury.geometry.Coordinate(*obj_to_box)
+            c.rotate([0, 0, np.deg2rad(-90)])
+            c.rotate([np.deg2rad(-90), 0, 0], wrt="world")
+            c.translate([-0.07, 0, -0.03], wrt="world")
+            obj_to_box = c.pose
+            obj_to_world = pp.multiply(box_to_world, obj_to_box)
+            obj_goal = mercury.pybullet.create_mesh_body(
+                visual_file=mercury.datasets.ycb.get_visual_file(
+                    class_id=class_id
+                ),
+                rgba_color=(0.5, 0.5, 0.5, 0.5),
+                position=obj_to_world[0],
+                quaternion=obj_to_world[1],
+            )
+            place_pose = obj_to_world
+
+            c.translate([0, 0.05, 0.2], wrt="world")
+            obj_to_box = c.pose
+            obj_to_world = pp.multiply(box_to_world, obj_to_box)
+            pre_place_pose = obj_to_world
+        elif i == 2:
+            class_id = 3
+            box_to_world = pp.get_pose(box2)
+            obj_to_box = (0, 0, 0), _utils.get_canonical_quaternion(class_id)
+            c = mercury.geometry.Coordinate(*obj_to_box)
+            c.rotate([0, 0, np.deg2rad(-90)])
+            c.rotate([np.deg2rad(-90), 0, 0], wrt="world")
+            c.translate([0.07, 0, -0.03], wrt="world")
+            obj_to_box = c.pose
+            obj_to_world = pp.multiply(box_to_world, obj_to_box)
+            obj_goal = mercury.pybullet.create_mesh_body(
+                visual_file=mercury.datasets.ycb.get_visual_file(
+                    class_id=class_id
+                ),
+                rgba_color=(0.5, 0.5, 0.5, 0.5),
+                position=obj_to_world[0],
+                quaternion=obj_to_world[1],
+            )
+            place_pose = obj_to_world
+
+            c.translate([0, 0.05, 0.2], wrt="world")
+            obj_to_box = c.pose
+            obj_to_world = pp.multiply(box_to_world, obj_to_box)
+            pre_place_pose = obj_to_world
+
+        self.env._fg_class_id = class_id
+        self.env.PLACE_POSE = place_pose
+        self.env.PRE_PLACE_POSE = pre_place_pose
+        if self._obj_goal is not None:
+            pp.remove_body(self._obj_goal)
+        self._obj_goal = obj_goal
+
+        self._initialized = True
+
+    def run_box_packing(self):
+        history = []
+
+        indices = [0, 1, 2]
+        for i in indices:
+            self.init_box_packing(i=i)
+
+            self.scan_pile()
+            init_pose = pp.get_pose(self.env.fg_object_id)
+            while True:
+                result = self.pick_and_place()
+                if "js_place" in result:
+                    break
+                self.pick_and_reorient()
+                self.scan_target()
+            history.append((self.env.fg_object_id, init_pose, result))
+
+            if i != indices[-1]:
+                for obj in self.env.bg_objects[7:]:
+                    pp.remove_body(obj)
+                self.env.bg_objects = self.env.bg_objects[:7]
+
+            self.env.fg_object_id = None
+            self.env.object_ids = []
+
 
 if __name__ == "__main__":
     di = ReorientDemoInterface()
@@ -814,8 +966,6 @@ if __name__ == "__main__":
     di.pr = di.pick_and_reorient
     di.rs = di.reset
     di.rp = di.reset_pose
-
     di.rp()
-    di.run_reverse_rearrangement_02()
-
+    di.run_box_packing()
     IPython.embed()
