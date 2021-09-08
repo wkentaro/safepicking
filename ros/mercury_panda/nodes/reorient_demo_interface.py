@@ -738,46 +738,7 @@ class ReorientDemoInterface:
 
         return result
 
-    def run_three_cracker_boxes(self):
-        for nth in [2, 3, 4]:
-            self.init(nth=nth)
-            self.scan_pile()
-            while "js_place" not in self.pick_and_place():
-                self.pick_and_reorient()
-                self.scan_target()
-            self.reset()
-
-    def run_reverse_rearrangement_01(self):
-        self.init(nth=4)
-        self.scan_pile()
-        init_pose = pp.get_pose(self.env.fg_object_id)
-        result = self.pick_and_place()
-
-        js = self.env.ri.planj(
-            result["j_pre_place"], obstacles=self.env.bg_objects
-        )
-        self.send_avs(js, time_scale=5)
-
-        self.env.PLACE_POSE = init_pose
-        self.env.LAST_PRE_PLACE_POSE = None
-        c = mercury.geometry.Coordinate(*self.env.PLACE_POSE)
-        c.translate([0, 0, 0.2], wrt="world")
-        self.env.PRE_PLACE_POSE = c.pose
-
-        if self._obj_goal is not None:
-            pp.remove_body(self._obj_goal)
-        self._obj_goal = mercury.pybullet.create_mesh_body(
-            visual_file=mercury.datasets.ycb.get_visual_file(
-                self.env._fg_class_id
-            ),
-            rgba_color=(0.5, 0.5, 0.5, 0.5),
-            position=self.env.PLACE_POSE[0],
-            quaternion=self.env.PLACE_POSE[1],
-        )
-
-        self.pick_and_place()
-
-    def run_reverse_rearrangement_02(self):
+    def run_three_cracker_boxes(self, reverse=False):
         history = []
 
         for nth in [2, 3, 4]:
