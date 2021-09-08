@@ -932,7 +932,7 @@ class ReorientDemoInterface:
 
         self._initialized = True
 
-    def run_box_packing(self):
+    def run_box_packing(self, reverse=False):
         history = []
 
         indices = [0, 1, 2]
@@ -957,6 +957,52 @@ class ReorientDemoInterface:
             self.env.fg_object_id = None
             self.env.object_ids = []
 
+        if not reverse:
+            return
+
+        for fg_object_id, init_pose, result in history[::-1]:
+            self.env.fg_object_id = fg_object_id
+            self.env.object_ids.append(fg_object_id)
+            self.env.PLACE_POSE = init_pose
+            self.env.LAST_PRE_PLACE_POSE = None
+            c = mercury.geometry.Coordinate(*self.env.PLACE_POSE)
+            c.translate([0, 0, 0.2], wrt="world")
+            self.env.PRE_PLACE_POSE = c.pose
+
+            if self._obj_goal is not None:
+                pp.remove_body(self._obj_goal)
+            self._obj_goal = mercury.pybullet.create_mesh_body(
+                visual_file=mercury.datasets.ycb.get_visual_file(
+                    self.env._fg_class_id
+                ),
+                rgba_color=(0.5, 0.5, 0.5, 0.5),
+                position=self.env.PLACE_POSE[0],
+                quaternion=self.env.PLACE_POSE[1],
+            )
+
+            self.env.ri.setj(result["j_pre_place"])
+            pre_place_pose = self.env.ri.get_pose("tipLink")
+            j = self.env.ri.solve_ik(
+                pre_place_pose,
+                move_target=self.env.ri.robot_model.camera_link,
+                rotation_axis="z",
+            )
+            self.env.ri.setj(j)
+            self.env.update_obs()
+            self.real2robot()
+
+            js = self.env.ri.planj(
+                result["j_pre_place"], obstacles=self.env.bg_objects
+            )
+            self.send_avs(js, time_scale=5)
+
+            while True:
+                result = self.pick_and_place()
+                if "js_place" in result:
+                    break
+                self.pick_and_reorient()
+                self.scan_target()
+
 
 if __name__ == "__main__":
     di = ReorientDemoInterface()
@@ -967,5 +1013,5 @@ if __name__ == "__main__":
     di.rs = di.reset
     di.rp = di.reset_pose
     di.rp()
-    di.run_box_packing()
+    di.run_box_packing(reverse=True)
     IPython.embed()
