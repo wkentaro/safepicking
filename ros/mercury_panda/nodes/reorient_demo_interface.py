@@ -470,57 +470,6 @@ class ReorientDemoInterface:
 
     # -------------------------------------------------------------------------
 
-    def init(self, nth=1, target_only=False):
-        if not target_only:
-            shelf = _utils.create_shelf(X=0.29, Y=0.41, Z=0.285, N=2)
-            c = mercury.geometry.Coordinate()
-            c.rotate([0, 0, -np.pi / 2])
-            c.translate([0.575, 0.45, self.env.TABLE_OFFSET], wrt="world")
-            pp.set_pose(shelf, c.pose)
-            self.env.bg_objects.append(shelf)
-
-        fg_class_id = 2
-        c = mercury.geometry.Coordinate(
-            [0.415, 0.395, 0.44], _utils.get_canonical_quaternion(fg_class_id)
-        )
-        for i in range(nth - 1):
-            if not target_only:
-                mercury.pybullet.create_mesh_body(
-                    visual_file=mercury.datasets.ycb.get_visual_file(
-                        fg_class_id
-                    ),
-                    position=c.position,
-                    quaternion=c.quaternion,
-                )
-            c.translate([0.06, 0, 0], wrt="world")
-        place_pose = c.pose
-
-        c = mercury.geometry.Coordinate(*place_pose)
-        c.translate([0.05, 0, 0.05], wrt="world")
-        last_pre_place_pose = c.pose
-
-        c = mercury.geometry.Coordinate(*place_pose)
-        c.translate([0.05, -0.3, 0.05], wrt="world")
-        pre_place_pose = c.pose
-
-        self.env._fg_class_id = fg_class_id
-        self.env.PLACE_POSE = place_pose
-        self.env.LAST_PRE_PLACE_POSE = last_pre_place_pose
-        self.env.PRE_PLACE_POSE = pre_place_pose
-
-        if self._obj_goal is not None:
-            pp.remove_body(self._obj_goal)
-        self._obj_goal = mercury.pybullet.create_mesh_body(
-            visual_file=mercury.datasets.ycb.get_visual_file(
-                self.env._fg_class_id
-            ),
-            rgba_color=(0.5, 0.5, 0.5, 0.5),
-            position=self.env.PLACE_POSE[0],
-            quaternion=self.env.PLACE_POSE[1],
-        )
-
-        self._initialized = True
-
     def reset(self):
         self.env.reset()
         self.env._fg_class_id = None
@@ -738,11 +687,62 @@ class ReorientDemoInterface:
 
         return result
 
+    def init_cracker_boxes_on_shelf(self, nth=1, target_only=False):
+        if not target_only:
+            shelf = _utils.create_shelf(X=0.29, Y=0.41, Z=0.285, N=2)
+            c = mercury.geometry.Coordinate()
+            c.rotate([0, 0, -np.pi / 2])
+            c.translate([0.575, 0.45, self.env.TABLE_OFFSET], wrt="world")
+            pp.set_pose(shelf, c.pose)
+            self.env.bg_objects.append(shelf)
+
+        fg_class_id = 2
+        c = mercury.geometry.Coordinate(
+            [0.415, 0.395, 0.44], _utils.get_canonical_quaternion(fg_class_id)
+        )
+        for i in range(nth - 1):
+            if not target_only:
+                mercury.pybullet.create_mesh_body(
+                    visual_file=mercury.datasets.ycb.get_visual_file(
+                        fg_class_id
+                    ),
+                    position=c.position,
+                    quaternion=c.quaternion,
+                )
+            c.translate([0.06, 0, 0], wrt="world")
+        place_pose = c.pose
+
+        c = mercury.geometry.Coordinate(*place_pose)
+        c.translate([0.05, 0, 0.05], wrt="world")
+        last_pre_place_pose = c.pose
+
+        c = mercury.geometry.Coordinate(*place_pose)
+        c.translate([0.05, -0.3, 0.05], wrt="world")
+        pre_place_pose = c.pose
+
+        self.env._fg_class_id = fg_class_id
+        self.env.PLACE_POSE = place_pose
+        self.env.LAST_PRE_PLACE_POSE = last_pre_place_pose
+        self.env.PRE_PLACE_POSE = pre_place_pose
+
+        if self._obj_goal is not None:
+            pp.remove_body(self._obj_goal)
+        self._obj_goal = mercury.pybullet.create_mesh_body(
+            visual_file=mercury.datasets.ycb.get_visual_file(
+                self.env._fg_class_id
+            ),
+            rgba_color=(0.5, 0.5, 0.5, 0.5),
+            position=self.env.PLACE_POSE[0],
+            quaternion=self.env.PLACE_POSE[1],
+        )
+
+        self._initialized = True
+
     def run_three_cracker_boxes(self, reverse=False):
         history = []
 
         for nth in [2, 3, 4]:
-            self.init(nth=nth, target_only=nth != 2)
+            self.init_cracker_boxes_on_shelf(nth=nth, target_only=nth != 2)
 
             self.scan_pile()
             init_pose = pp.get_pose(self.env.fg_object_id)
