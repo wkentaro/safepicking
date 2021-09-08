@@ -452,8 +452,8 @@ class ReorientDemoInterface:
             mercury.geometry.look_at(eye, target)
         )
         for _ in range(4):
-            c.rotate([0, 0, np.pi / 2])
-            if abs(c.euler[2] - np.pi / 2) < np.pi / 4:
+            c.rotate([0, 0, np.deg2rad(90)])
+            if abs(c.euler[2] - np.deg2rad(-90)) < np.pi / 4:
                 break
         j = self.env.ri.solve_ik(
             c.pose,

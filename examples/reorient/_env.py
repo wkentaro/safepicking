@@ -116,7 +116,7 @@ class Env:
             robot_model=self._robot_model,
         )
         self.ri.add_camera(
-            pose=([-0.024, 0.061, -0.070], [-0.014, 0.009, 1.000, 0.010]),
+            pose=([-0.065, 0.058, -0.062], [0.003, -0.032, -0.009, 0.999]),
             fovy=np.deg2rad(54),
             height=self.IMAGE_HEIGHT,
             width=self.IMAGE_WIDTH,
