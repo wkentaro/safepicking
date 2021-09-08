@@ -36,23 +36,23 @@
     <link name="tipLink">
       <visual>
         <geometry>
-          <cylinder length="0.11" radius="0.02"/>
+          <cylinder length="0.10" radius="0.018"/>
         </geometry>
-        <origin xyz="0 0 -0.055"/>
+        <origin xyz="0 0 -0.05"/>
         <material name="green"/>
       </visual>
       <collision>
         <geometry>
-          <cylinder length="0.18" radius="0.02"/>
+          <cylinder length="0.16" radius="0.018"/>
         </geometry>
-        <origin xyz="0 0 -0.09"/>
+        <origin xyz="0 0 -0.08"/>
       </collision>
     </link>
 
     <joint name="${ns}_suction_mount_to_cup_joint" type="fixed">
       <parent link="${ns}_suction_gripper"/>
       <child link="tipLink"/>
-      <origin xyz="0.072 0 -0.09" rpy="${pi} 0 0"/>
+      <origin xyz="0.072 0 -0.08" rpy="${pi} 0 0"/>
     </joint>
 
   </xacro:macro>
