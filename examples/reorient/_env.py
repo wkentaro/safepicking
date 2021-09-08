@@ -86,14 +86,11 @@ class Env:
             pp.set_color(self.plane, (0.8, 0.8, 0.8))
             pp.set_pose(self.plane, ([0, 0, self.TABLE_OFFSET], [0, 0, 0, 1]))
 
+            z = 0.002 + self.TABLE_OFFSET
             for x in np.linspace(-5, 5, num=21):
-                pp.add_line(
-                    (x, -10, 0.072), (x, 10, 0.072), color=(0.5, 0.5, 0.5, 1)
-                )
+                pp.add_line((x, -10, z), (x, 10, z), color=(0.5, 0.5, 0.5, 1))
             for y in np.linspace(-5, 5, num=21):
-                pp.add_line(
-                    (-10, y, 0.072), (10, y, 0.072), color=(0.5, 0.5, 0.5, 1)
-                )
+                pp.add_line((-10, y, z), (10, y, z), color=(0.5, 0.5, 0.5, 1))
 
             self._walls = []
             if self._real:
