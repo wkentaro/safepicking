@@ -440,12 +440,12 @@ class ReorientDemoInterface:
         self.env.fg_object_id = object_id
         self.env.update_obs()
 
-    def reset_pose(self, cartesian=False, time_scale=None):
+    def reset_pose(self, cartesian=False, time_scale=5, wait=True):
         if cartesian:
             avs = self.env.ri.get_cartesian_path(j=self.env.ri.homej)
         else:
             avs = [self.env.ri.homej]
-        self.send_avs(avs, time_scale=time_scale)
+        self.send_avs(avs, time_scale=time_scale, wait=wait)
 
     def look_at(self, eye, target, rotation_axis=True, time_scale=None):
         c = mercury.geometry.Coordinate.from_matrix(
