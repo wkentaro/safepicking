@@ -842,8 +842,8 @@ class ReorientDemoInterface:
                 self.pick_and_reorient()
                 self.scan_target()
 
-    def init_box_packing(self, i=0):
-        if i == 0:
+    def init_box_packing(self, i=0, init=True):
+        if init:
             color = (0.7, 0.7, 0.7, 1)
             create = None  # [0, 1, 2]
 
@@ -852,7 +852,7 @@ class ReorientDemoInterface:
             )
             c = mercury.geometry.Coordinate()
             c.rotate([np.deg2rad(9), 0, 0])
-            c.translate([0.30, 0.40, 0.08], wrt="world")
+            c.translate([0.30, 0.44, 0.09], wrt="world")
             pp.set_pose(box1, c.pose)
 
             box2 = mercury.pybullet.create_bin(
@@ -957,10 +957,9 @@ class ReorientDemoInterface:
 
         history = []
 
-        # indices = [0, 1, 2]
-        indices = [0]
+        indices = [0, 1, 2]
         for i in indices:
-            self.init_box_packing(i=i)
+            self.init_box_packing(i=i, init=i == indices[0])
 
             self.scan_pile()
             init_pose = pp.get_pose(self.env.fg_object_id)
