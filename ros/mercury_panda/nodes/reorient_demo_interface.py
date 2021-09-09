@@ -307,6 +307,7 @@ class ReorientDemoInterface:
         depth = depth.astype(np.float32) / 1000
         depth[depth == 0] = np.nan
 
+        self.obs["timestamp"] = depth_msg.header.stamp
         self.obs["depth"] = depth
         self.obs["K"] = K
         self.obs["camera_to_base"] = np.hstack(
@@ -383,13 +384,18 @@ class ReorientDemoInterface:
             rospy.logerr("Task is not initialized yet")
             return
 
+        now = rospy.Time.now()
         self.start_passthrough()
 
         self._subscribe()
+        if "timestamp" not in self.obs:
+            self.obs["timestamp"] = rospy.Time(0)
         for i in range(30):
             rospy.loginfo_throttle(10, "Waiting for observation")
             rospy.sleep(0.1)
-            if all(value is not None for value in self.obs.values()):
+            if self.obs["timestamp"] > now and all(
+                value is not None for value in self.obs.values()
+            ):
                 rospy.loginfo("Received observation")
                 self.stop_passthrough()
                 self._unsubsribe()
