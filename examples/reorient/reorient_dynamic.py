@@ -111,7 +111,7 @@ def plan_dynamic_reorient(env, grasp_poses, reorient_poses, pickable):
     object_pose = object_poses[object_fg_flags == 1][0]
 
     if env.reverse:
-        object_pose[:3] = env.PILE_POSITION
+        object_pose[:3] = env.PILE_POSITION + [0, -0.4, 0.1]
 
     with torch.no_grad():
         reorientable_pred, trajectory_length_pred = model(
@@ -127,19 +127,36 @@ def plan_dynamic_reorient(env, grasp_poses, reorient_poses, pickable):
     reorientable_pred = reorientable_pred[0]
     trajectory_length_pred = trajectory_length_pred[0]
 
-    for threshold in np.linspace(0.9, 0.1, num=10):
-        keep = reorientable_pred[:, 2] > threshold
-        if keep.sum() > 10:
-            pickable = pickable[keep]
-            reorientable_pred = reorientable_pred[keep]
-            trajectory_length_pred = trajectory_length_pred[keep]
-            grasp_poses = grasp_poses[keep]
-            reorient_poses = reorient_poses[keep]
-            break
+    grasp_poses = grasp_poses.reshape(N_grasp, N_reorient, 7)
+    reorient_poses = reorient_poses.reshape(N_grasp, N_reorient, 7)
+    pickable = pickable.reshape(N_grasp, N_reorient)
+    reorientable_pred = reorientable_pred.reshape(N_grasp, N_reorient, 3)
+    trajectory_length_pred = trajectory_length_pred.reshape(
+        N_grasp, N_reorient
+    )
 
-    indices1 = np.argsort(trajectory_length_pred)
-    indices2 = np.argsort(reorientable_pred[:, 2])[::-1]
-    indices = np.r_[indices1[:3], indices2[:3]]
+    reorientable_pred = np.prod(reorientable_pred, axis=2)
+
+    N_top = 3
+    i_grasp = np.arange(N_grasp)[:, None].repeat(N_top, axis=1)
+    i_reorient = np.argsort(reorientable_pred, axis=1)[:, -N_top:]
+
+    pickable = pickable[i_grasp, i_reorient]
+    reorientable_pred = reorientable_pred[i_grasp, i_reorient]
+    trajectory_length_pred = trajectory_length_pred[i_grasp, i_reorient]
+    grasp_poses = grasp_poses[i_grasp, i_reorient]
+    reorient_poses = reorient_poses[i_grasp, i_reorient]
+
+    pickable = pickable.reshape(N_grasp * N_top)
+    reorientable_pred = reorientable_pred.reshape(N_grasp * N_top)
+    trajectory_length_pred = trajectory_length_pred.reshape(N_grasp * N_top)
+    grasp_poses = grasp_poses.reshape(N_grasp * N_top, 7)
+    reorient_poses = reorient_poses.reshape(N_grasp * N_top, 7)
+
+    # indices1 = np.argsort(trajectory_length_pred)
+    # indices2 = np.argsort(reorientable_pred)[::-1]
+    # indices = np.r_[indices1[:3], indices2[:3], indices1[3:], indices2[3:]]
+    indices = np.argsort(reorientable_pred)[::-1]
 
     assert (
         pickable.shape[0]
@@ -162,9 +179,10 @@ def plan_dynamic_reorient(env, grasp_poses, reorient_poses, pickable):
         if "js_place" in result:
             logger.success(
                 f"pickable={pickable[index]:.1%}, "
-                f"graspable_pred={reorientable_pred[index, 0]:.1%}, "
-                f"placable_pred={reorientable_pred[index, 1]:.1%}, "
-                f"reorientable_pred={reorientable_pred[index, 2]:.1%}, "
+                # f"graspable_pred={reorientable_pred[index, 0]:.1%}, "
+                # f"placable_pred={reorientable_pred[index, 1]:.1%}, "
+                # f"reorientable_pred={reorientable_pred[index, 2]:.1%}, "
+                f"reorientable_pred={reorientable_pred[index]:.1%}, "
                 f"trajectory_length_pred={trajectory_length_pred[index]:.1f}, "
                 f"trajectory_length_true={result['js_place_length']:.1f}"
             )
@@ -172,9 +190,10 @@ def plan_dynamic_reorient(env, grasp_poses, reorient_poses, pickable):
         else:
             logger.warning(
                 f"pickable={pickable[index]:.1%}, "
-                f"graspable_pred={reorientable_pred[index, 0]:.1%}, "
-                f"placable_pred={reorientable_pred[index, 1]:.1%}, "
-                f"reorientable_pred={reorientable_pred[index, 2]:.1%}, "
+                # f"graspable_pred={reorientable_pred[index, 0]:.1%}, "
+                # f"placable_pred={reorientable_pred[index, 1]:.1%}, "
+                # f"reorientable_pred={reorientable_pred[index, 2]:.1%}, "
+                f"reorientable_pred={reorientable_pred[index]:.1%}, "
                 f"trajectory_length_pred={trajectory_length_pred[index]:.1f}"
             )
 
