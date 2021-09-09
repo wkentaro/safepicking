@@ -510,7 +510,7 @@ class ReorientDemoInterface:
         self._initialized = False
 
     def look_at_pile(self):
-        self.look_at(eye=[0.5, 0, 0.7], target=[0.5, 0, 0], time_scale=2.5)
+        self.look_at(eye=[0.5, 0, 0.7], target=[0.5, 0, 0], time_scale=3)
 
     def scan_pile(self):
         if not self._initialized:
@@ -597,19 +597,19 @@ class ReorientDemoInterface:
         self.wait_interpolation()
 
         js = self.env.ri.get_cartesian_path(j=result["j_grasp"])
-        if _utils.get_class_id(self.env.fg_object_id) == 5:
-            with pp.WorldSaver():
-                self.env.ri.setj(js[-1])
-                c = mercury.geometry.Coordinate(
-                    *self.env.ri.get_pose("tipLink")
-                )
-                c.translate([0, 0, 0.02])
-                j = self.env.ri.solve_ik(c.pose)
-                if j is not None:
-                    js = np.r_[js, [j]]
+        # if _utils.get_class_id(self.env.fg_object_id) == 5:
+        #     with pp.WorldSaver():
+        #         self.env.ri.setj(js[-1])
+        #         c = mercury.geometry.Coordinate(
+        #             *self.env.ri.get_pose("tipLink")
+        #         )
+        #         c.translate([0, 0, 0.02])
+        #         j = self.env.ri.solve_ik(c.pose)
+        #         if j is not None:
+        #             js = np.r_[js, [j]]
+
         self.send_avs(js, time_scale=15)
         self.wait_interpolation()
-
         self.start_grasp()
         rospy.sleep(2)
         self.env.ri.attachments = result["attachments"]
