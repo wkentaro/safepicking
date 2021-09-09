@@ -25,7 +25,7 @@ def get_reorient_poses(env):
         )
     else:
         bounds = (
-            (0.35, -0.50, env.TABLE_OFFSET + 0.001),
+            (0.35, -0.45, env.TABLE_OFFSET + 0.001),
             (0.50, -0.35, env.TABLE_OFFSET + 0.001),
         )
     if env.debug:
@@ -97,7 +97,10 @@ def get_reorient_poses(env):
             assert distance_to_plane > 0
             c.position[2] += -distance_to_plane
 
-            c.position[2] += 0.03  # margin
+            if _utils.get_class_id(env.fg_object_id) == 11:
+                c.position[2] += 0.03  # margin
+            else:
+                c.position[2] += 0.01  # margin
 
             for x, y in XY:
                 reorient_poses.append([x, y, c.position[2], *c.quaternion])
