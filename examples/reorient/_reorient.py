@@ -192,8 +192,6 @@ def plan_reorient(env, grasp_pose, reorient_pose):
             min_distances=mercury.utils.StaticDict(-0.02),
         ):
             print("no j_grasp")
-            if j is not None and env.reverse:
-                env.ri.setj(j)
             continue
 
         result["j_grasp"] = j
@@ -220,11 +218,6 @@ def plan_reorient(env, grasp_pose, reorient_pose):
             result["j_place"] = j
             break
         print("no j_place")
-        if j is not None and env.reverse:
-            env.ri.setj(j)
-            import IPython
-
-            IPython.embed()  # NOQA
     else:
         logger.warning("j_grasp and j_place are not found")
         before_return()
