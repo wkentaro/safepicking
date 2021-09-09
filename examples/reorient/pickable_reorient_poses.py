@@ -97,7 +97,7 @@ def get_reorient_poses(env):
             assert distance_to_plane > 0
             c.position[2] += -distance_to_plane
 
-            c.position[2] += 0.02  # margin
+            c.position[2] += 0.03  # margin
 
             for x, y in XY:
                 reorient_poses.append([x, y, c.position[2], *c.quaternion])
