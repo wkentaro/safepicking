@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import argparse
 import enum
 import itertools
 import sys
@@ -1042,6 +1043,12 @@ class ReorientDemoInterface:
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument("--interactive", "-i", action="store_true")
+    args = parser.parse_args()
+
     di = ReorientDemoInterface()
     di.sp = di.scan_pile
     di.st = di.scan_target
@@ -1050,19 +1057,22 @@ if __name__ == "__main__":
     di.rs = di.reset
     di.rp = di.reset_pose
 
-    di.start_passthrough()
-    di.reset_pose(wait=False)
-    try:
-        rospy.wait_for_message(
-            "/singleview_3d_pose_estimation/output",
-            ObjectPoseArray,
-            timeout=1,
-        )
-    except rospy.exceptions.ROSException:
-        pass
-    di.stop_passthrough()
-    di.wait_interpolation()
+    if args.interactive:
+        IPython.embed()
+    else:
+        di.start_passthrough()
+        di.reset_pose(wait=False)
+        try:
+            rospy.wait_for_message(
+                "/singleview_3d_pose_estimation/output",
+                ObjectPoseArray,
+                timeout=1,
+            )
+        except rospy.exceptions.ROSException:
+            pass
+        di.stop_passthrough()
+        di.wait_interpolation()
 
-    di.run_box_packing(reverse=True)
+        di.run_box_packing(reverse=True)
 
-    IPython.embed()
+        IPython.embed()
