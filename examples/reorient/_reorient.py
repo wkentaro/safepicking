@@ -102,12 +102,9 @@ def get_grasp_poses(env):
     laplacian = cv2.Laplacian(normals_on_obj, cv2.CV_64FC3)
     magnitude = np.linalg.norm(laplacian, axis=2)
     edge_mask = magnitude > 0.5
-    # edge_mask = (
-    #     cv2.dilate(
-    #         np.uint8(edge_mask) * 255, kernel=np.ones((12, 12)), iterations=1
-    #     )
-    #     == 255
-    # )
+    edge_mask = (
+        cv2.dilate(np.uint8(edge_mask) * 255, kernel=np.ones((1, 1))) == 255
+    )
     mask = mask & ~edge_mask
 
     # imgviz.io.imsave(
