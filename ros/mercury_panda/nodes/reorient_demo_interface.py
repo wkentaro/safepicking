@@ -472,10 +472,11 @@ class ReorientDemoInterface:
         c = mercury.geometry.Coordinate.from_matrix(
             mercury.geometry.look_at(eye, target)
         )
-        for _ in range(4):
-            c.rotate([0, 0, np.deg2rad(90)])
-            if abs(c.euler[2] - np.deg2rad(-90)) < np.pi / 4:
-                break
+        if rotation_axis is True:
+            for _ in range(4):
+                c.rotate([0, 0, np.deg2rad(90)])
+                if abs(c.euler[2] - np.deg2rad(-90)) < np.pi / 4:
+                    break
         j = self.env.ri.solve_ik(
             c.pose,
             move_target=self.env.ri.robot_model.camera_link,
@@ -483,9 +484,10 @@ class ReorientDemoInterface:
             thre=0.05,
             rthre=np.deg2rad(15),
             rotation_axis=rotation_axis,
+            validate=True,
         )
-        if j is None or not self.env.ri.validatej(j):
-            rospy.logerr("j is not found or invalid")
+        if j is None:
+            rospy.logerr("j is not found")
             return
         return j
 
@@ -1075,6 +1077,35 @@ class ReorientDemoInterface:
                     break
                 self.pick_and_reorient()
                 self.scan_target()
+
+    def scan_pile_multiview(self):
+        sleep = 2
+
+        self.start_passthrough()
+        rospy.wait_for_message(
+            "/camera/mask_rcnn_instance_segmentation/output/class",
+            ObjectClassArray,
+        )
+
+        # back
+        self.look_at(eye=[0.4, 0, 0.7], target=[0.5, 0, 0], time_scale=5)
+        rospy.sleep(sleep)
+
+        kwargs = dict(time_scale=20, rotation_axis="z")
+        # left
+        self.look_at(eye=[0.5, 0.2, 0.7], target=[0.5, 0.2, 0], **kwargs)
+        rospy.sleep(sleep)
+        # front
+        self.look_at(eye=[0.7, -0.1, 0.7], target=[0.7, -0.1, 0], **kwargs)
+        rospy.sleep(sleep)
+        # right
+        self.look_at(eye=[0.6, -0.3, 0.7], target=[0.6, -0.1, 0], **kwargs)
+        rospy.sleep(sleep)
+        # center
+        self.look_at(eye=[0.5, 0, 0.7], target=[0.5, 0, 0], **kwargs)
+        rospy.sleep(sleep)
+
+        self.stop_passthrough()
 
 
 if __name__ == "__main__":
