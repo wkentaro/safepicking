@@ -137,6 +137,8 @@ def plan_dynamic_reorient(env, grasp_poses, reorient_poses, pickable):
 
     reorientable_pred = np.prod(reorientable_pred, axis=2)
 
+    print(reorientable_pred.max())
+
     N_top = 3
     i_grasp = np.arange(N_grasp)[:, None].repeat(N_top, axis=1)
     i_reorient = np.argsort(reorientable_pred, axis=1)[:, -N_top:]
@@ -153,10 +155,12 @@ def plan_dynamic_reorient(env, grasp_poses, reorient_poses, pickable):
     grasp_poses = grasp_poses.reshape(N_grasp * N_top, 7)
     reorient_poses = reorient_poses.reshape(N_grasp * N_top, 7)
 
-    # indices1 = np.argsort(trajectory_length_pred)
-    # indices2 = np.argsort(reorientable_pred)[::-1]
-    # indices = np.r_[indices1[:3], indices2[:3], indices1[3:], indices2[3:]]
-    indices = np.argsort(reorientable_pred)[::-1]
+    if 0:
+        indices1 = np.argsort(trajectory_length_pred)
+        indices2 = np.argsort(reorientable_pred)[::-1]
+        indices = np.r_[indices1[:3], indices2[:3], indices1[3:], indices2[3:]]
+    else:
+        indices = np.argsort(reorientable_pred)[::-1]
 
     assert (
         pickable.shape[0]

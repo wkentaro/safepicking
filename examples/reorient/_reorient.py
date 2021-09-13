@@ -103,7 +103,7 @@ def get_grasp_poses(env):
     magnitude = np.linalg.norm(laplacian, axis=2)
     edge_mask = magnitude > 0.5
     edge_mask = (
-        cv2.dilate(np.uint8(edge_mask) * 255, kernel=np.ones((1, 1))) == 255
+        cv2.dilate(np.uint8(edge_mask) * 255, kernel=np.ones((5, 5))) == 255
     )
     mask = mask & ~edge_mask
 
@@ -115,7 +115,9 @@ def get_grasp_poses(env):
     normals_in_camera = normals_in_camera[mask]
 
     if _utils.get_class_id(env.fg_object_id) == 11:  # heavy
-        dist_from_centroid = np.linalg.norm(pcd_in_camera, axis=1)
+        dist_from_centroid = np.linalg.norm(
+            pcd_in_camera - pcd_in_camera.mean(axis=0), axis=1
+        )
         keep = dist_from_centroid < np.median(dist_from_centroid)
         pcd_in_camera = pcd_in_camera[keep]
         normals_in_camera = normals_in_camera[keep]

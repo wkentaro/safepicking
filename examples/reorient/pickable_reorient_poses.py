@@ -20,12 +20,12 @@ home = path.Path("~").expanduser()
 def get_reorient_poses(env):
     if _utils.get_class_id(env.fg_object_id) == 11:  # large
         bounds = (
-            (0.35, -0.40, env.TABLE_OFFSET + 0.001),
+            (0.30, -0.40, env.TABLE_OFFSET + 0.001),
             (0.50, -0.35, env.TABLE_OFFSET + 0.001),
         )
     else:
         bounds = (
-            (0.35, -0.45, env.TABLE_OFFSET + 0.001),
+            (0.30, -0.50, env.TABLE_OFFSET + 0.001),
             (0.50, -0.35, env.TABLE_OFFSET + 0.001),
         )
     if env.debug:
@@ -97,10 +97,11 @@ def get_reorient_poses(env):
             assert distance_to_plane > 0
             c.position[2] += -distance_to_plane
 
+            # margin
             if _utils.get_class_id(env.fg_object_id) == 11:
-                c.position[2] += 0.03  # margin
+                c.position[2] += 0.03
             else:
-                c.position[2] += 0.01  # margin
+                c.position[2] += 0.00
 
             for x, y in XY:
                 reorient_poses.append([x, y, c.position[2], *c.quaternion])

@@ -384,10 +384,10 @@ class ReorientDemoInterface:
             rospy.logerr("Task is not initialized yet")
             return
 
-        now = rospy.Time.now()
         self.start_passthrough()
 
         self._subscribe()
+        now = rospy.Time.now() + rospy.Duration(1)
         if "timestamp" not in self.obs:
             self.obs["timestamp"] = rospy.Time(0)
         for i in range(30):
@@ -427,7 +427,7 @@ class ReorientDemoInterface:
                 break
         else:
             rospy.logerr("Target object is not found")
-            IPython.embed()
+            return False
         target_instance_id = object_pose.instance_id
 
         K = self.obs["K"]
@@ -459,6 +459,8 @@ class ReorientDemoInterface:
         self.env.fg_object_id = object_id
         self.env.update_obs()
 
+        return True
+
     def reset_pose(self, cartesian=False, time_scale=5, wait=True):
         if cartesian:
             avs = self.env.ri.get_cartesian_path(j=self.env.ri.homej)
@@ -477,9 +479,9 @@ class ReorientDemoInterface:
         j = self.env.ri.solve_ik(
             c.pose,
             move_target=self.env.ri.robot_model.camera_link,
-            n_init=10,
-            thre=0.01,
-            rthre=np.deg2rad(10),
+            n_init=20,
+            thre=0.05,
+            rthre=np.deg2rad(15),
             rotation_axis=rotation_axis,
         )
         if j is None or not self.env.ri.validatej(j):
@@ -509,8 +511,10 @@ class ReorientDemoInterface:
 
         self._initialized = False
 
-    def look_at_pile(self):
-        self.look_at(eye=[0.5, 0, 0.7], target=[0.5, 0, 0], time_scale=3)
+    def look_at_pile(self, time_scale=3):
+        self.look_at(
+            eye=[0.5, 0, 0.7], target=[0.5, 0, 0], time_scale=time_scale
+        )
 
     def scan_pile(self):
         if not self._initialized:
@@ -519,7 +523,8 @@ class ReorientDemoInterface:
 
         self.look_at_pile()
         self.capture_obs()
-        self.obs_to_env()
+        while not self.obs_to_env():
+            self.capture_obs()
 
     def look_at_target(self):
         if self.env.fg_object_id is None:
@@ -527,7 +532,7 @@ class ReorientDemoInterface:
         else:
             target = pp.get_pose(self.env.fg_object_id)[0]
         self.look_at(
-            eye=[target[0] - 0.3, -0.3, 0.7],
+            eye=[target[0] - 0.1, target[1], target[2] + 0.4],
             target=target,
             rotation_axis="z",
             time_scale=4,
@@ -569,7 +574,7 @@ class ReorientDemoInterface:
             grasp_poses = _reorient.get_grasp_poses(self.env)  # in world
             grasp_poses = list(itertools.islice(grasp_poses, 25))
 
-            for threshold in np.linspace(0.9, 0.1, num=10):
+            for threshold in np.linspace(0.99, 0.5):
                 indices = np.where(pickable > threshold)[0]
                 if indices.size > 100:
                     break
@@ -608,27 +613,35 @@ class ReorientDemoInterface:
         #         if j is not None:
         #             js = np.r_[js, [j]]
 
-        self.send_avs(js, time_scale=15)
+        if _utils.get_class_id(self.env.fg_object_id) == 5:
+            self.send_avs(js, time_scale=25)
+        else:
+            self.send_avs(js, time_scale=20)
         self.wait_interpolation()
         self.start_grasp()
         rospy.sleep(2)
         self.env.ri.attachments = result["attachments"]
 
         js = result["js_place"]
+        self.send_avs(js, time_scale=8)
+
         with pp.WorldSaver():
             self.env.ri.setj(js[-1])
             c = mercury.geometry.Coordinate(*self.env.ri.get_pose("tipLink"))
             if _utils.get_class_id(self.env.fg_object_id) == 5:
-                c.translate([0, 0, -0.01], wrt="world")
+                n = 5
             else:
+                n = 1
+            js = []
+            for i in range(n):
                 c.translate([0, 0, -0.01], wrt="world")
-            j = self.env.ri.solve_ik(c.pose)
-            if j is not None:
-                js = np.r_[js, [j]]
-        self.send_avs(js, time_scale=5)
-        self.wait_interpolation()
+                j = self.env.ri.solve_ik(c.pose, rotation_axis=None)
+                if j is not None:
+                    js.append(j)
+        self.send_avs(js, time_scale=10, wait=False)
 
         self.stop_grasp()
+
         if _utils.get_class_id(self.env.fg_object_id) == 11:
             rospy.sleep(4)
         else:
@@ -639,7 +652,6 @@ class ReorientDemoInterface:
         self.send_avs(js, time_scale=5)
 
         self.send_avs([self.env.ri.homej], time_scale=4)
-        self.wait_interpolation()
 
     def plan_place(self):
         pcd_in_obj, normals_in_obj = _reorient.get_query_ocs(self.env)
@@ -651,10 +663,15 @@ class ReorientDemoInterface:
         keep = dist_from_centroid < np.median(dist_from_centroid)
         indices = indices[keep]
         p = p[keep]
-        indices = np.r_[
-            np.random.choice(indices, 5, p=p / p.sum()),
-            np.random.permutation(pcd_in_obj.shape[0])[:5],
-        ]
+        if _utils.get_class_id(self.env.fg_object_id) in [5, 11]:
+            indices = np.r_[
+                np.random.choice(indices, 10, p=p / p.sum()),
+            ]
+        else:
+            indices = np.r_[
+                np.random.choice(indices, 5, p=p / p.sum()),
+                np.random.permutation(pcd_in_obj.shape[0])[:5],
+            ]
 
         pcd_in_obj = pcd_in_obj[indices]
         normals_in_obj = normals_in_obj[indices]
@@ -696,7 +713,7 @@ class ReorientDemoInterface:
         #         j = self.env.ri.solve_ik(c.pose)
         #         if j is not None:
         #             js = np.r_[js, [j]]
-        self.send_avs(js, time_scale=15)
+        self.send_avs(js, time_scale=20)
         self.wait_interpolation()
 
         self.start_grasp()
@@ -706,14 +723,14 @@ class ReorientDemoInterface:
         self.send_avs(result["js_pre_place"], time_scale=5)
         self.wait_interpolation()
 
-        self.send_avs(result["js_place"], time_scale=10)
+        self.send_avs(result["js_place"], time_scale=15)
         self.wait_interpolation()
 
         self.stop_grasp()
         rospy.sleep(7)
         self.env.ri.attachments = []
 
-        self.send_avs(result["js_post_place"], time_scale=5)
+        self.send_avs(result["js_post_place"], time_scale=10)
         self.wait_interpolation()
 
         js = self.env.ri.planj(
@@ -859,7 +876,7 @@ class ReorientDemoInterface:
             )
             c = mercury.geometry.Coordinate()
             c.rotate([np.deg2rad(9), 0, 0])
-            c.translate([0.30, 0.44, 0.09], wrt="world")
+            c.translate([0.30, 0.41, 0.09], wrt="world")
             pp.set_pose(box1, c.pose)
 
             box2 = mercury.pybullet.create_bin(
@@ -882,9 +899,9 @@ class ReorientDemoInterface:
             box_to_world = pp.get_pose(box1)
             obj_to_box = (0, 0, 0), _utils.get_canonical_quaternion(class_id)
             c = mercury.geometry.Coordinate(*obj_to_box)
-            c.rotate([0, 0, np.deg2rad(-80)])
+            c.rotate([0, 0, np.deg2rad(-70)])
             c.rotate([np.deg2rad(-90), 0, 0], wrt="world")
-            c.translate([0.01, 0.03, 0.01], wrt="world")
+            c.translate([0.0, 0.03, 0.01], wrt="world")
             obj_to_box = c.pose
             obj_to_world = pp.multiply(box_to_world, obj_to_box)
             obj_goal = mercury.pybullet.create_mesh_body(
@@ -897,7 +914,7 @@ class ReorientDemoInterface:
             )
             place_pose = obj_to_world
 
-            c.translate([0, 0.05, 0.3], wrt="world")
+            c.translate([0.05, 0.0, 0.3], wrt="world")
             obj_to_box = c.pose
             obj_to_world = pp.multiply(box_to_world, obj_to_box)
             pre_place_pose = obj_to_world
@@ -908,7 +925,7 @@ class ReorientDemoInterface:
             c = mercury.geometry.Coordinate(*obj_to_box)
             c.rotate([0, 0, np.deg2rad(-90)])
             c.rotate([np.deg2rad(-90), 0, 0], wrt="world")
-            c.translate([-0.07, 0, -0.02], wrt="world")
+            c.translate([-0.07, 0, -0.03], wrt="world")
             obj_to_box = c.pose
             obj_to_world = pp.multiply(box_to_world, obj_to_box)
             obj_goal = mercury.pybullet.create_mesh_body(
@@ -932,7 +949,7 @@ class ReorientDemoInterface:
             c = mercury.geometry.Coordinate(*obj_to_box)
             c.rotate([0, 0, np.deg2rad(-90)])
             c.rotate([np.deg2rad(-90), 0, 0], wrt="world")
-            c.translate([0.07, 0, -0.02], wrt="world")
+            c.translate([0.06, 0, -0.02], wrt="world")
             obj_to_box = c.pose
             obj_to_world = pp.multiply(box_to_world, obj_to_box)
             obj_goal = mercury.pybullet.create_mesh_body(
@@ -970,6 +987,7 @@ class ReorientDemoInterface:
 
             self.scan_pile()
             init_pose = pp.get_pose(self.env.fg_object_id)
+            pointmap = None
             while True:
                 result = self.pick_and_place()
                 if "js_place" in result:
@@ -1000,7 +1018,9 @@ class ReorientDemoInterface:
         self.env.reverse = True
 
         for fg_object_id, init_pose, result, pointmap in history[::-1]:
-            pre_place_pose = self.env.PRE_PLACE_POSE
+            self.env.ri.setj(result["j_pre_place"])
+            pre_place_pose = self.env.ri.get_pose("tipLink")
+            self.real2robot()
             place_pose = pp.get_pose(fg_object_id)
 
             self.env.fg_object_id = fg_object_id
@@ -1030,15 +1050,24 @@ class ReorientDemoInterface:
                 target=place_pose[0],
                 rotation_axis="z",
             )
-            self.env.ri.setj(j)
-            self.env.update_obs()
-            self.env.obs["pointmap"] = pointmap
-            self.real2robot()
-
-            js = self.env.ri.planj(
-                result["j_pre_place"], obstacles=self.env.bg_objects
-            )
-            self.send_avs(js, time_scale=5)
+            if 1:
+                js = self.env.ri.planj(j, obstacles=self.env.bg_objects)
+                self.send_avs(js, time_scale=10)
+                self.wait_interpolation()
+                self.capture_obs()
+                self.obs_to_env()
+                pp.remove_body(self.env.bg_objects[-1])
+                self.env.bg_objects = self.env.bg_objects[:-1]
+            else:
+                self.env.ri.setj(j)
+                self.env.update_obs()
+                self.real2robot()
+                js = self.env.ri.planj(
+                    result["j_pre_place"], obstacles=self.env.bg_objects
+                )
+                self.send_avs(js, time_scale=5)
+            if pointmap is not None:
+                self.env.obs["pointmap"] = pointmap
 
             while True:
                 result = self.pick_and_place()
@@ -1066,19 +1095,14 @@ if __name__ == "__main__":
     if args.interactive:
         IPython.embed()
     else:
-        di.start_passthrough()
-        di.reset_pose(wait=False)
-        try:
-            rospy.wait_for_message(
-                "/singleview_3d_pose_estimation/output",
-                ObjectPoseArray,
-                timeout=1,
-            )
-        except rospy.exceptions.ROSException:
-            pass
-        di.stop_passthrough()
-        di.wait_interpolation()
+        if 0:
+            di.reset_pose()
+            di.start_passthrough()
+            di.look_at_pile(time_scale=5)
+            mercury.pybullet.pause()
+            di.stop_passthrough()
 
+        di.reset_pose()
         di.run_box_packing(reverse=True)
 
         IPython.embed()
