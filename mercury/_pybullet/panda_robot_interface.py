@@ -147,7 +147,13 @@ class PandaRobotInterface:
                     return
 
     def solve_ik(
-        self, pose, move_target=None, n_init=1, random_state=None, **kwargs
+        self,
+        pose,
+        move_target=None,
+        n_init=1,
+        random_state=None,
+        validate=False,
+        **kwargs,
     ):
         if move_target is None:
             move_target = self.robot_model.tipLink
@@ -169,7 +175,8 @@ class PandaRobotInterface:
                 **kwargs,
             )
             if result is not False:
-                break
+                if not validate or (validate and self.validatej(result)):
+                    break
             self.update_robot_model(sample_fn())
         else:
             # logger.warning("Failed to solve IK")
