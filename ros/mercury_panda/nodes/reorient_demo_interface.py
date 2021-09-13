@@ -289,7 +289,7 @@ class ReorientDemoInterface:
         )
         sync.registerCallback(self._callback)
 
-    def _unsubsribe(self):
+    def _unsubscribe(self):
         for sub in self._subscribers:
             sub.unregister()
 
@@ -353,7 +353,7 @@ class ReorientDemoInterface:
                 for key in ["depth", "K", "camera_to_base"]
             ):
                 rospy.loginfo("Received observation")
-                self._unsubsribe()
+                self._unsubscribe()
                 break
         else:
             rospy.logerr("Timeout")
@@ -398,7 +398,7 @@ class ReorientDemoInterface:
             ):
                 rospy.loginfo("Received observation")
                 self.stop_passthrough()
-                self._unsubsribe()
+                self._unsubscribe()
                 break
         else:
             rospy.logerr("Timeout")
