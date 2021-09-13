@@ -21,12 +21,12 @@ def get_reorient_poses(env):
     if _utils.get_class_id(env.fg_object_id) == 11:  # large
         bounds = (
             (0.35, -0.40, env.TABLE_OFFSET + 0.001),
-            (0.65, -0.30, env.TABLE_OFFSET + 0.001),
+            (0.50, -0.35, env.TABLE_OFFSET + 0.001),
         )
     else:
         bounds = (
-            (0.35, -0.55, env.TABLE_OFFSET + 0.001),
-            (0.65, -0.35, env.TABLE_OFFSET + 0.001),
+            (0.35, -0.50, env.TABLE_OFFSET + 0.001),
+            (0.50, -0.35, env.TABLE_OFFSET + 0.001),
         )
     if env.debug:
         pp.draw_aabb(bounds)
@@ -96,6 +96,8 @@ def get_reorient_poses(env):
             distance_to_plane = min(point[8] for point in points)
             assert distance_to_plane > 0
             c.position[2] += -distance_to_plane
+
+            c.position[2] += 0.02  # margin
 
             for x, y in XY:
                 reorient_poses.append([x, y, c.position[2], *c.quaternion])

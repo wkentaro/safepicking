@@ -180,17 +180,20 @@ def plan_reorient(env, grasp_pose, reorient_pose):
     obj_af_to_world = np.hsplit(reorient_pose, [3])
 
     # find self-collision-free j_grasp
-    for dg in np.linspace(-np.pi, np.pi, num=8, endpoint=False):
+    for dg in np.random.uniform(-np.pi, np.pi, size=(8,)):
         env.ri.attachments = []
 
         c = mercury.geometry.Coordinate(*ee_af_to_world)
         c.rotate([0, 0, dg])
-        j = env.ri.solve_ik(c.pose, n_init=3)
+        j = env.ri.solve_ik(c.pose, n_init=5)
         if j is None or not env.ri.validatej(
             j,
             obstacles=bg_object_ids,
-            min_distances=mercury.utils.StaticDict(-0.01),
+            min_distances=mercury.utils.StaticDict(-0.02),
         ):
+            print("no j_grasp")
+            if j is not None and env.reverse:
+                env.ri.setj(j)
             continue
 
         result["j_grasp"] = j
@@ -205,18 +208,23 @@ def plan_reorient(env, grasp_pose, reorient_pose):
             j = env.ri.solve_ik(
                 obj_af_to_world,
                 move_target=env.ri.robot_model.attachment_link0,
-                thre=0.01,
-                rthre=np.deg2rad(10),
+                thre=0.05,
                 n_init=5,
             )
         env.ri.attachments = []  # skip env.ri.attachments from validatej
         if j is not None and env.ri.validatej(
             j,
             obstacles=bg_object_ids,
-            min_distances=mercury.utils.StaticDict(-0.01),
+            min_distances=mercury.utils.StaticDict(-0.02),
         ):
             result["j_place"] = j
             break
+        print("no j_place")
+        if j is not None and env.reverse:
+            env.ri.setj(j)
+            import IPython
+
+            IPython.embed()  # NOQA
     else:
         logger.warning("j_grasp and j_place are not found")
         before_return()
@@ -235,8 +243,12 @@ def plan_reorient(env, grasp_pose, reorient_pose):
     env.ri.attachments = result["attachments"]
 
     c = mercury.geometry.Coordinate(*ee_af_to_world)
-    c.translate([0, 0, -0.2], wrt="local")
-    j = env.ri.solve_ik(c.pose)
+    c.translate([0, 0, 0.2], wrt="world")
+    j = env.ri.solve_ik(c.pose, rthre=np.deg2rad(30))
+    if j is None:
+        c = mercury.geometry.Coordinate(*ee_af_to_world)
+        c.translate([0, 0, -0.2], wrt="local")
+        j = env.ri.solve_ik(c.pose, rthre=np.deg2rad(30))
     if j is None:
         logger.warning("j_post_grasp is not found")
         before_return()
@@ -303,7 +315,7 @@ def plan_reorient(env, grasp_pose, reorient_pose):
     js = env.ri.planj(
         result["j_pre_place"],
         obstacles=obstacles,
-        min_distances_start_goal={(env.ri.attachments[0].child, -1): -0.01},
+        min_distances_start_goal=mercury.utils.StaticDict(-0.01),
     )
     if js is None:
         logger.warning("js_place is not found")

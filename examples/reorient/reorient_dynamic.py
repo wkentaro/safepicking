@@ -110,6 +110,9 @@ def plan_dynamic_reorient(env, grasp_poses, reorient_poses, pickable):
     object_label = object_labels[object_fg_flags == 1][0]
     object_pose = object_poses[object_fg_flags == 1][0]
 
+    if env.reverse:
+        object_pose[:3] = env.PILE_POSITION
+
     with torch.no_grad():
         reorientable_pred, trajectory_length_pred = model(
             heightmap=torch.as_tensor(heightmap[None, None]).float().cuda(),
