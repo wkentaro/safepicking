@@ -80,18 +80,18 @@ class MaskRCNNInstanceSegmentationNode(LazyTransport):
             masks = masks[keep]
             confs = confs[keep]
 
-        if len(class_ids) > 0:
-            uniq, counts = np.unique(class_ids, return_counts=True)
-            keep = []
-            for cls_id, count in zip(uniq, counts):
-                if count == 1:
-                    index = np.argwhere(class_ids == cls_id)[0, 0]
-                else:
-                    index = np.argmax(confs[class_ids == cls_id])
-                keep.append(index)
-            class_ids = class_ids[keep]
-            masks = masks[keep]
-            confs = confs[keep]
+        # if len(class_ids) > 0:
+        #     uniq, counts = np.unique(class_ids, return_counts=True)
+        #     keep = []
+        #     for cls_id, count in zip(uniq, counts):
+        #         if count == 1:
+        #             index = np.argwhere(class_ids == cls_id)[0, 0]
+        #         else:
+        #             index = np.argmax(confs[class_ids == cls_id])
+        #         keep.append(index)
+        #     class_ids = class_ids[keep]
+        #     masks = masks[keep]
+        #     confs = confs[keep]
 
         if len(class_ids) > 0:
             sort = np.argsort(confs)
