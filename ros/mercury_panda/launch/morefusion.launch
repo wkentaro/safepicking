@@ -48,7 +48,7 @@
       </group>
     </group>
 
-    <node name="singleview_3d_pose_estimation"
+    <node name="singleview_3d_pose_estimation_static"
           pkg="morefusion_panda_ycb_video" type="singleview_3d_pose_estimation.py"
           clear_params="true"
           output="screen" if="$(arg PROCESS)">
@@ -63,16 +63,16 @@
         with_occupancy: true
       </rosparam>
     </node>
-    <node name="object_poses_to_markers"
+    <node name="object_poses_to_markers_static"
           pkg="morefusion_panda_ycb_video" type="object_poses_to_markers.py"
           clear_params="true">
-      <remap from="~input" to="singleview_3d_pose_estimation/output" />
+      <remap from="~input" to="singleview_3d_pose_estimation_static/output" />
     </node>
 
     <node name="object_mapping"
           pkg="morefusion_panda_ycb_video" type="object_mapping.py"
           clear_params="true" if="$(arg PROCESS)">
-      <remap from="~input/poses" to="singleview_3d_pose_estimation/output" />
+      <remap from="~input/poses" to="singleview_3d_pose_estimation_static/output" />
       <remap from="~input/grids" to="/camera/octomap_server/output/grids" />
       <rosparam subst_value="true">
         frame_id: panda_link0
@@ -108,27 +108,27 @@
     </group>
   </group>  <!-- unless="$(arg DYNAMIC)" -->
 
-  <group if="$(arg DYNAMIC)">
-    <node name="singleview_3d_pose_estimation"
-          pkg="morefusion_panda_ycb_video" type="singleview_3d_pose_estimation.py"
-          clear_params="true"
-          output="screen" if="$(arg PROCESS)">
-      <remap from="~input/camera_info" to="/camera/color/camera_info" />
-      <remap from="~input/rgb" to="/camera/color/image_rect_color" unless="$(arg PASSTHROUGH)" />
-      <remap from="~input/rgb" to="/camera/color/image_rect_color_passthrough/output" if="$(arg PASSTHROUGH)" />
-      <remap from="~input/depth" to="/camera/aligned_depth_to_color/image_raw" />
-      <remap from="~input/label_ins" to="/camera/mask_rcnn_instance_segmentation/output/label_ins" />
-      <remap from="~input/class" to="/camera/mask_rcnn_instance_segmentation/output/class" />
-      <rosparam subst_value="true">
-        with_occupancy: false
-      </rosparam>
-    </node>
-    <node name="object_poses_to_markers"
-          pkg="morefusion_panda_ycb_video" type="object_poses_to_markers.py"
-          clear_params="true">
-      <remap from="~input" to="singleview_3d_pose_estimation/output" />
-    </node>
+  <node name="singleview_3d_pose_estimation"
+        pkg="morefusion_panda_ycb_video" type="singleview_3d_pose_estimation.py"
+        clear_params="true"
+        output="screen" if="$(arg PROCESS)">
+    <remap from="~input/camera_info" to="/camera/color/camera_info" />
+    <remap from="~input/rgb" to="/camera/color/image_rect_color" unless="$(arg PASSTHROUGH)" />
+    <remap from="~input/rgb" to="/camera/color/image_rect_color_passthrough/output" if="$(arg PASSTHROUGH)" />
+    <remap from="~input/depth" to="/camera/aligned_depth_to_color/image_raw" />
+    <remap from="~input/label_ins" to="/camera/mask_rcnn_instance_segmentation/output/label_ins" />
+    <remap from="~input/class" to="/camera/mask_rcnn_instance_segmentation/output/class" />
+    <rosparam subst_value="true">
+      with_occupancy: false
+    </rosparam>
+  </node>
+  <node name="object_poses_to_markers"
+        pkg="morefusion_panda_ycb_video" type="object_poses_to_markers.py"
+        clear_params="true">
+    <remap from="~input" to="singleview_3d_pose_estimation/output" />
+  </node>
 
+  <group if="$(arg DYNAMIC)">
     <group if="$(arg GUI)">
       <node name="rviz"
             pkg="rviz" type="rviz"
