@@ -102,9 +102,16 @@ def get_grasp_poses(env):
     laplacian = cv2.Laplacian(normals_on_obj, cv2.CV_64FC3)
     magnitude = np.linalg.norm(laplacian, axis=2)
     edge_mask = magnitude > 0.5
-    edge_mask = (
-        cv2.dilate(np.uint8(edge_mask) * 255, kernel=np.ones((5, 5))) == 255
-    )
+    if _utils.get_class_id(env.fg_object_id) == 2:
+        edge_mask = (
+            cv2.dilate(np.uint8(edge_mask) * 255, kernel=np.ones((15, 15)))
+            == 255
+        )
+    else:
+        edge_mask = (
+            cv2.dilate(np.uint8(edge_mask) * 255, kernel=np.ones((5, 5)))
+            == 255
+        )
     mask = mask & ~edge_mask
 
     # imgviz.io.imsave(
@@ -236,11 +243,11 @@ def plan_reorient(env, grasp_pose, reorient_pose):
 
     c = mercury.geometry.Coordinate(*ee_af_to_world)
     c.translate([0, 0, 0.2], wrt="world")
-    j = env.ri.solve_ik(c.pose, rthre=np.deg2rad(30))
+    j = env.ri.solve_ik(c.pose, rthre=np.deg2rad(30), thre=0.05)
     if j is None:
         c = mercury.geometry.Coordinate(*ee_af_to_world)
         c.translate([0, 0, -0.2], wrt="local")
-        j = env.ri.solve_ik(c.pose, rthre=np.deg2rad(30))
+        j = env.ri.solve_ik(c.pose, rthre=np.deg2rad(30), thre=0.05)
     if j is None:
         logger.warning("j_post_grasp is not found")
         before_return()
@@ -528,9 +535,10 @@ def plan_place(env, target_grasp_poses):
                 j = env.ri.solve_ik(
                     env.PRE_PLACE_POSE,
                     move_target=env.ri.robot_model.attachment_link0,
-                    n_init=5,
+                    n_init=10,
+                    validate=True,
                 )
-            if j is None or not env.ri.validatej(j):
+            if j is None:
                 world_saver.restore()
                 env.ri.attachments = []
                 print("no j_pre_place")
@@ -549,9 +557,7 @@ def plan_place(env, target_grasp_poses):
                         move_target=env.ri.robot_model.attachment_link0,
                         n_init=3,
                     )
-                if j is None or not env.ri.validatej(
-                    j, obstacles=env.bg_objects
-                ):
+                if j is None:
                     world_saver.restore()
                     env.ri.attachments = []
                     print("no j_last_pre_place")
@@ -625,8 +631,12 @@ def plan_place(env, target_grasp_poses):
         for pose in pp.interpolate_poses_by_num_steps(
             pose1, pose2, num_steps=5
         ):
-            j = env.ri.solve_ik(pose)
-            if j is None or not env.ri.validatej(j, obstacles=obstacles):
+            j = env.ri.solve_ik(pose, rthre=np.deg2rad(10), thre=0.01)
+            if j is None or not env.ri.validatej(
+                j,
+                obstacles=obstacles,
+                min_distances=mercury.utils.StaticDict(-0.01),
+            ):
                 break
             env.ri.setj(j)
             js.append(j)
@@ -653,8 +663,8 @@ def plan_place(env, target_grasp_poses):
             pose1, pose2, num_steps=5
         ):
             j = env.ri.solve_ik(pose)
-            env.ri.setj(j)
             if j is not None:
+                env.ri.setj(j)
                 js.append(j)
         js.append(result["j_pre_place"])
         result["js_post_place"] = js

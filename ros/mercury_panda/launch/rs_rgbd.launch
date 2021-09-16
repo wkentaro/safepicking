@@ -3,6 +3,13 @@
   <arg name="GUI" default="true" />
   <arg name="PROCESS" default="true" />
 
+  <rosparam subst_value="true">
+    /camera/rgb_camera/brightness: 20
+    /camera/rgb_camera/contrast: 60
+    /camera/rgb_camera/enable_auto_white_balance: false
+    /camera/rgb_camera/white_balance: 2800
+  </rosparam>
+
   <include file="$(find realsense2_camera)/launch/rs_rgbd.launch" if="$(arg PROCESS)">
   </include>
 

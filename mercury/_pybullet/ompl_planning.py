@@ -77,6 +77,10 @@ class pbValidityChecker(ob.StateValidityChecker):
                 continue
             if link_a == 6 and link_b == 8:
                 continue
+            if link_a == 0 and link_b == 4:
+                distance = 0.04
+            else:
+                distance = 0
             is_colliding |= (
                 len(
                     p.getClosestPoints(
@@ -84,7 +88,7 @@ class pbValidityChecker(ob.StateValidityChecker):
                         linkIndexA=link_a,
                         bodyB=self.ri.robot,
                         linkIndexB=link_b,
-                        distance=0,
+                        distance=distance,
                     )
                 )
                 > 0

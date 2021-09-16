@@ -162,6 +162,10 @@ def plan_dynamic_reorient(env, grasp_poses, reorient_poses, pickable):
     else:
         indices = np.argsort(reorientable_pred)[::-1]
 
+    if _utils.get_class_id(env.fg_object_id) == 2:
+        keep = reorientable_pred[indices] > 0.5
+        indices = indices[keep]
+
     assert (
         pickable.shape[0]
         == reorientable_pred.shape[0]

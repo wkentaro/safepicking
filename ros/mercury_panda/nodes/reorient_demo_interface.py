@@ -379,7 +379,7 @@ class ReorientDemoInterface:
         self.capture_geometry()
         self.geometry_to_env()
 
-    def capture_obs(self):
+    def capture_obs(self, timeout=3):
         if not self._initialized:
             rospy.logerr("Task is not initialized yet")
             return
@@ -390,7 +390,7 @@ class ReorientDemoInterface:
         now = rospy.Time.now() + rospy.Duration(1)
         if "timestamp" not in self.obs:
             self.obs["timestamp"] = rospy.Time(0)
-        for i in range(30):
+        for i in range(timeout * 10):
             rospy.loginfo_throttle(10, "Waiting for observation")
             rospy.sleep(0.1)
             if self.obs["timestamp"] > now and all(
@@ -403,7 +403,10 @@ class ReorientDemoInterface:
         else:
             rospy.logerr("Timeout")
 
-    def obs_to_env(self):
+    def obs_to_env(self, tsdf=True):
+        if not hasattr(self, "obs") or "camera_to_base" not in self.obs:
+            return False
+
         camera_to_base = np.hsplit(self.obs["camera_to_base"], [3])
         for object_pose in self.obs["poses"]:
             if object_pose.class_id == self.env._fg_class_id:
@@ -430,31 +433,34 @@ class ReorientDemoInterface:
             return False
         target_instance_id = object_pose.instance_id
 
-        K = self.obs["K"]
-        depth = self.obs["depth"].copy()
-        segm = self.obs["segm"]
-        mask = segm == target_instance_id
-        mask = (
-            cv2.dilate(
-                imgviz.bool2ubyte(mask), kernel=np.ones((8, 8)), iterations=3
+        if tsdf:
+            K = self.obs["K"]
+            depth = self.obs["depth"].copy()
+            segm = self.obs["segm"]
+            mask = segm == target_instance_id
+            mask = (
+                cv2.dilate(
+                    imgviz.bool2ubyte(mask),
+                    kernel=np.ones((8, 8)),
+                    iterations=3,
+                )
+                == 255
             )
-            == 255
-        )
-        depth[mask] = np.nan
-        tsdf = tsdf_from_depth(depth, camera_to_base, K)
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            visual_file = path.Path(tmp_dir) / "bg_structure.obj"
-            tsdf.export(visual_file)
-            collision_file = mercury.pybullet.get_collision_file(
-                visual_file, resolution=10000
-            )
-            bg_structure = mercury.pybullet.create_mesh_body(
-                visual_file=visual_file,
-                collision_file=collision_file,
-                rgba_color=(0.5, 0.5, 0.5, 1),
-            )
+            depth[mask] = np.nan
+            tsdf = tsdf_from_depth(depth, camera_to_base, K)
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                visual_file = path.Path(tmp_dir) / "bg_structure.obj"
+                tsdf.export(visual_file)
+                collision_file = mercury.pybullet.get_collision_file(
+                    visual_file, resolution=10000
+                )
+                bg_structure = mercury.pybullet.create_mesh_body(
+                    visual_file=visual_file,
+                    collision_file=collision_file,
+                    rgba_color=(0.5, 0.5, 0.5, 1),
+                )
+            self.env.bg_objects.append(bg_structure)
 
-        self.env.bg_objects.append(bg_structure)
         self.env.object_ids = [object_id]
         self.env.fg_object_id = object_id
         self.env.update_obs()
@@ -530,24 +536,25 @@ class ReorientDemoInterface:
 
     def look_at_target(self):
         if self.env.fg_object_id is None:
-            target = [0.5, -0.5, 0.1]
+            target = [0.2, -0.5, 0.1]
         else:
             target = pp.get_pose(self.env.fg_object_id)[0]
         self.look_at(
-            eye=[target[0] - 0.1, target[1], target[2] + 0.4],
+            eye=[target[0] - 0.1, target[1], target[2] + 0.5],
             target=target,
             rotation_axis="z",
             time_scale=4,
         )
 
-    def scan_target(self):
+    def scan_target(self, timeout=3):
         if not self._initialized:
             rospy.logerr("Task is not initialized yet")
             return
 
         self.look_at_target()
-        self.capture_obs()
-        self.obs_to_env()
+        self.capture_obs(timeout=timeout)
+        while not self.obs_to_env(tsdf=False):
+            self.capture_obs(timeout=timeout)
 
     def plan_reorient(self, heuristic=False):
         if heuristic:
@@ -630,10 +637,10 @@ class ReorientDemoInterface:
         with pp.WorldSaver():
             self.env.ri.setj(js[-1])
             c = mercury.geometry.Coordinate(*self.env.ri.get_pose("tipLink"))
-            if _utils.get_class_id(self.env.fg_object_id) == 5:
+            if _utils.get_class_id(self.env.fg_object_id) in [3, 5, 11]:
                 n = 5
             else:
-                n = 1
+                n = 3
             js = []
             for i in range(n):
                 c.translate([0, 0, -0.01], wrt="world")
@@ -646,6 +653,8 @@ class ReorientDemoInterface:
 
         if _utils.get_class_id(self.env.fg_object_id) == 11:
             rospy.sleep(4)
+        elif _utils.get_class_id(self.env.fg_object_id) == 2:
+            rospy.sleep(7)
         else:
             rospy.sleep(6)
         self.env.ri.attachments = []
@@ -655,7 +664,7 @@ class ReorientDemoInterface:
 
         self.send_avs([self.env.ri.homej], time_scale=4)
 
-    def plan_place(self):
+    def plan_place(self, num_grasps=10):
         pcd_in_obj, normals_in_obj = _reorient.get_query_ocs(self.env)
         dist_from_centroid = np.linalg.norm(pcd_in_obj, axis=1)
 
@@ -667,12 +676,12 @@ class ReorientDemoInterface:
         p = p[keep]
         if _utils.get_class_id(self.env.fg_object_id) in [5, 11]:
             indices = np.r_[
-                np.random.choice(indices, 10, p=p / p.sum()),
+                np.random.choice(indices, num_grasps, p=p / p.sum()),
             ]
         else:
             indices = np.r_[
-                np.random.choice(indices, 5, p=p / p.sum()),
-                np.random.permutation(pcd_in_obj.shape[0])[:5],
+                np.random.choice(indices, num_grasps // 2, p=p / p.sum()),
+                np.random.permutation(pcd_in_obj.shape[0])[: num_grasps // 2],
             ]
 
         pcd_in_obj = pcd_in_obj[indices]
@@ -682,7 +691,7 @@ class ReorientDemoInterface:
         )
         grasp_poses = np.hstack([pcd_in_obj, quaternion_in_obj])  # in obj
 
-        if 1:
+        if 0:
             for grasp_pose in grasp_poses:
                 pp.draw_pose(
                     np.hsplit(grasp_pose, [3]),
@@ -695,8 +704,8 @@ class ReorientDemoInterface:
 
         return result
 
-    def pick_and_place(self):
-        result = self.plan_place()
+    def pick_and_place(self, num_grasps=10):
+        result = self.plan_place(num_grasps=num_grasps)
         if "js_place" not in result:
             rospy.logerr("Failed to plan placement")
             return result
@@ -726,17 +735,20 @@ class ReorientDemoInterface:
         self.wait_interpolation()
 
         self.send_avs(result["js_place"], time_scale=15)
-        self.wait_interpolation()
 
         self.stop_grasp()
-        rospy.sleep(7)
+        if self.env._fg_class_id == 5:
+            rospy.sleep(10)
+        else:
+            rospy.sleep(9)
         self.env.ri.attachments = []
 
         self.send_avs(result["js_post_place"], time_scale=10)
         self.wait_interpolation()
 
         js = self.env.ri.planj(
-            self.env.ri.homej, obstacles=self.env.bg_objects
+            self.env.ri.homej,
+            obstacles=self.env.bg_objects + self.env.object_ids,
         )
         if js is None:
             self.reset_pose(time_scale=5)
@@ -971,6 +983,7 @@ class ReorientDemoInterface:
 
         self.env._fg_class_id = class_id
         self.env.PLACE_POSE = place_pose
+        self.env.LAST_PRE_PLACE_POSE = None
         self.env.PRE_PLACE_POSE = pre_place_pose
         if self._obj_goal is not None:
             pp.remove_body(self._obj_goal)
@@ -1079,49 +1092,64 @@ class ReorientDemoInterface:
                 self.scan_target()
 
     def scan_pile_multiview(self):
-        self._subscribe_multiview()
         self.start_passthrough()
+        self._subscribe_multiview()
         rospy.wait_for_message(
             "/camera/mask_rcnn_instance_segmentation/output/class",
             ObjectClassArray,
         )
 
         sleep = 2
+
         kwargs = dict(time_scale=20, rotation_axis="z")
-
-        # center
-        self.look_at(eye=[0.5, 0, 0.7], target=[0.5, 0, 0], **kwargs)
-        rospy.sleep(sleep)
-
-        # left
-        self.look_at(eye=[0.5, 0.3, 0.7], target=[0.5, 0.2, 0], **kwargs)
-        rospy.sleep(sleep)
-
-        # left bottom
-        self.look_at(eye=[0.2, 0.3, 0.7], target=[0.3, 0.2, 0], **kwargs)
-        rospy.sleep(sleep)
 
         # bottom
         self.look_at(eye=[0.2, 0, 0.7], target=[0.3, 0, 0], **kwargs)
         rospy.sleep(sleep)
+        self.obs_to_env_multiview()
 
-        # right bottom
-        self.look_at(eye=[0.2, -0.3, 0.7], target=[0.3, -0.2, 0], **kwargs)
+        # center
+        self.look_at(eye=[0.4, 0, 0.7], target=[0.4, 0, 0], **kwargs)
         rospy.sleep(sleep)
+        self.obs_to_env_multiview()
 
-        # right
-        self.look_at(eye=[0.5, -0.3, 0.7], target=[0.5, -0.2, 0], **kwargs)
+        # top
+        self.look_at(eye=[0.7, 0, 0.6], target=[0.6, 0, 0], **kwargs)
         rospy.sleep(sleep)
+        self.obs_to_env_multiview()
 
-        now = rospy.Time.now()
-        while self.obs["timestamp"] < now:
-            rospy.sleep(0.1)
+        # left
+        self.look_at(eye=[0.5, 0.3, 0.7], target=[0.5, 0.2, 0], **kwargs)
+        rospy.sleep(sleep)
+        self.obs_to_env_multiview()
 
-        self.stop_passthrough()
+        # left bottom
+        self.look_at(eye=[0.2, 0.3, 0.7], target=[0.3, 0.2, 0], **kwargs)
+        rospy.sleep(sleep)
+        self.obs_to_env_multiview()
+
+        # # bottom
+        # self.look_at(eye=[0.2, 0, 0.7], target=[0.3, 0, 0], **kwargs)
+        # rospy.sleep(sleep)
+        # self.obs_to_env_multiview()
+        #
+        # # right bottom
+        # self.look_at(eye=[0.2, -0.2, 0.7], target=[0.3, -0.1, 0], **kwargs)
+        # rospy.sleep(sleep)
+        # self.obs_to_env_multiview()
+        #
+        # # right
+        # self.look_at(eye=[0.5, -0.2, 0.7], target=[0.5, -0.1, 0], **kwargs)
+        # rospy.sleep(sleep)
+        # self.stop_passthrough()
+        # self.obs_to_env_multiview()
+
+        self.reset_pose()
         self._unsubscribe()
+        self.obs_to_env_multiview()
 
     def _subscribe_multiview(self):
-        self.obs = {}
+        self.obs = {"poses": []}
         sub = rospy.Subscriber(
             "/object_mapping/output/poses",
             ObjectPoseArray,
@@ -1130,26 +1158,39 @@ class ReorientDemoInterface:
         self._subscribers = [sub]
 
     def _callback_multiview(self, poses_msg):
-        self.obs["timestamp"] = poses_msg.header.stamp
         self.obs["poses"] = poses_msg.poses
 
     def obs_to_env_multiview(self):
+        class_ids = [2, 3, 5, 11, 12, 15, 16]
+
+        if not hasattr(self, "instance_id_to_object_id"):
+            self.instance_id_to_object_id = {}
+
         object_ids = []
         for object_pose in self.obs["poses"]:
-            obj_to_base = pose_from_msg(object_pose.pose)
-            visual_file = mercury.datasets.ycb.get_visual_file(
-                class_id=object_pose.class_id
-            )
-            collision_file = mercury.pybullet.get_collision_file(visual_file)
-            if self.env.fg_object_id is not None:
-                pp.remove_body(self.env.fg_object_id)
-            object_id = mercury.pybullet.create_mesh_body(
-                visual_file=visual_file,
-                collision_file=collision_file,
-                position=obj_to_base[0],
-                quaternion=obj_to_base[1],
-                mass=0.1,
-            )
+            if object_pose.class_id not in class_ids:
+                continue
+            instance_id = object_pose.instance_id
+            if instance_id in self.instance_id_to_object_id:
+                object_id = self.instance_id_to_object_id[instance_id]
+            else:
+                obj_to_base = pose_from_msg(object_pose.pose)
+                visual_file = mercury.datasets.ycb.get_visual_file(
+                    class_id=object_pose.class_id
+                )
+                collision_file = mercury.pybullet.get_collision_file(
+                    visual_file
+                )
+                if self.env.fg_object_id is not None:
+                    pp.remove_body(self.env.fg_object_id)
+                object_id = mercury.pybullet.create_mesh_body(
+                    visual_file=visual_file,
+                    collision_file=collision_file,
+                    position=obj_to_base[0],
+                    quaternion=obj_to_base[1],
+                    mass=0.1,
+                )
+                self.instance_id_to_object_id[instance_id] = object_id
             object_ids.append(object_id)
         self.env.object_ids = object_ids
 
@@ -1157,14 +1198,14 @@ class ReorientDemoInterface:
         shelf1 = _utils.create_shelf(X=0.29, Y=0.41, Z=0.285, N=2)
         c = mercury.geometry.Coordinate()
         c.rotate([0, 0, np.deg2rad(-90)])
-        c.translate([0.35, 0.46, self.env.TABLE_OFFSET + 0.01], wrt="world")
+        c.translate([0.33, 0.54, self.env.TABLE_OFFSET], wrt="world")
         pp.set_pose(shelf1, c.pose)
 
         shelf2 = _utils.create_shelf(X=0.29, Y=0.41, Z=0.285, N=2)
         c = mercury.geometry.Coordinate()
-        c.rotate([0, 0, np.deg2rad(-123)])
-        c.translate([0.81, 0.3, self.env.TABLE_OFFSET + 0.01], wrt="world")
-        c.translate([-0.02, -0.01, 0])
+        c.rotate([0, 0, np.deg2rad(-145)])
+        c.translate([0.80, 0.31, self.env.TABLE_OFFSET], wrt="world")
+        c.translate([0.0, -0.03, 0])
         pp.set_pose(shelf2, c.pose)
 
         color = (0.7, 0.7, 0.7, 1)
@@ -1175,8 +1216,8 @@ class ReorientDemoInterface:
         )
         c = mercury.geometry.Coordinate()
         c.rotate([np.deg2rad(9), 0, 0])
-        c.rotate([0, 0, np.deg2rad(-100)], wrt="world")
-        c.translate([1.03, -0.11, 0.09], wrt="world")
+        c.rotate([0, 0, np.deg2rad(-110)], wrt="world")
+        c.translate([0.89, -0.13, 0.09], wrt="world")
         pp.set_pose(box1, c.pose)
 
         box2 = mercury.pybullet.create_bin(
@@ -1189,6 +1230,11 @@ class ReorientDemoInterface:
         box2_to_world = pp.multiply(box1_to_world, box2_to_box1)
         pp.set_pose(box2, box2_to_world)
 
+        self.env.bg_objects.append(shelf1)
+        self.env.bg_objects.append(shelf2)
+        self.env.bg_objects.append(box1)
+        self.env.bg_objects.append(box2)
+
         self._shelf1 = shelf1
         self._shelf2 = shelf2
         self._box1 = box1
@@ -1198,24 +1244,81 @@ class ReorientDemoInterface:
         if self._obj_goal is not None:
             pp.remove_body(self._obj_goal)
 
-        # nth: 0
-        class_id = 2
-        obj = mercury.pybullet.create_mesh_body(
-            visual_file=mercury.datasets.ycb.get_visual_file(class_id),
-            rgba_color=(1, 1, 1, 1) if nth > 0 else (0.5, 0.5, 0.5, 0.5),
-        )
-        c = mercury.geometry.Coordinate(
-            quaternion=_utils.get_canonical_quaternion(class_id)
-        )
-        c.rotate([0, 0, np.deg2rad(90)])
-        c.translate([0.06, -0.17, 0.42], wrt="world")
-        obj_to_shelf2 = c.pose
-        shelf2_to_world = pp.get_pose(di._shelf2)
-        obj_to_world = pp.multiply(shelf2_to_world, obj_to_shelf2)
-        pp.set_pose(obj, obj_to_world)
         if nth == 0:
+            class_id = 2
+            obj = mercury.pybullet.create_mesh_body(
+                visual_file=mercury.datasets.ycb.get_visual_file(class_id),
+                rgba_color=(0.5, 0.5, 0.5, 0.5),
+            )
+            c = mercury.geometry.Coordinate(
+                quaternion=_utils.get_canonical_quaternion(class_id)
+            )
+            c.rotate([0, 0, np.deg2rad(90)])
+            c.translate([0.07, 0.17, 0.42], wrt="world")
+            obj_to_shelf2 = c.pose
+            shelf2_to_world = pp.get_pose(di._shelf2)
+            obj_to_world = pp.multiply(shelf2_to_world, obj_to_shelf2)
+            pp.set_pose(obj, obj_to_world)
+
             place_pose = obj_to_world
-            c.translate([0, 0.05, 0.05], wrt="world")
+            c.translate([0, -0.05, 0.02], wrt="world")
+            last_pre_place_pose = pp.multiply(shelf2_to_world, c.pose)
+            c.translate([0.25, 0, 0.05], wrt="world")
+            pre_place_pose = pp.multiply(shelf2_to_world, c.pose)
+
+            self.env._fg_class_id = class_id
+            self.env.PLACE_POSE = place_pose
+            self.env.LAST_PRE_PLACE_POSE = last_pre_place_pose
+            self.env.PRE_PLACE_POSE = pre_place_pose
+            self._obj_goal = obj
+            self._initialized = True
+            return
+        elif nth == 1:
+            class_id = 2
+            obj = mercury.pybullet.create_mesh_body(
+                visual_file=mercury.datasets.ycb.get_visual_file(class_id),
+                rgba_color=(0.5, 0.5, 0.5, 0.5),
+            )
+            c = mercury.geometry.Coordinate(
+                quaternion=_utils.get_canonical_quaternion(class_id)
+            )
+            c.rotate([0, 0, np.deg2rad(90)])
+            c.translate([0.07, 0.11, 0.42], wrt="world")
+            obj_to_shelf2 = c.pose
+            shelf2_to_world = pp.get_pose(di._shelf2)
+            obj_to_world = pp.multiply(shelf2_to_world, obj_to_shelf2)
+            pp.set_pose(obj, obj_to_world)
+
+            place_pose = obj_to_world
+            c.translate([0, -0.05, 0.02], wrt="world")
+            last_pre_place_pose = pp.multiply(shelf2_to_world, c.pose)
+            c.translate([0.25, 0, 0.05], wrt="world")
+            pre_place_pose = pp.multiply(shelf2_to_world, c.pose)
+
+            self.env._fg_class_id = class_id
+            self.env.PLACE_POSE = place_pose
+            self.env.LAST_PRE_PLACE_POSE = last_pre_place_pose
+            self.env.PRE_PLACE_POSE = pre_place_pose
+            self._obj_goal = obj
+            self._initialized = True
+            return
+        elif nth == 2:
+            class_id = 2
+            obj = mercury.pybullet.create_mesh_body(
+                visual_file=mercury.datasets.ycb.get_visual_file(class_id),
+                rgba_color=(0.5, 0.5, 0.5, 0.5),
+            )
+            c = mercury.geometry.Coordinate(
+                quaternion=_utils.get_canonical_quaternion(class_id)
+            )
+            c.translate([0.12, -0.11, 0.42], wrt="world")
+            obj_to_shelf2 = c.pose
+            shelf2_to_world = pp.get_pose(di._shelf2)
+            obj_to_world = pp.multiply(shelf2_to_world, obj_to_shelf2)
+            pp.set_pose(obj, obj_to_world)
+
+            place_pose = obj_to_world
+            c.translate([0, 0.02, 0.02], wrt="world")
             last_pre_place_pose = pp.multiply(shelf2_to_world, c.pose)
             c.translate([0.3, 0, 0.05], wrt="world")
             pre_place_pose = pp.multiply(shelf2_to_world, c.pose)
@@ -1227,36 +1330,175 @@ class ReorientDemoInterface:
             self._obj_goal = obj
             self._initialized = True
             return
+        elif nth == 3:
+            class_id = 5
+            obj = mercury.pybullet.create_mesh_body(
+                visual_file=mercury.datasets.ycb.get_visual_file(class_id),
+                rgba_color=(0.5, 0.5, 0.5, 0.5),
+            )
+            c = mercury.geometry.Coordinate(
+                quaternion=_utils.get_canonical_quaternion(class_id)
+            )
+            c.translate([0.10, 0.08, 0.38], wrt="world")
+            obj_to_shelf1 = c.pose
+            shelf1_to_world = pp.get_pose(di._shelf1)
+            obj_to_world = pp.multiply(shelf1_to_world, obj_to_shelf1)
+            pp.set_pose(obj, obj_to_world)
 
-    def run(self):
+            place_pose = obj_to_world
+            c.translate([0, 0.0, 0.05], wrt="world")
+            last_pre_place_pose = pp.multiply(shelf1_to_world, c.pose)
+            c.translate([0.3, 0, 0.05], wrt="world")
+            pre_place_pose = pp.multiply(shelf1_to_world, c.pose)
+
+            self.env._fg_class_id = class_id
+            self.env.PLACE_POSE = place_pose
+            self.env.LAST_PRE_PLACE_POSE = last_pre_place_pose
+            self.env.PRE_PLACE_POSE = pre_place_pose
+            self._obj_goal = obj
+            self._initialized = True
+            return
+        elif nth == 4:
+            class_id = 11
+            obj = mercury.pybullet.create_mesh_body(
+                visual_file=mercury.datasets.ycb.get_visual_file(class_id),
+                rgba_color=(0.5, 0.5, 0.5, 0.5),
+            )
+            c = mercury.geometry.Coordinate(
+                quaternion=_utils.get_canonical_quaternion(class_id)
+            )
+            c.rotate([0, 0, np.deg2rad(-70)])
+            c.rotate([np.deg2rad(-90), 0, 0], wrt="world")
+            c.translate([0.0, -0.02, 0.03], wrt="world")
+            obj_to_box2 = c.pose
+            box2_to_world = pp.get_pose(di._box2)
+            obj_to_world = pp.multiply(box2_to_world, obj_to_box2)
+            pp.set_pose(obj, obj_to_world)
+
+            place_pose = obj_to_world
+            c.translate([0, 0.0, 0.2], wrt="world")
+            pre_place_pose = pp.multiply(box2_to_world, c.pose)
+
+            self.env._fg_class_id = class_id
+            self.env.PLACE_POSE = place_pose
+            self.env.LAST_PRE_PLACE_POSE = None
+            self.env.PRE_PLACE_POSE = pre_place_pose
+            self._obj_goal = obj
+            self._initialized = True
+            return
+        elif nth == 5:
+            class_id = 3
+            obj = mercury.pybullet.create_mesh_body(
+                visual_file=mercury.datasets.ycb.get_visual_file(class_id),
+                rgba_color=(0.5, 0.5, 0.5, 0.5),
+            )
+            c = mercury.geometry.Coordinate(
+                quaternion=_utils.get_canonical_quaternion(class_id)
+            )
+            c.rotate([0, 0, np.deg2rad(-90)])
+            c.rotate([np.deg2rad(-90), 0, 0], wrt="world")
+            c.translate([0, -0.03, -0.02], wrt="world")
+            obj_to_box1 = c.pose
+            box1_to_world = pp.get_pose(di._box1)
+            obj_to_world = pp.multiply(box1_to_world, obj_to_box1)
+            pp.set_pose(obj, obj_to_world)
+
+            place_pose = obj_to_world
+            c.translate([0.0, 0.0, 0.2], wrt="world")
+            pre_place_pose = pp.multiply(box1_to_world, c.pose)
+
+            self.env._fg_class_id = class_id
+            self.env.PLACE_POSE = place_pose
+            self.env.LAST_PRE_PLACE_POSE = None
+            self.env.PRE_PLACE_POSE = pre_place_pose
+            self._obj_goal = obj
+            self._initialized = True
+            return
+
+    def test(self, nth=0):
+        self.reset_pose()
         self.init_workspace()
-        self.init_task()
 
-        if 0:
-            self.reset_pose()
-            self.scan_pile_multiview()
-            self.obs_to_env_multiview()
-        else:
+        if 1:
             self._subscribe_multiview()
-            rospy.sleep(3)
+            rospy.sleep(1)
             self.obs_to_env_multiview()
             self._unsubscribe()
 
-        self.env.fg_object_id = 17
-        target = np.array(pp.get_pose(self.env.fg_object_id)[0])
-        j = self.solve_ik_look_at(
-            eye=target + [0, 0, 0.4],
-            target=target,
-            rotation_axis="z",
-        )
-        j_bak = self.env.ri.getj()
-        self.env.ri.setj(j)
-        self.env.update_obs()
-        self.env.ri.setj(j_bak)
-
+        self.init_task(nth=nth)
+        self.scan_target()
         self.pick_and_place()
 
-        IPython.embed()
+    def run(self, scan=True):
+        self.env.reverse = False
+
+        self.reset_pose()
+
+        self.init_workspace()
+
+        if scan:
+            self.scan_pile_multiview()
+        else:
+            self._subscribe_multiview()
+            rospy.sleep(1)
+            self.obs_to_env_multiview()
+            self._unsubscribe()
+
+        assert self.env.object_ids
+
+        indices = [0, 1, 2, 3, 4, 5]
+        for nth in indices:
+            self.init_task(nth=nth)
+
+            for object_id in self.env.object_ids:
+                class_id = _utils.get_class_id(object_id)
+                if class_id != self.env._fg_class_id:
+                    continue
+
+                self.env.fg_object_id = object_id
+
+                target = np.array(pp.get_pose(self.env.fg_object_id)[0])
+                j = self.solve_ik_look_at(
+                    eye=target + [0, 0, 0.5],
+                    target=target,
+                    rotation_axis="z",
+                )
+                j_bak = self.env.ri.getj()
+                self.env.ri.setj(j)
+                self.env.update_obs()
+                self.env.ri.setj(j_bak)
+
+                if "js_place" in self.pick_and_place():
+                    break
+            else:
+                for object_id in self.env.object_ids:
+                    class_id = _utils.get_class_id(object_id)
+                    if class_id != self.env._fg_class_id:
+                        continue
+
+                    self.env.fg_object_id = object_id
+
+                    target = np.array(pp.get_pose(self.env.fg_object_id)[0])
+                    j = self.solve_ik_look_at(
+                        eye=target + [0, 0, 0.5],
+                        target=target,
+                        rotation_axis="z",
+                    )
+                    j_bak = self.env.ri.getj()
+                    self.env.ri.setj(j)
+                    self.env.update_obs()
+                    self.env.ri.setj(j_bak)
+
+                    self.pick_and_reorient()
+                    break
+
+                object_ids = self.env.object_ids
+                self.scan_target(timeout=6)
+                self.env.object_ids = object_ids
+                self.pick_and_place(num_grasps=20)
+
+            self.env.object_ids.remove(self.env.fg_object_id)
+            self.env.fg_object_id = None
 
 
 if __name__ == "__main__":
@@ -1267,6 +1509,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     di = ReorientDemoInterface()
+    self = di
     if args.interactive:
         IPython.embed()
     else:
