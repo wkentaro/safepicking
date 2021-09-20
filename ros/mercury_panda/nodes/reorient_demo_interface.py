@@ -407,7 +407,10 @@ class ReorientDemoInterface:
         if not hasattr(self, "obs") or "camera_to_base" not in self.obs:
             return False
 
-        camera_to_base = np.hsplit(self.obs["camera_to_base"], [3])
+        try:
+            camera_to_base = np.hsplit(self.obs["camera_to_base"], [3])
+        except Exception:
+            return False
         for object_pose in self.obs["poses"]:
             if object_pose.class_id == self.env._fg_class_id:
                 obj_to_camera = pose_from_msg(object_pose.pose)
@@ -539,12 +542,20 @@ class ReorientDemoInterface:
             target = [0.2, -0.5, 0.1]
         else:
             target = pp.get_pose(self.env.fg_object_id)[0]
-        self.look_at(
-            eye=[target[0] - 0.1, target[1], target[2] + 0.5],
-            target=target,
-            rotation_axis="z",
-            time_scale=4,
-        )
+        if self.env._fg_class_id == 2:
+            self.look_at(
+                eye=[target[0] - 0.1, target[1], target[2] + 0.6],
+                target=target,
+                rotation_axis="z",
+                time_scale=4,
+            )
+        else:
+            self.look_at(
+                eye=[target[0] - 0.1, target[1], target[2] + 0.5],
+                target=target,
+                rotation_axis="z",
+                time_scale=4,
+            )
 
     def scan_target(self, timeout=3):
         if not self._initialized:
@@ -1161,14 +1172,15 @@ class ReorientDemoInterface:
         self.obs["poses"] = poses_msg.poses
 
     def obs_to_env_multiview(self):
-        class_ids = [2, 3, 5, 11, 12, 15, 16]
-
         if not hasattr(self, "instance_id_to_object_id"):
             self.instance_id_to_object_id = {}
 
         object_ids = []
+        class_ids = []
         for object_pose in self.obs["poses"]:
-            if object_pose.class_id not in class_ids:
+            if object_pose.class_id == 17:
+                continue
+            if object_pose.class_id == 16 and 16 in class_ids:
                 continue
             instance_id = object_pose.instance_id
             if instance_id in self.instance_id_to_object_id:
@@ -1192,6 +1204,7 @@ class ReorientDemoInterface:
                 )
                 self.instance_id_to_object_id[instance_id] = object_id
             object_ids.append(object_id)
+            class_ids.append(_utils.get_class_id(object_id))
         self.env.object_ids = object_ids
 
     def init_workspace(self):
@@ -1203,9 +1216,9 @@ class ReorientDemoInterface:
 
         shelf2 = _utils.create_shelf(X=0.29, Y=0.41, Z=0.285, N=2)
         c = mercury.geometry.Coordinate()
-        c.rotate([0, 0, np.deg2rad(-145)])
+        c.rotate([0, 0, np.deg2rad(-143)])
         c.translate([0.80, 0.31, self.env.TABLE_OFFSET], wrt="world")
-        c.translate([0.0, -0.03, 0])
+        c.translate([0.02, -0.03, 0])
         pp.set_pose(shelf2, c.pose)
 
         color = (0.7, 0.7, 0.7, 1)
@@ -1217,7 +1230,7 @@ class ReorientDemoInterface:
         c = mercury.geometry.Coordinate()
         c.rotate([np.deg2rad(9), 0, 0])
         c.rotate([0, 0, np.deg2rad(-110)], wrt="world")
-        c.translate([0.89, -0.13, 0.09], wrt="world")
+        c.translate([0.85, -0.15, 0.09], wrt="world")
         pp.set_pose(box1, c.pose)
 
         box2 = mercury.pybullet.create_bin(
@@ -1254,7 +1267,7 @@ class ReorientDemoInterface:
                 quaternion=_utils.get_canonical_quaternion(class_id)
             )
             c.rotate([0, 0, np.deg2rad(90)])
-            c.translate([0.07, 0.17, 0.42], wrt="world")
+            c.translate([0.06, 0.16, 0.43], wrt="world")
             obj_to_shelf2 = c.pose
             shelf2_to_world = pp.get_pose(di._shelf2)
             obj_to_world = pp.multiply(shelf2_to_world, obj_to_shelf2)
@@ -1283,7 +1296,7 @@ class ReorientDemoInterface:
                 quaternion=_utils.get_canonical_quaternion(class_id)
             )
             c.rotate([0, 0, np.deg2rad(90)])
-            c.translate([0.07, 0.11, 0.42], wrt="world")
+            c.translate([0.06, 0.11, 0.43], wrt="world")
             obj_to_shelf2 = c.pose
             shelf2_to_world = pp.get_pose(di._shelf2)
             obj_to_world = pp.multiply(shelf2_to_world, obj_to_shelf2)
@@ -1311,7 +1324,7 @@ class ReorientDemoInterface:
             c = mercury.geometry.Coordinate(
                 quaternion=_utils.get_canonical_quaternion(class_id)
             )
-            c.translate([0.12, -0.11, 0.42], wrt="world")
+            c.translate([0.105, -0.12, 0.43], wrt="world")
             obj_to_shelf2 = c.pose
             shelf2_to_world = pp.get_pose(di._shelf2)
             obj_to_world = pp.multiply(shelf2_to_world, obj_to_shelf2)
@@ -1339,7 +1352,7 @@ class ReorientDemoInterface:
             c = mercury.geometry.Coordinate(
                 quaternion=_utils.get_canonical_quaternion(class_id)
             )
-            c.translate([0.10, 0.08, 0.38], wrt="world")
+            c.translate([0.10, 0.08, 0.39], wrt="world")
             obj_to_shelf1 = c.pose
             shelf1_to_world = pp.get_pose(di._shelf1)
             obj_to_world = pp.multiply(shelf1_to_world, obj_to_shelf1)
@@ -1369,7 +1382,7 @@ class ReorientDemoInterface:
             )
             c.rotate([0, 0, np.deg2rad(-70)])
             c.rotate([np.deg2rad(-90), 0, 0], wrt="world")
-            c.translate([0.0, -0.02, 0.03], wrt="world")
+            c.translate([0.01, 0.03, 0.02], wrt="world")
             obj_to_box2 = c.pose
             box2_to_world = pp.get_pose(di._box2)
             obj_to_world = pp.multiply(box2_to_world, obj_to_box2)
@@ -1397,7 +1410,7 @@ class ReorientDemoInterface:
             )
             c.rotate([0, 0, np.deg2rad(-90)])
             c.rotate([np.deg2rad(-90), 0, 0], wrt="world")
-            c.translate([0, -0.03, -0.02], wrt="world")
+            c.translate([-0.01, 0.02, -0.02], wrt="world")
             obj_to_box1 = c.pose
             box1_to_world = pp.get_pose(di._box1)
             obj_to_world = pp.multiply(box1_to_world, obj_to_box1)
@@ -1506,11 +1519,14 @@ if __name__ == "__main__":
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--interactive", "-i", action="store_true")
+    parser.add_argument("--reset-pose", "-r", action="store_true")
     args = parser.parse_args()
 
     di = ReorientDemoInterface()
     self = di
     if args.interactive:
         IPython.embed()
+    elif args.reset_pose:
+        di.reset_pose()
     else:
         di.run()

@@ -397,9 +397,9 @@ class PandaRobotInterface:
             parent = self.ee
         self.add_link("camera_link", pose=pose, parent=parent)
 
-        pybullet_planning.draw_pose(
-            pose, parent=self.robot, parent_link=parent
-        )
+        # pybullet_planning.draw_pose(
+        #     pose, parent=self.robot, parent_link=parent
+        # )
         pybullet_utils.draw_camera(
             fovy=fovy,
             height=height,

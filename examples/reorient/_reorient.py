@@ -608,7 +608,6 @@ def plan_place(env, target_grasp_poses):
         js = env.ri.planj(
             result["j_pre_place"],
             obstacles=obstacles,
-            min_distances=mercury.utils.StaticDict(-0.01),
         )
         if js is None:
             logger.warning("js_pre_place is not found")

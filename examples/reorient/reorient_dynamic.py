@@ -98,9 +98,12 @@ def plan_dynamic_reorient(env, grasp_poses, reorient_poses, pickable):
     object_labels = []
     object_poses = []
     for object_id in env.object_ids:
+        class_id = _utils.get_class_id(object_id)
+        if class_id not in class_ids:
+            continue
         object_fg_flags.append(object_id == env.fg_object_id)
         object_label = np.zeros(7)
-        object_label[class_ids.index(_utils.get_class_id(object_id))] = 1
+        object_label[class_ids.index(class_id)] = 1
         object_labels.append(object_label)
         object_poses.append(np.hstack(pp.get_pose(object_id)))
     object_fg_flags = np.stack(object_fg_flags, axis=0).astype(np.float32)

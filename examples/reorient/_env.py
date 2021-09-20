@@ -76,7 +76,7 @@ class Env:
 
         pp.reset_simulation()
         pp.enable_gravity()
-        pp.set_camera_pose((1, -0.7, 0.8), (0, 0.1, 0.3))
+        pp.set_camera_pose((0.7, -1, 0.8), (0, 0.1, 0.3))
         p.configureDebugVisualizer(
             p.COV_ENABLE_SHADOWS, True, lightPosition=(100, -100, 0.5)
         )
@@ -104,7 +104,7 @@ class Env:
                 )
                 pp.set_pose(wall, ([-0.4, 0, 1.05 / 2], [0, 0, 0, 1]))
                 self._walls.append(wall)
-                wall = pp.create_box(w=2, l=2, h=0.5, color=(1, 1, 1, 1))
+                wall = pp.create_box(w=3, l=3, h=0.5, color=(1, 1, 1, 1))
                 pp.set_pose(wall, ([0, 0, 0.25 + 1.05], [0, 0, 0, 1]))
                 self._walls.append(wall)
 
