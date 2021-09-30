@@ -1,3 +1,5 @@
+import pickle
+
 import imgviz
 import numpy as np
 import pybullet as p
@@ -90,8 +92,9 @@ def create_pile(class_ids, num_instances, random_state=None):
     return unique_ids
 
 
-def load_pile(base_pose, npz_file, mass=None):
-    data = np.load(npz_file)
+def load_pile(base_pose, pkl_file, mass=None):
+    with open(pkl_file, "rb") as f:
+        data = pickle.load(f)
     object_ids = []
     for class_id, position, quaternion in zip(
         data["class_id"], data["position"], data["quaternion"]

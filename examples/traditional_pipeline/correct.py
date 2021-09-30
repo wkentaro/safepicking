@@ -14,7 +14,6 @@ import pybullet_planning as pp
 import mercury
 
 import baseline_utils
-import common_utils
 
 
 here = path.Path(__file__).abspath().parent
@@ -38,7 +37,7 @@ def main():
     random_state = np.random.RandomState(args.seed)
 
     pp.connect()
-    plane = common_utils.init_simulation(camera_distance=1.2)
+    plane = baseline_utils.init_simulation(camera_distance=1.2)
 
     ri = mercury.pybullet.PandaRobotInterface()
     ri.add_camera(
@@ -48,9 +47,9 @@ def main():
     )
 
     pile_pose = ([0, -0.5, 0], [0, 0, 0, 1])
-    object_ids = common_utils.load_pile(
+    object_ids = baseline_utils.load_pile(
         base_pose=pile_pose,
-        npz_file=home / "data/mercury/pile_generation/00000001.npz",
+        pkl_file=home / "data/mercury/pile_generation/00000001.pkl",
         mass=0.1,
     )
     for obj in object_ids:
@@ -79,7 +78,8 @@ def main():
     )
     step_simulation()
 
-    common_utils.pause(args.pause)
+    if args.pause:
+        mercury.pybullet.pause()
 
     time_table = []
     time_table_row = []

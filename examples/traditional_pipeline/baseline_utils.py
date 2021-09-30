@@ -1,4 +1,5 @@
 import itertools
+import pickle
 import time
 
 import imgviz
@@ -8,8 +9,6 @@ import pybullet as p
 import pybullet_planning as pp
 
 import mercury
-
-import common_utils
 
 
 def get_camera_pose(camera_config):
@@ -82,9 +81,7 @@ def place_to_regrasp(
     t_start = time.time()
     for i in itertools.count():
         with pp.LockRenderer(), pp.WorldSaver():
-            quaternion = common_utils.get_canonical_quaternion(
-                class_id=class_id
-            )
+            quaternion = get_canonical_quaternion(class_id=class_id)
             if i >= n_trial:
                 c = mercury.geometry.Coordinate(quaternion=quaternion)
                 euler = [
@@ -176,7 +173,7 @@ def get_place_pose(object_id, bin_aabb_min, bin_aabb_max):
     position_org, quaternion_org = p.getBasePositionAndOrientation(object_id)
 
     class_id = get_class_id(object_id)
-    quaternion = common_utils.get_canonical_quaternion(class_id)
+    quaternion = get_canonical_quaternion(class_id)
 
     with pp.LockRenderer():
         with pp.WorldSaver():
@@ -435,3 +432,69 @@ def plot_time_table(time_table):
     rows = imgviz.tile(rows, shape=(-1, 1), border=(0, 0, 0))
 
     return rows
+
+
+def get_canonical_quaternion(class_id):
+    c = mercury.geometry.Coordinate()
+    if class_id == 2:
+        c.rotate([0, 0, np.deg2rad(0)])
+    elif class_id == 3:
+        c.rotate([0, 0, np.deg2rad(5)])
+    elif class_id == 5:
+        c.rotate([0, 0, np.deg2rad(-65)])
+    elif class_id == 11:
+        c.rotate([0, 0, np.deg2rad(47)])
+    elif class_id == 12:
+        c.rotate([0, 0, np.deg2rad(90)])
+    elif class_id == 15:
+        c.rotate([0, np.deg2rad(90), np.deg2rad(90)])
+    else:
+        pass
+    return c.quaternion
+
+
+def init_simulation(camera_distance=1.5):
+    pp.add_data_path()
+    p.setGravity(0, 0, -9.8)
+
+    p.resetDebugVisualizerCamera(
+        cameraDistance=camera_distance,
+        cameraYaw=90,
+        cameraPitch=-60,
+        cameraTargetPosition=(0, 0, 0),
+    )
+
+    plane = p.loadURDF("plane.urdf")
+    return plane
+
+
+def load_pile(base_pose, pkl_file, mass=None):
+    with open(pkl_file, "rb") as f:
+        data = pickle.load(f)
+    object_ids = []
+    for class_id, position, quaternion in zip(
+        data["class_id"], data["position"], data["quaternion"]
+    ):
+        coord = mercury.geometry.Coordinate(
+            position=position,
+            quaternion=quaternion,
+        )
+        coord.transform(
+            mercury.geometry.transformation_matrix(*base_pose), wrt="world"
+        )
+
+        visual_file = mercury.datasets.ycb.get_visual_file(class_id)
+        collision_file = mercury.pybullet.get_collision_file(visual_file)
+        mass_actual = mercury.datasets.ycb.masses[class_id]
+        with pp.LockRenderer():
+            object_id = mercury.pybullet.create_mesh_body(
+                visual_file=visual_file,
+                collision_file=collision_file,
+                mass=mass_actual if mass is None else mass,
+                position=coord.position,
+                quaternion=coord.quaternion,
+                rgba_color=imgviz.label_colormap()[class_id] / 255,
+                texture=False,
+            )
+        object_ids.append(object_id)
+    return object_ids
