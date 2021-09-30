@@ -1,17 +1,17 @@
 #!/usr/bin/env python
 
 import argparse
+import pickle
 import time
 
 from loguru import logger
-import numpy as np
 import path
 import pybullet as p
 import pybullet_planning as pp
 
 import mercury
 
-import common_utils
+import _utils
 
 
 here = path.Path(__file__).abspath().parent
@@ -25,9 +25,10 @@ def main():
     args = parser.parse_args()
 
     pp.connect()
-    common_utils.init_simulation(camera_distance=1)
+    _utils.init_simulation(camera_distance=1)
 
-    data = np.load(args.export_file)
+    with open(args.export_file, "rb") as f:
+        data = pickle.load(f)
     num_instances = len(data["class_id"])
     object_ids = []
     for i in range(num_instances):

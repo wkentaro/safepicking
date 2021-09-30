@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
+import pickle
 import sys
 
 from loguru import logger
@@ -11,7 +12,7 @@ import pybullet_planning as pp
 
 import mercury
 
-import common_utils
+import _utils
 
 
 home = path.Path("~").expanduser()
@@ -26,16 +27,16 @@ def main():
     args = parser.parse_args()
 
     export_dir = home / "data/mercury/pile_generation"
-    export_file = export_dir / f"{args.seed:08d}.npz"
+    export_file = export_dir / f"{args.seed:08d}.pkl"
 
     if export_file.exists():
         logger.warning(f"File already exists: {export_file}")
         sys.exit(0)
 
     pp.connect(use_gui=not args.nogui)
-    common_utils.init_simulation(camera_distance=1)
+    _utils.init_simulation(camera_distance=1)
 
-    object_ids = common_utils.create_pile(
+    object_ids = _utils.create_pile(
         class_ids=[2, 3, 5, 11, 12, 15, 16],
         num_instances=8,
         random_state=np.random.RandomState(args.seed),
@@ -85,7 +86,8 @@ def main():
         data["visibility"].append(visibilities[object_id])
 
     export_file.parent.makedirs_p()
-    np.savez_compressed(export_file, **data)
+    with open(export_file, "wb") as f:
+        pickle.dump(data, f)
     logger.success(f"Saved to: {export_file}")
 
 
