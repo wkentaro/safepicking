@@ -9,7 +9,7 @@ import pybullet_planning as pp
 
 import mercury
 
-import baseline_utils
+import _utils
 
 
 here = path.Path(__file__).abspath().parent
@@ -32,17 +32,17 @@ def main():
     np.random.seed(args.seed)
 
     pp.connect()
-    plane = baseline_utils.init_simulation(camera_distance=1.2)
+    plane = _utils.init_simulation(camera_distance=1.2)
 
     ri = mercury.pybullet.PandaRobotInterface()
     ri.add_camera(
-        pose=baseline_utils.get_camera_pose(args.camera_config),
+        pose=_utils.get_camera_pose(args.camera_config),
         height=240,
         width=320,
     )
 
     pile_pose = ([0, -0.5, 0], [0, 0, 0, 1])
-    object_ids = baseline_utils.load_pile(
+    object_ids = _utils.load_pile(
         base_pose=pile_pose,
         pkl_file=home / "data/mercury/pile_generation/00000001.pkl",
         mass=0.1,
@@ -66,7 +66,7 @@ def main():
     place_aabb = ((-0.3, 0.3, 0), (0.3, 0.6, 0.2))
     pp.draw_aabb(place_aabb, width=2)
 
-    step_simulation = baseline_utils.StepSimulation(
+    step_simulation = _utils.StepSimulation(
         ri=ri,
         retime=args.retime,
         video_dir=here / "logs/grasp/video" if args.video else None,

@@ -13,7 +13,7 @@ import pybullet_planning as pp
 
 import mercury
 
-import baseline_utils
+import _utils
 
 
 here = path.Path(__file__).abspath().parent
@@ -37,17 +37,17 @@ def main():
     random_state = np.random.RandomState(args.seed)
 
     pp.connect()
-    plane = baseline_utils.init_simulation(camera_distance=1.2)
+    plane = _utils.init_simulation(camera_distance=1.2)
 
     ri = mercury.pybullet.PandaRobotInterface()
     ri.add_camera(
-        pose=baseline_utils.get_camera_pose(args.camera_config),
+        pose=_utils.get_camera_pose(args.camera_config),
         height=240,
         width=320,
     )
 
     pile_pose = ([0, -0.5, 0], [0, 0, 0, 1])
-    object_ids = baseline_utils.load_pile(
+    object_ids = _utils.load_pile(
         base_pose=pile_pose,
         pkl_file=home / "data/mercury/pile_generation/00000001.pkl",
         mass=0.1,
@@ -71,7 +71,7 @@ def main():
     place_aabb = ((-0.3, 0.3, 0), (0.3, 0.6, 0.2))
     pp.draw_aabb(place_aabb, width=2)
 
-    step_simulation = baseline_utils.StepSimulation(
+    step_simulation = _utils.StepSimulation(
         ri=ri,
         retime=args.retime,
         video_dir=here / "logs/correct/video" if args.video else None,
@@ -176,7 +176,7 @@ def main():
             ri.homej[0] = np.pi / 2
             with pp.LockRenderer(), pp.WorldSaver():
                 ri.setj(ri.homej)
-                place_pose, path = baseline_utils.plan_placement(
+                place_pose, path = _utils.plan_placement(
                     ri, place_aabb, [plane, table], object_ids
                 )
             planning_time_sum += time.time() - t_start
@@ -184,7 +184,7 @@ def main():
                 break
 
             ri.homej[0] = 0
-            regrasp_pose, _, planning_time = baseline_utils.place_to_regrasp(
+            regrasp_pose, _, planning_time = _utils.place_to_regrasp(
                 ri,
                 regrasp_aabb,
                 bg_object_ids=[plane, table],
@@ -207,7 +207,7 @@ def main():
         object_id = ri.attachments[0].child
 
         i_start = step_simulation.i
-        baseline_utils.place(
+        _utils.place(
             ri,
             object_id,
             place_pose,
@@ -221,7 +221,7 @@ def main():
         )
 
         i_start = step_simulation.i
-        baseline_utils.correct(
+        _utils.correct(
             ri,
             object_id,
             place_pose,
@@ -242,7 +242,7 @@ def main():
         time_table.append(time_table_row)
         time_table_row = []
 
-        plot = baseline_utils.plot_time_table(time_table)
+        plot = _utils.plot_time_table(time_table)
         imgviz.io.imsave(here / "logs/correct/time_table.jpg", plot)
 
     while True:

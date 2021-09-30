@@ -241,6 +241,7 @@ def place(
         position=place_pose[0],
         quaternion=place_pose[1],
         texture=False,
+        mass=0,
     )
     virtual_objects.append(obj_v)
 
