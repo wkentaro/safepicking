@@ -31,7 +31,7 @@ class PandaRobotInterface:
     ):
         self.pose = pose
 
-        urdf_file = here / f"robots/{robot_model}.urdf"
+        urdf_file = here / f"data/{robot_model}.urdf"
         self.robot_model = skrobot.models.urdf.RobotModelFromURDF(
             urdf_file=urdf_file
         )
