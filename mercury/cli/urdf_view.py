@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import argparse
 
 import pybullet as p
@@ -35,7 +33,3 @@ def main():
             p.stepSimulation()
         except p.error:
             break
-
-
-if __name__ == "__main__":
-    main()

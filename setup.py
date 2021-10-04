@@ -12,6 +12,9 @@ def main():
         author_email="www.kentaro.wada@gmail.com",
         license="MIT",
         url="https://github.com/wkentaro/mercury",
+        entry_points={
+            "console_scripts": ["urdf_view=mercury.cli.urdf_view:main"]
+        },
     )
 
 
