@@ -21,6 +21,12 @@ def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+    parser.add_argument(
+        "--robot-model",
+        default="franka_panda/panda_suction",
+        choices=["franka_panda/panda_suction", "franka_panda/panda_drl"],
+        help="robot model",
+    )
     parser.add_argument("--seed", type=int, help="seed", required=True)
     parser.add_argument(
         "--face",
@@ -41,6 +47,7 @@ def main():
 
     env = Env(
         class_ids=[2, 3, 5, 11, 12, 15],
+        robot_model=args.robot_model,
         mp4=args.mp4,
         gui=not args.nogui,
         face=args.face,
