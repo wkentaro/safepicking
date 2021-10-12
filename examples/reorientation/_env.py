@@ -10,8 +10,8 @@ import pybullet_planning as pp
 
 import mercury
 
-from ._get_heightmap import get_heightmap
 from . import _utils
+from ._get_heightmap import get_heightmap
 
 
 home = path.Path("~").expanduser()
@@ -91,8 +91,16 @@ class Env:
             planner="RRTConnect",
             robot_model=self._robot_model,
         )
+        if self._robot_model == "franka_panda/panda_drl":
+            pose = ([-0.065, 0.058, -0.062], [0.003, -0.032, -0.009, 0.999])
+        elif self._robot_model == "franka_panda/panda_suction":
+            c = mercury.geometry.Coordinate()
+            c.translate([0, -0.1, -0.1])
+            pose = c.pose
+        else:
+            raise ValueError
         self.ri.add_camera(
-            pose=([-0.065, 0.058, -0.062], [0.003, -0.032, -0.009, 0.999]),
+            pose=pose,
             fovy=np.deg2rad(54),
             height=self.IMAGE_HEIGHT,
             width=self.IMAGE_WIDTH,
@@ -192,7 +200,7 @@ class Env:
                 face=self._face,
             )
             self.LAST_PRE_PLACE_POSE = self.PLACE_POSE
-            c = mercury.geometry.Coordinate(*self._place_pose)
+            c = mercury.geometry.Coordinate(*self.PLACE_POSE)
             c.translate([0, -0.3, 0], wrt="world")
             self.PRE_PLACE_POSE = c.pose
 
@@ -270,10 +278,25 @@ class Env:
 
 
 def main():
-    env = Env(class_ids=[2, 3, 5, 11, 12, 15])
-    while True:
-        env.reset()
-        mercury.pybullet.pause()
+    import argparse
+
+    import IPython
+
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    choices = ["franka_panda/panda_suction", "franka_panda/panda_drl"]
+    parser.add_argument(
+        "--robot-model",
+        default=choices[0],
+        choices=choices,
+        help=" ",
+    )
+    args = parser.parse_args()
+
+    env = Env(class_ids=[2, 3, 5, 11, 12, 15], robot_model=args.robot_model)
+    env.reset()
+    IPython.embed()
 
 
 if __name__ == "__main__":
