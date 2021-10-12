@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import argparse
 import pickle
 
 import imgviz
@@ -15,12 +16,24 @@ home = path.Path("~").expanduser()
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    choices = ["franka_panda/panda_suction", "franka_panda/panda_drl"]
+    parser.add_argument(
+        "--robot-model",
+        default=choices[0],
+        choices=choices,
+        help=" ",
+    )
+    args = parser.parse_args()
+
     pp.connect()
     pp.add_data_path()
 
     pp.set_camera_pose([1, -1, 1])
 
-    root_dir = home / "data/mercury/reorient/pickable"
+    root_dir = home / f"data/mercury/reorientation/pickable/{args.robot_model}"
     pkl_files = sorted(root_dir.walk("*.pkl"))
 
     while True:
@@ -34,7 +47,7 @@ def main():
             data = pickle.load(f)
 
         heightmap = data["pointmap"][:, :, 2]
-        imgviz.io.cv_imshow(imgviz.depth2rgb(heightmap))
+        imgviz.io.cv_imshow(imgviz.depth2rgb(heightmap), "heightmap")
         imgviz.io.cv_waitkey(100)
 
         target_obj = None
