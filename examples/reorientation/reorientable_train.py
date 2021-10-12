@@ -124,23 +124,21 @@ class Model(torch.nn.Module):
 
 
 class Dataset(torch.utils.data.Dataset):
-
-    ROOT_DIR = (
-        home / "data/mercury/reorient/franka_panda/panda_suction/reorientable"
-    )
-
-    def __init__(self, split):
+    def __init__(self, split, robot_model):
         self._split = split
 
+        root_dir = (
+            home / f"data/mercury/reorientation/reorientable/{robot_model}"
+        )
         self._files = {"train": [], "val": []}
         for i in range(0, 4000):
-            seed_dir = self.ROOT_DIR / f"s-{i:08d}"
+            seed_dir = root_dir / f"s-{i:08d}"
             if not seed_dir.exists():
                 continue
             for pkl_file in sorted(seed_dir.walk("*.pkl")):
                 self._files["train"].append(pkl_file)
         for i in range(4000, 5000):
-            seed_dir = self.ROOT_DIR / f"s-{i:08d}"
+            seed_dir = root_dir / f"s-{i:08d}"
             if not seed_dir.exists():
                 continue
             for pkl_file in sorted(seed_dir.walk("*.pkl")):
@@ -306,15 +304,21 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--name", required=True, help="name")
+    parser.add_argument(
+        "--robot-model",
+        default="franka_panda/panda_suction",
+        choices=["franka_panda/panda_suction", "franka_panda/panda_drl"],
+        help="robot model",
+    )
     parser.add_argument("--lambda1", type=float, default=1, help="lambda1")
     parser.add_argument("--lambda2", type=float, default=1, help="lambda2")
     args = parser.parse_args()
 
-    data_train = Dataset(split="train")
+    data_train = Dataset(split="train", robot_model=args.robot_model)
     loader_train = torch.utils.data.DataLoader(
         data_train, batch_size=256, shuffle=True, drop_last=True
     )
-    data_val = Dataset(split="val")
+    data_val = Dataset(split="val", robot_model=args.robot_model)
     loader_val = torch.utils.data.DataLoader(
         data_val, batch_size=256, shuffle=False
     )
