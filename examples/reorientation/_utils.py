@@ -128,9 +128,10 @@ def init_place_scene(env, class_id, random_state, face="front"):
     place_aabb = (
         np.array([[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]]) * place_aabb_extents
     )
-    place_aabb_offset = np.array([0, 0, 1]) * place_aabb_extents
+    place_aabb_offset = np.array([0, 0, 2.5]) * place_aabb_extents
+    place_aabb_offset += [0, 0, 0.01 * 3]
     place_aabb += place_aabb_offset
-    # pp.draw_aabb(place_aabb, width=5, color=(1, 0, 0, 1), parent=shelf)
+    pp.draw_aabb(place_aabb, width=5, color=(1, 0, 0, 1), parent=shelf)
 
     visual_file = mercury.datasets.ycb.get_visual_file(class_id=class_id)
 
@@ -205,7 +206,7 @@ def init_place_scene(env, class_id, random_state, face="front"):
     # apply transform
     c = mercury.geometry.Coordinate()
     c.rotate([0, 0, np.deg2rad(-90)])
-    c.translate([0, 0.7, 0.45 + env.TABLE_OFFSET], wrt="world")
+    c.translate([0, 0.7, env.TABLE_OFFSET], wrt="world")
     shelf_to_world = c.pose
     for obj in [shelf] + objects:
         obj_to_shelf = pp.get_pose(obj)
