@@ -1,3 +1,11 @@
+/examples/**/logs/
+
 /src/
 
-logs/
+/ros/.catkin_tools/
+/ros/build/
+/ros/devel/
+/ros/logs/
+/ros/src/*
+!/ros/src/.rosinstall
+!/ros/src/mercury_panda/
