@@ -6,13 +6,13 @@ ROOT=$(realpath $HERE/..)
 
 source $ROOT/.anaconda3/bin/activate
 
-echo_bold "==> Installing requirements with requirements.txt"
-pip_install -r requirements.txt
+echo_bold "==> Installing requirements"
+pip_install -r requirements-dev.txt
 
 echo_bold "==> Installing pre-commit"
 pre-commit install
 
-echo_bold "==> Installing mercury"
+echo_bold "==> Installing this project"
 pip_install -e .
 
 echo_bold "\nAll is well! You can start using this!

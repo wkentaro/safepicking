@@ -1,16 +1,12 @@
-black
 gym
-hacking
 imgviz
 loguru
 open3d
-path.py
-pre-commit
+opencv-python
+path
 pybullet
--e git+https://github.com/wkentaro/pybullet_planning.git@mercury#egg=pybullet_planning
-# pybullet-planning
+pybullet_planning @ git+https://github.com/wkentaro/pybullet_planning.git@safepicking
 scikit-image
-scikit-robot
-tensorboard
+scikit-robot @ git+https://github.com/wkentaro/scikit-robot.git@safepicking
 torch
 trimesh[easy]
