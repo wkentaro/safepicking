@@ -82,31 +82,7 @@ class Env:
         )
         with pp.LockRenderer():
             self.plane = pp.load_pybullet("plane.urdf")
-            pp.set_texture(self.plane)
-            pp.set_color(self.plane, (0.8, 0.8, 0.8))
             pp.set_pose(self.plane, ([0, 0, self.TABLE_OFFSET], [0, 0, 0, 1]))
-
-            z = 0.002 + self.TABLE_OFFSET
-            for x in np.linspace(-5, 5, num=21):
-                pp.add_line((x, -10, z), (x, 10, z), color=(0.5, 0.5, 0.5, 1))
-            for y in np.linspace(-5, 5, num=21):
-                pp.add_line((-10, y, z), (10, y, z), color=(0.5, 0.5, 0.5, 1))
-
-            self._walls = []
-            if self._real:
-                wall = pp.create_box(
-                    w=3, l=0.01, h=1.05, color=(0.6, 0.6, 0.6, 1)
-                )
-                pp.set_pose(wall, ([0, 0.6, 1.05 / 2], [0, 0, 0, 1]))
-                self._walls.append(wall)
-                wall = pp.create_box(
-                    w=0.01, l=3, h=1.05, color=(0.7, 0.7, 0.7, 1)
-                )
-                pp.set_pose(wall, ([-0.4, 0, 1.05 / 2], [0, 0, 0, 1]))
-                self._walls.append(wall)
-                wall = pp.create_box(w=3, l=3, h=0.5, color=(1, 1, 1, 1))
-                pp.set_pose(wall, ([0, 0, 0.25 + 1.05], [0, 0, 0, 1]))
-                self._walls.append(wall)
 
         self.ri = mercury.pybullet.PandaRobotInterface(
             suction_max_force=None,
@@ -230,7 +206,7 @@ class Env:
             self.setj_to_camera_pose()
             self.update_obs()
 
-        self.bg_objects = [self.plane, self._shelf] + self._walls
+        self.bg_objects = [self.plane, self._shelf]
 
     def setj_to_camera_pose(self):
         self.ri.setj(self.ri.homej)
