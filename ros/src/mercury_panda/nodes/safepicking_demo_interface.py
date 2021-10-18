@@ -37,7 +37,7 @@ from morefusion_panda_ycb_video.msg import (
 )
 from morefusion_panda_ycb_video.msg import ObjectPoseArray
 
-sys.path.insert(0, "../../../examples/target_pick")
+sys.path.insert(0, "../../../examples/picking")
 
 import _agent  # NOQA
 import _env  # NOQA

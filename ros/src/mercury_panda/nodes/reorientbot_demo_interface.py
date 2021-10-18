@@ -35,7 +35,7 @@ import tf
 from mercury_panda.msg import ObjectClassArray
 from morefusion_panda_ycb_video.msg import ObjectPoseArray
 
-sys.path.insert(0, "../../../examples/reorient")
+sys.path.insert(0, "../../../examples/reorientation")
 
 from _env import Env  # NOQA
 import _reorient  # NOQA
