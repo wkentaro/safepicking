@@ -5,7 +5,7 @@ import numpy as np
 
 def normalize(x: np.ndarray) -> np.ndarray:
     assert x.ndim == 1, "x must be a vector (ndim: 1)"
-    return x / np.linalg.norm(x)
+    return x / (np.linalg.norm(x) + np.finfo(x.dtype).eps)
 
 
 def look_at(
@@ -53,9 +53,9 @@ def look_at(
 
     # create new axes
     z_axis: np.ndarray = normalize(target - eye)
-    if np.cross(up, z_axis).sum() == 0:
-        up = np.array([0, -1, 0], dtype=float)
     x_axis: np.ndarray = normalize(np.cross(up, z_axis))
+    if (x_axis == 0).all():
+        x_axis = np.array([1, 0, 0], dtype=float)
     y_axis: np.ndarray = normalize(np.cross(z_axis, x_axis))
 
     # create rotation matrix: [bs, 3, 3]
