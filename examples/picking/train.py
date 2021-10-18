@@ -164,11 +164,11 @@ def main():
     stat_accumulator = SimpleAccumulator(maxlen=100)
 
     env_runner = EnvRunner(
-        env=env,
+        train_env=env,
         agent=agent,
-        replay_buffer=replay_buffer,
-        train_envs=hparams["train_envs"],
-        eval_envs=hparams["eval_envs"],
+        train_replay_buffer=replay_buffer,
+        num_train_envs=hparams["train_envs"],
+        num_eval_envs=hparams["eval_envs"],
         episodes=999999,
         episode_length=env.episode_length,
         stat_accumulator=stat_accumulator,

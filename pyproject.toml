@@ -3,5 +3,7 @@ line-length = 79
 exclude = '''
 (
     ^/\..*
+    | /src/
+    | examples/picking/_rollout_generator.py
 )
 '''
