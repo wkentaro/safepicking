@@ -1,10 +1,10 @@
+-e git+https://github.com/wkentaro/bullet3.git@addUserDebugPoints#egg=pybullet
 gym
 imgviz
 loguru
 open3d
 opencv-python
 path
-pybullet
 pybullet_planning @ git+https://github.com/wkentaro/pybullet_planning.git@safepicking
 scikit-image
 scikit-robot @ git+https://github.com/wkentaro/scikit-robot.git@safepicking
