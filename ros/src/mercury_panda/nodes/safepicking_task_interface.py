@@ -7,7 +7,6 @@ import gdown
 import IPython
 import numpy as np
 import path
-import pybullet as p
 import pybullet_planning as pp
 import torch
 
@@ -54,58 +53,6 @@ class SafepickingTaskInterface(BaseTaskInterface):
                 ("/camera/octomap_server/output/label_rendered", Image),
             ]
         )
-
-    def look_at_pile(self, time_scale=3):
-        self.look_at(
-            eye=[0.5, 0, 0.7], target=[0.5, 0, 0], time_scale=time_scale
-        )
-
-    def init_workspace(self):
-        # light
-        p.configureDebugVisualizer(
-            p.COV_ENABLE_SHADOWS, True, lightPosition=(100, -100, 0.5)
-        )
-
-        # table
-        pp.set_texture(self._env.plane)
-
-        # left wall
-        obj = pp.create_box(w=3, l=0.01, h=1.05, color=(0.6, 0.6, 0.6, 1))
-        pp.set_pose(
-            obj,
-            (
-                (-0.0010000000000000002, 0.6925000000000028, 0.55),
-                (0.0, 0.0, 0.0194987642109932, 0.9998098810245096),
-            ),
-        )
-        self._env.bg_objects.append(obj)
-
-        # back wall
-        obj = pp.create_box(w=0.01, l=3, h=1.05, color=(0.7, 0.7, 0.7, 1))
-        pp.set_pose(obj, ([-0.4, 0, 1.05 / 2], [0, 0, 0, 1]))
-        self._env.bg_objects.append(obj)
-
-        # ceiling
-        obj = pp.create_box(w=3, l=3, h=0.5, color=(1, 1, 1, 1))
-        pp.set_pose(obj, ([0, 0, 0.25 + 1.05], [0, 0, 0, 1]))
-        self._env.bg_objects.append(obj)
-
-        # bin
-        obj = mercury.pybullet.create_bin(
-            X=0.3, Y=0.3, Z=0.11, color=(0.7, 0.7, 0.7, 1)
-        )
-        pp.set_pose(
-            obj,
-            (
-                (0.4495000000000015, 0.5397000000000006, 0.059400000000000126),
-                (0.0, 0.0, 0.0, 1.0),
-            ),
-        )
-        self._env.bg_objects.append(obj)
-        self._bin = obj
-
-        # self.add_pointcloud_to_pybullet()
-        # _pybullet.annotate_pose(obj)
 
     def rosmsgs_to_obs(self):
         cam_msg = rospy.wait_for_message(

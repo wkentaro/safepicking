@@ -2,6 +2,8 @@
 
 import IPython
 import numpy as np
+import pybullet as p
+import pybullet_planning as pp
 
 import mercury
 
@@ -144,14 +146,18 @@ class BaseTaskInterface:
         for attachment in self.pi.attachments:
             attachment.assign()
 
-    def movejs(self, js, time_scale=None, wait=True):
+    def movejs(self, js, time_scale=None, wait=True, max_accel=None):
         if not self.recover_from_error():
             return
         if time_scale is None:
             time_scale = 10
+        if max_accel is None:
+            max_accel = 1
         js = np.asarray(js)
         self.real2robot()
-        self.ri.angle_vector_sequence(js, time_scale=time_scale, max_accel=1)
+        self.ri.angle_vector_sequence(
+            js, time_scale=time_scale, max_accel=max_accel
+        )
         if wait:
             self.wait_interpolation()
 
@@ -205,6 +211,56 @@ class BaseTaskInterface:
     def look_at(self, eye, target, rotation_axis=True, *args, **kwargs):
         j = self._solve_ik_for_look_at(eye, target, rotation_axis)
         self.movejs([j], *args, **kwargs)
+
+    def look_at_pile(self, *args, **kwargs):
+        self.look_at(eye=[0.5, 0, 0.7], target=[0.5, 0, 0], *args, **kwargs)
+
+    def init_workspace(self):
+        # light
+        p.configureDebugVisualizer(
+            p.COV_ENABLE_SHADOWS, True, lightPosition=(100, -100, 0.5)
+        )
+
+        # table
+        pp.set_texture(self._env.plane)
+
+        # left wall
+        obj = pp.create_box(w=3, l=0.01, h=1.05, color=(0.6, 0.6, 0.6, 1))
+        pp.set_pose(
+            obj,
+            (
+                (-0.0010000000000000002, 0.6925000000000028, 0.55),
+                (0.0, 0.0, 0.0194987642109932, 0.9998098810245096),
+            ),
+        )
+        self._env.bg_objects.append(obj)
+
+        # back wall
+        obj = pp.create_box(w=0.01, l=3, h=1.05, color=(0.7, 0.7, 0.7, 1))
+        pp.set_pose(obj, ([-0.4, 0, 1.05 / 2], [0, 0, 0, 1]))
+        self._env.bg_objects.append(obj)
+
+        # ceiling
+        obj = pp.create_box(w=3, l=3, h=0.5, color=(1, 1, 1, 1))
+        pp.set_pose(obj, ([0, 0, 0.25 + 1.05], [0, 0, 0, 1]))
+        self._env.bg_objects.append(obj)
+
+        # bin
+        obj = mercury.pybullet.create_bin(
+            X=0.3, Y=0.3, Z=0.11, color=(0.7, 0.7, 0.7, 1)
+        )
+        pp.set_pose(
+            obj,
+            (
+                (0.4495000000000015, 0.5397000000000006, 0.059400000000000126),
+                (0.0, 0.0, 0.0, 1.0),
+            ),
+        )
+        self._env.bg_objects.append(obj)
+        self._bin = obj
+
+        # self.add_pointcloud_to_pybullet()
+        # _pybullet.annotate_pose(obj)
 
 
 def main():
