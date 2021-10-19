@@ -62,6 +62,7 @@
       <rosparam subst_value="true">
         with_occupancy: false
         # with_occupancy: true
+        icp: true
       </rosparam>
     </node>
     <node name="object_poses_to_markers_static"
@@ -121,6 +122,7 @@
     <remap from="~input/class" to="/camera/mask_rcnn_instance_segmentation/output/class" />
     <rosparam subst_value="true">
       with_occupancy: false
+      icp: true
     </rosparam>
   </node>
   <node name="object_poses_to_markers"
