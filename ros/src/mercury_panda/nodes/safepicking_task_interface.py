@@ -47,7 +47,7 @@ class SafepickingTaskInterface(BaseTaskInterface):
         )
         self._agent.load_weights(weight_dir)
 
-        self.subscriber_label = MessageSubscriber(
+        self._subscriber_safepicking = MessageSubscriber(
             [
                 ("/camera/octomap_server/output/class", ObjectClassArray),
                 ("/camera/aligned_depth_to_color/image_raw", Image),
@@ -111,7 +111,7 @@ class SafepickingTaskInterface(BaseTaskInterface):
         cam_msg = rospy.wait_for_message(
             "/camera/color/camera_info", CameraInfo
         )
-        cls_msg, depth_msg, label_msg = self.subscriber_label.msgs
+        cls_msg, depth_msg, label_msg = self._subscriber_safepicking.msgs
 
         K = np.array(cam_msg.K).reshape(3, 3)
 
@@ -190,18 +190,19 @@ class SafepickingTaskInterface(BaseTaskInterface):
 
         self.look_at_pile()
 
+        self._subscriber_safepicking.subscribe()
         self.start_passthrough()
         while True:
-            self.subscriber_label.wait_for_messages()
-            if not self.subscriber_label.msgs:
+            if not self._subscriber_safepicking.msgs:
                 continue
-            cls_msg = self.subscriber_label.msgs[0]
+            cls_msg = self._subscriber_safepicking.msgs[0]
             if TARGET_CLASS_ID not in [
                 cls.class_id for cls in cls_msg.classes
             ]:
                 continue
             break
         self.stop_passthrough()
+        self._subscriber_safepicking.unsubscribe()
 
         self.rosmsgs_to_obs()
 

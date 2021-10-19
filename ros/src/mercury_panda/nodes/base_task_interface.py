@@ -43,7 +43,7 @@ class BaseTaskInterface:
 
         self.real2robot()
 
-        self.subscriber_rgbd = MessageSubscriber(
+        self._subscriber_base = MessageSubscriber(
             [
                 ("/camera/color/camera_info", CameraInfo),
                 ("/camera/color/image_rect_color", Image),
@@ -77,10 +77,13 @@ class BaseTaskInterface:
 
     def add_pointcloud_to_pybullet(self):
         self.start_passthrough()
-        self.subscriber_rgbd.wait_for_messages()
+        self._subscriber_base.subscribe()
+        while not self._subscriber_base.msgs:
+            rospy.sleep(0.01)
+        self._subscriber_base.unsubscribe()
         self.stop_passthrough()
 
-        info_msg, rgb_msg, depth_msg = self.subscriber_rgbd.msgs
+        info_msg, rgb_msg, depth_msg = self._subscriber_base.msgs
 
         K = np.array(info_msg.K).reshape(3, 3)
         bridge = cv_bridge.CvBridge()
