@@ -12,6 +12,7 @@ import pybullet_planning as pp
 import trimesh
 
 import mercury
+from mercury.examples.reorientation import _reorient
 from mercury.examples.reorientation import _utils
 
 import cv_bridge
@@ -105,6 +106,9 @@ class ReorientbotTaskInterface(BaseTaskInterface):
 
         self.rosmsgs_to_env()
 
+        result = self.pick_and_place()
+        del result
+
         IPython.embed()
 
     def rosmsgs_to_env(self, tsdf=True):
@@ -180,7 +184,7 @@ class ReorientbotTaskInterface(BaseTaskInterface):
             )
             depth_masked = depth.copy()
             depth_masked[mask] = np.nan
-            tsdf = tsdf_from_depth(depth, camera_to_base, K)
+            tsdf = tsdf_from_depth(depth_masked, camera_to_base, K)
             with tempfile.TemporaryDirectory() as tmp_dir:
                 visual_file = path.Path(tmp_dir) / "tsdf.obj"
                 tsdf.export(visual_file)
@@ -199,6 +203,83 @@ class ReorientbotTaskInterface(BaseTaskInterface):
         self._env.fg_object_id = obj
         self._env.object_ids = [obj]
         self._env.update_obs()
+
+    def plan_place(self, num_grasps):
+        pcd_in_obj, normals_in_obj = _reorient.get_query_ocs(self._env)
+        dist_from_centroid = np.linalg.norm(pcd_in_obj, axis=1)
+
+        indices = np.arange(pcd_in_obj.shape[0])
+        p = dist_from_centroid.max() - dist_from_centroid
+
+        keep = dist_from_centroid < np.median(dist_from_centroid)
+        indices = indices[keep]
+        p = p[keep]
+        if _utils.get_class_id(self._env.fg_object_id) in [5, 11]:
+            indices = np.r_[
+                np.random.choice(indices, num_grasps, p=p / p.sum()),
+            ]
+        else:
+            indices = np.r_[
+                np.random.choice(indices, num_grasps // 2, p=p / p.sum()),
+                np.random.permutation(pcd_in_obj.shape[0])[: num_grasps // 2],
+            ]
+
+        pcd_in_obj = pcd_in_obj[indices]
+        normals_in_obj = normals_in_obj[indices]
+        quaternion_in_obj = mercury.geometry.quaternion_from_vec2vec(
+            [0, 0, -1], normals_in_obj
+        )
+        grasp_poses = np.hstack([pcd_in_obj, quaternion_in_obj])  # in obj
+
+        if 0:
+            for grasp_pose in grasp_poses:
+                pp.draw_pose(
+                    np.hsplit(grasp_pose, [3]),
+                    parent=self._obj_goal,
+                    width=2,
+                    length=0.05,
+                )
+
+        result = _reorient.plan_place(self._env, grasp_poses)
+
+        return result
+
+    def pick_and_place(self, num_grasps=10):
+        result = self.plan_place(num_grasps=num_grasps)
+        if "js_place" not in result:
+            rospy.logerr("Failed to plan placement")
+            return result
+
+        self.movejs(result["js_pre_grasp"])
+
+        js = self.pi.get_cartesian_path(j=result["j_grasp"])
+        self.movejs(js, time_scale=20)
+
+        self.start_grasp()
+        rospy.sleep(2)
+        self.pi.attachments = result["attachments"]
+
+        self.movejs(result["js_pre_place"], time_scale=5)
+
+        self.movejs(result["js_place"], time_scale=15)
+
+        self.stop_grasp()
+        rospy.sleep(9)
+        self.pi.attachments = []
+
+        self.movejs(result["js_post_place"], time_scale=10)
+
+        js = self.pi.planj(
+            self.pi.homej,
+            obstacles=self._env.bg_objects + self._env.object_ids,
+        )
+        if js is None:
+            self.reset_pose(time_scale=5)
+        else:
+            self.movejs(js, time_scale=5)
+        self.wait_interpolation()
+
+        return result
 
 
 def main():

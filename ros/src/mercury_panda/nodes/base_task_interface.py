@@ -150,7 +150,7 @@ class BaseTaskInterface:
         if not self.recover_from_error():
             return
         if time_scale is None:
-            time_scale = 10
+            time_scale = 3
         if max_accel is None:
             max_accel = 1
         js = np.asarray(js)
