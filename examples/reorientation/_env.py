@@ -10,8 +10,8 @@ import pybullet_planning as pp
 
 import mercury
 
-from _get_heightmap import get_heightmap
-import _utils
+from ._get_heightmap import get_heightmap
+from . import _utils
 
 
 home = path.Path("~").expanduser()
