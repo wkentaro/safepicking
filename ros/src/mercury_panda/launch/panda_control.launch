@@ -40,8 +40,4 @@
         pkg="mercury_panda" type="set_suction_server.py"
         output="screen" required="true" />
 
-  <node name="republish_tf_static_for_rosbag"
-        pkg="mercury_panda" type="republish_tf_static_for_rosbag.py"
-        clear_params="true" if="$(arg PROCESS)" />
-
 </launch>

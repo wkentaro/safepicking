@@ -141,4 +141,8 @@
     </group>
   </group>  <!-- if="$(arg DYNAMIC)" -->
 
+  <node name="republish_tf_static_for_rosbag"
+        pkg="mercury_panda" type="republish_tf_static_for_rosbag.py"
+        clear_params="true" if="$(arg PROCESS)" />
+
 </launch>
