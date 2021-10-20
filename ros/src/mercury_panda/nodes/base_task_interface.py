@@ -65,11 +65,14 @@ class BaseTaskInterface:
         depth = depth.astype(np.float32) / 1000
         depth[depth == 0] = np.nan
 
-        camera_to_base = self.lookup_transform(
-            "panda_link0",
-            info_msg.header.frame_id,
-            time=info_msg.header.stamp,
-        )
+        try:
+            camera_to_base = self.lookup_transform(
+                "panda_link0",
+                info_msg.header.frame_id,
+                time=info_msg.header.stamp,
+            )
+        except tf.ExtrapolationException:
+            return
 
         pcd = mercury.geometry.pointcloud_from_depth(
             depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
@@ -108,13 +111,14 @@ class BaseTaskInterface:
             client = rospy.ServiceProxy(passthrough + "/stop", Empty)
             client.call()
 
-    def lookup_transform(self, target_frame, source_frame, time):
-        self._tf_listener.waitForTransform(
-            target_frame=target_frame,
-            source_frame=source_frame,
-            time=time,
-            timeout=rospy.Duration(0.1),
-        )
+    def lookup_transform(self, target_frame, source_frame, time, timeout=None):
+        if timeout is not None:
+            self._tf_listener.waitForTransform(
+                target_frame=target_frame,
+                source_frame=source_frame,
+                time=time,
+                timeout=timeout,
+            )
         return self._tf_listener.lookupTransform(
             target_frame=target_frame, source_frame=source_frame, time=time
         )
