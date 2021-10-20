@@ -153,9 +153,6 @@ class SafepickingTaskInterface(BaseTaskInterface):
 
         self.rosmsgs_to_obs()
 
-        if 0:
-            self.add_pointcloud_to_pybullet()
-
         grasp_poses = self.get_grasp_poses(target_class_id=TARGET_CLASS_ID)
 
         centroid = np.mean(grasp_poses[:, :3], axis=0)

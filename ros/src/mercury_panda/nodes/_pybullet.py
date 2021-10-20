@@ -32,7 +32,7 @@ def draw_points(points, colors, size=1):
         i = np.random.permutation(N)[:MAX_NUM_POINTS]
     else:
         i = Ellipsis
-    p.addUserDebugPoints(points[i], colors[i], pointSize=size)
+    return p.addUserDebugPoints(points[i], colors[i], pointSize=size)
 
 
 def annotate_pose(obj):

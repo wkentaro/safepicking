@@ -50,8 +50,39 @@ class BaseTaskInterface:
                 ("/camera/color/camera_info", CameraInfo),
                 ("/camera/color/image_rect_color", Image),
                 ("/camera/aligned_depth_to_color/image_raw", Image),
-            ]
+            ],
+            callback=self._subscriber_base_callback,
         )
+        self._subscriber_base_points = None
+        self._subscriber_base.subscribe()
+
+    def _subscriber_base_callback(self, info_msg, rgb_msg, depth_msg):
+        K = np.array(info_msg.K).reshape(3, 3)
+        bridge = cv_bridge.CvBridge()
+        rgb = bridge.imgmsg_to_cv2(rgb_msg, desired_encoding="rgb8")
+        depth = bridge.imgmsg_to_cv2(depth_msg)
+        assert depth.dtype == np.uint16
+        depth = depth.astype(np.float32) / 1000
+        depth[depth == 0] = np.nan
+
+        camera_to_base = self.lookup_transform(
+            "panda_link0",
+            info_msg.header.frame_id,
+            time=info_msg.header.stamp,
+        )
+
+        pcd = mercury.geometry.pointcloud_from_depth(
+            depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
+        )
+        pcd = mercury.geometry.transform_points(
+            pcd, mercury.geometry.transformation_matrix(*camera_to_base)
+        )
+
+        subscriber_base_points = _pybullet.draw_points(pcd, rgb, size=1)
+
+        if self._subscriber_base_points is not None:
+            pp.remove_debug(self._subscriber_base_points)
+        self._subscriber_base_points = subscriber_base_points
 
     @property
     def pi(self):
@@ -76,39 +107,6 @@ class BaseTaskInterface:
         for passthrough in passthroughs:
             client = rospy.ServiceProxy(passthrough + "/stop", Empty)
             client.call()
-
-    def add_pointcloud_to_pybullet(self):
-        self.start_passthrough()
-        self._subscriber_base.subscribe()
-        while not self._subscriber_base.msgs:
-            rospy.sleep(0.01)
-        self._subscriber_base.unsubscribe()
-        self.stop_passthrough()
-
-        info_msg, rgb_msg, depth_msg = self._subscriber_base.msgs
-
-        K = np.array(info_msg.K).reshape(3, 3)
-        bridge = cv_bridge.CvBridge()
-        rgb = bridge.imgmsg_to_cv2(rgb_msg, desired_encoding="rgb8")
-        depth = bridge.imgmsg_to_cv2(depth_msg)
-        assert depth.dtype == np.uint16
-        depth = depth.astype(np.float32) / 1000
-        depth[depth == 0] = np.nan
-
-        camera_to_base = self.lookup_transform(
-            "panda_link0",
-            info_msg.header.frame_id,
-            time=info_msg.header.stamp,
-        )
-
-        pcd = mercury.geometry.pointcloud_from_depth(
-            depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
-        )
-        pcd = mercury.geometry.transform_points(
-            pcd, mercury.geometry.transformation_matrix(*camera_to_base)
-        )
-
-        _pybullet.draw_points(pcd, rgb, size=3)
 
     def lookup_transform(self, target_frame, source_frame, time):
         self._tf_listener.waitForTransform(
@@ -259,7 +257,6 @@ class BaseTaskInterface:
         self._env.bg_objects.append(obj)
         self._bin = obj
 
-        # self.add_pointcloud_to_pybullet()
         # _pybullet.annotate_pose(obj)
 
 
