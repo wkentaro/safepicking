@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
+import itertools
 import tempfile
 
 import cv2
@@ -14,6 +15,12 @@ import trimesh
 import mercury
 from mercury.examples.reorientation import _reorient
 from mercury.examples.reorientation import _utils
+from mercury.examples.reorientation.pickable_eval import (
+    get_goal_oriented_reorient_poses,  # NOQA
+)
+from mercury.examples.reorientation.reorient_dynamic import (
+    plan_dynamic_reorient,  # NOQA
+)
 
 import cv_bridge
 from morefusion_panda_ycb_video.msg import ObjectClassArray
@@ -85,9 +92,40 @@ class ReorientbotTaskInterface(BaseTaskInterface):
     def run(self):
         self.init_workspace()
         self.init_task()
-        target_class_id = _utils.get_class_id(self._obj_goal)
 
+        self.scan_pile()
+
+        while True:
+            result = self.pick_and_place()
+            if "js_place" in result:
+                break
+
+            self.pick_and_reorient()
+            self.scan_target()
+
+    def scan_pile(self):
         self.look_at_pile()
+        self._scan_singleview()
+
+    def scan_target(self):
+        self.look_at_target()
+        self._scan_singleview()
+
+    def look_at_target(self):
+        if self.env.fg_object_id is None:
+            # default
+            target = [0.2, -0.5, 0.1]
+        else:
+            target = pp.get_pose(self._env.fg_object_id)[0]
+        self.look_at(
+            eye=[target[0] - 0.1, target[1], target[2] + 0.5],
+            target=target,
+            rotation_axis="z",
+            time_scale=4,
+        )
+
+    def _scan_singleview(self):
+        target_class_id = _utils.get_class_id(self._obj_goal)
 
         self._subscriber_reorientbot.subscribe()
         self.start_passthrough()
@@ -105,11 +143,6 @@ class ReorientbotTaskInterface(BaseTaskInterface):
         self._subscriber_reorientbot.unsubscribe()
 
         self.rosmsgs_to_env()
-
-        result = self.pick_and_place()
-        del result
-
-        IPython.embed()
 
     def rosmsgs_to_env(self, tsdf=True):
         cam_msg = rospy.wait_for_message(
@@ -280,6 +313,91 @@ class ReorientbotTaskInterface(BaseTaskInterface):
         self.wait_interpolation()
 
         return result
+
+    def plan_reorient(self, heuristic=False):
+        if heuristic:
+            grasp_poses = _reorient.get_grasp_poses(self._env)
+            grasp_poses = list(itertools.islice(grasp_poses, 12))
+            reorient_poses = _reorient.get_static_reorient_poses(self._env)
+
+            result = {}
+            for grasp_pose, reorient_pose in itertools.product(
+                grasp_poses, reorient_poses
+            ):
+                result = _reorient.plan_reorient(
+                    self._env, grasp_pose, reorient_pose
+                )
+                if "js_place" in result:
+                    break
+            else:
+                rospy.logerr("No solution found")
+        else:
+            (
+                reorient_poses,
+                pickable,
+                target_grasp_poses,
+            ) = get_goal_oriented_reorient_poses(self._env)
+
+            grasp_poses = _reorient.get_grasp_poses(self._env)  # in world
+            grasp_poses = list(itertools.islice(grasp_poses, 25))
+
+            for threshold in np.linspace(0.99, 0.5):
+                indices = np.where(pickable > threshold)[0]
+                if indices.size > 100:
+                    break
+            indices = np.random.choice(
+                indices, min(indices.size, 1000), replace=False
+            )
+            reorient_poses = reorient_poses[indices]
+            pickable = pickable[indices]
+
+            result = plan_dynamic_reorient(
+                self._env,
+                grasp_poses,
+                reorient_poses,
+                pickable,
+            )
+        return result
+
+    def pick_and_reorient(self, heuristic=False):
+        result = self.plan_reorient(heuristic=heuristic)
+        if "js_place" not in result:
+            rospy.logerr("Failed to plan reorientation")
+            return
+
+        self.movejs(result["js_pre_grasp"], time_scale=4)
+
+        js = self.pi.get_cartesian_path(j=result["j_grasp"])
+
+        self.movejs(js, time_scale=20)
+        self.wait_interpolation()
+        self.start_grasp()
+        rospy.sleep(2)
+        self.pi.attachments = result["attachments"]
+
+        js = result["js_place"]
+        self.movejs(js, time_scale=8)
+
+        with pp.WorldSaver():
+            self.pi.setj(js[-1])
+            c = mercury.geometry.Coordinate(*self.pi.get_pose("tipLink"))
+            js = []
+            for i in range(3):
+                c.translate([0, 0, -0.01], wrt="world")
+                j = self.pi.solve_ik(c.pose, rotation_axis=None)
+                if j is not None:
+                    js.append(j)
+        self.movejs(js, time_scale=10, wait=False)
+
+        self.stop_grasp()
+
+        rospy.sleep(6)
+        self.pi.attachments = []
+
+        js = result["js_post_place"]
+        self.movejs(js, time_scale=5)
+
+        self.movejs([self.pi.homej], time_scale=4)
 
 
 def main():
