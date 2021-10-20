@@ -1,17 +1,11 @@
 import itertools
-import os.path as osp
-import sys
 
 import numpy as np
-import path
+from ompl import base as ob
+from ompl import geometric as og
+from ompl import util as ou
 import pybullet as p
 import pybullet_planning as pp
-
-here = path.Path(__file__).abspath().parent
-sys.path.insert(0, osp.join(here, "../../src/ompl/py-bindings"))
-from ompl import base as ob  # NOQA
-from ompl import geometric as og  # NOQA
-from ompl import util as ou  # NOQA
 
 
 class pbValidityChecker(ob.StateValidityChecker):

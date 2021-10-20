@@ -30,5 +30,20 @@ git checkout 1.5.1
 mkdir -p build
 cd build
 cmake .. -DOMPL_BUILD_PYBINDINGS=TRUE -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
-make -j 4 update_bindings
-make -j 4
+make -j4 update_bindings
+make -j4
+
+cd ..
+cat << EOF > setup.py
+import setuptools
+
+
+setuptools.setup(
+    name="ompl",
+    version="1.5.1",
+    packages=setuptools.find_packages("py-bindings"),
+    package_dir={"": "py-bindings"},
+)
+EOF
+source $ROOT/.anaconda3/bin/activate
+pip install -e .
