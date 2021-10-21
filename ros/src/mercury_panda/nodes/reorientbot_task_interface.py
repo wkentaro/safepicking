@@ -279,8 +279,7 @@ class ReorientbotTaskInterface(BaseTaskInterface):
         return result
 
     def pick_and_place(self, num_grasps=10):
-        with self._subscriber_base.pause():
-            result = self.plan_place(num_grasps=num_grasps)
+        result = self.plan_place(num_grasps=num_grasps)
         if "js_place" not in result:
             rospy.logerr("Failed to plan placement")
             return result
@@ -362,8 +361,7 @@ class ReorientbotTaskInterface(BaseTaskInterface):
         return result
 
     def pick_and_reorient(self, heuristic=False):
-        with self._subscriber_base.pause():
-            result = self.plan_reorient(heuristic=heuristic)
+        result = self.plan_reorient(heuristic=heuristic)
         if "js_place" not in result:
             rospy.logerr("Failed to plan reorientation")
             return
