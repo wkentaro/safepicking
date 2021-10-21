@@ -1,3 +1,5 @@
+import contextlib
+
 import message_filters
 
 
@@ -26,8 +28,19 @@ class MessageSubscriber:
     def unsubscribe(self):
         for sub in self._subscribers:
             sub.unregister()
+        self._subscribers = []
 
     def _callback(self, *msgs):
         self.msgs = msgs
         if self.callback:
             self.callback(*msgs)
+
+    @contextlib.contextmanager
+    def pause(self):
+        if not self._subscribers:
+            return
+        try:
+            self.unsubscribe()
+            yield
+        finally:
+            self.subscribe()
