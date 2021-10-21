@@ -131,9 +131,6 @@ class SafepickingTaskInterface(BaseTaskInterface):
         return grasp_poses
 
     def run(self):
-        # start pointcloud visualization
-        self._subscriber_base.subscribe()
-
         TARGET_CLASS_ID = 3
 
         self.init_workspace()

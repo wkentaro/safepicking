@@ -90,9 +90,6 @@ class ReorientbotTaskInterface(BaseTaskInterface):
         # annotate_pose(obj)
 
     def run(self):
-        # start pointcloud visualization
-        self._subscriber_base.subscribe()
-
         self.init_workspace()
         self.init_task()
 

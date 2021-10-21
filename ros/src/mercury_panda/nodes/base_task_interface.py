@@ -182,6 +182,7 @@ class BaseTaskInterface:
             self.wait_interpolation()
 
     def wait_interpolation(self):
+        self._subscriber_base.subscribe()
         controller_actions = self.ri.controller_table[self.ri.controller_type]
         while True:
             states = [action.get_state() for action in controller_actions]
@@ -189,6 +190,7 @@ class BaseTaskInterface:
                 break
             self.real2robot()
             rospy.sleep(0.01)
+        self._subscriber_base.unsubscribe()
         if not all(s == GoalStatus.SUCCEEDED for s in states):
             rospy.logwarn("Some joint control requests have failed")
             return False
