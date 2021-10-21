@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+import argparse
+import time
+
 import IPython
 import numpy as np
 import pybullet as p
@@ -155,13 +158,21 @@ class BaseTaskInterface:
         for attachment in self.pi.attachments:
             attachment.assign()
 
-    def movejs(self, js, time_scale=None, wait=True, max_accel=None):
+    def visjs(self, js):
+        for j in js:
+            for _ in self.pi.movej(j):
+                pp.step_simulation()
+                time.sleep(1 / 240)
+
+    def movejs(self, js, time_scale=None, wait=True, accel_scale=None):
         if not self.recover_from_error():
             return
         if time_scale is None:
             time_scale = 3
-        if max_accel is None:
-            max_accel = 1
+        if accel_scale is None:
+            accel_scale = 0.75
+        max_accel = np.array([2, 1.25, 1.75, 1.75, 2.75, 3, 3])
+        max_accel *= accel_scale
         js = np.asarray(js)
         self.real2robot()
         self.ri.angle_vector_sequence(
@@ -272,9 +283,19 @@ class BaseTaskInterface:
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument("-c", dest="cmd")
+    args = parser.parse_args()
+
     rospy.init_node("base_task_interface")
     self = BaseTaskInterface()  # NOQA
-    IPython.embed()
+
+    if args.cmd:
+        exec(args.cmd)
+
+    IPython.embed(header="base_task_interface")
 
 
 if __name__ == "__main__":
