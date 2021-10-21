@@ -55,7 +55,6 @@ class BaseTaskInterface:
         )
         self._subscriber_base_points_stamp = None
         self._subscriber_base_points = None
-        self._subscriber_base.subscribe()
 
     def _subscriber_base_callback(self, info_msg, rgb_msg, depth_msg):
         HZ = 5
