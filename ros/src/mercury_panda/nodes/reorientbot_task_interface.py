@@ -112,7 +112,7 @@ class ReorientbotTaskInterface(BaseTaskInterface):
         self._scan_singleview()
 
     def look_at_target(self):
-        if self.env.fg_object_id is None:
+        if self._env.fg_object_id is None:
             # default
             target = [0.2, -0.5, 0.1]
         else:
@@ -127,6 +127,7 @@ class ReorientbotTaskInterface(BaseTaskInterface):
     def _scan_singleview(self):
         target_class_id = _utils.get_class_id(self._obj_goal)
 
+        self._subscriber_reorientbot.msgs = None
         self._subscriber_reorientbot.subscribe()
         self.start_passthrough()
         while True:

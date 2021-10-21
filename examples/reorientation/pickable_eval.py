@@ -3,6 +3,7 @@
 import argparse
 import time
 
+import gdown
 import numpy as np
 import path
 import pybullet_planning as pp
@@ -10,12 +11,12 @@ import torch
 
 import mercury
 
-from _env import Env
-import _reorient
-import _utils
+from . import _reorient
+from . import _utils
+from ._env import Env
 
-from pickable_reorient_poses import get_reorient_poses
-from pickable_train import Model
+from .pickable_reorient_poses import get_reorient_poses
+from .pickable_train import Model
 
 
 here = path.Path(__file__).abspath().parent
@@ -24,17 +25,21 @@ here = path.Path(__file__).abspath().parent
 models = {}
 
 models["franka_panda/panda_drl"] = Model()
-model_file = (
-    here
-    / "logs/pickable/20210811_174549.504802-panda_drl/models/model_best-epoch_0044.pt"  # NOQA
+model_file = gdown.cached_download(
+    id="1FeIHeQl_nSQgutdALEgjICrEmwe5DSk3",
+    path=here
+    / "logs/pickable/20210811_174549.504802-panda_drl/models/model_best-epoch_0044.pt",  # NOQA
+    md5="47cf65986f5cea24dceb5eb92c5308be",
 )
 models["franka_panda/panda_drl"].load_state_dict(torch.load(model_file))
 models["franka_panda/panda_drl"].eval()
 
 models["franka_panda/panda_suction"] = Model()
-model_file = (
-    here
-    / "logs/pickable/20210819_035214.799043-panda_suction/models/model_best-epoch_0050.pt"  # NOQA
+model_file = gdown.cached_download(
+    id="11Z1wTicF7i8pcE6nARiJQfkq6VW7dpJH",
+    path=here
+    / "logs/pickable/20210819_035214.799043-panda_suction/models/model_best-epoch_0050.pt",  # NOQA
+    md5="748f277c7b50b507d943a8aa9c9e1476",
 )
 models["franka_panda/panda_suction"].load_state_dict(torch.load(model_file))
 models["franka_panda/panda_suction"].eval()

@@ -5,6 +5,7 @@ import itertools
 import json
 import time
 
+import gdown
 from loguru import logger
 import numpy as np
 import path
@@ -13,12 +14,12 @@ import torch
 
 import mercury
 
-from _env import Env
-import _reorient
-import _utils
+from ._env import Env
+from . import _reorient
+from . import _utils
 
-from pickable_eval import get_goal_oriented_reorient_poses
-from reorientable_train import Model
+from .pickable_eval import get_goal_oriented_reorient_poses
+from .reorientable_train import Model
 
 
 here = path.Path(__file__).abspath().parent
@@ -27,17 +28,21 @@ here = path.Path(__file__).abspath().parent
 models = {}
 
 models["franka_panda/panda_drl"] = Model()
-model_file = (
-    here
-    / "logs/reorientable/20210811_174552.543384-panda_drl/models/model_best-epoch_0111.pt"  # NOQA
+model_file = gdown.cached_download(
+    id="1phRRjEqCelMo8W2O5_kYmjrmV8DSMtSe",
+    path=here
+    / "logs/reorientable/20210811_174552.543384-panda_drl/models/model_best-epoch_0111.pt",  # NOQA
+    md5="b784e2b7c866f9475d7a38d74d321e3b",
 )
 models["franka_panda/panda_drl"].load_state_dict(torch.load(model_file))
 models["franka_panda/panda_drl"].eval()
 
 models["franka_panda/panda_suction"] = Model()
-model_file = (
-    here
-    / "logs/reorientable/20210819_035217.161036-panda_suction/models/model_best-epoch_0142.pt"  # NOQA
+model_file = gdown.cached_download(
+    id="1UsajylR2I0OT31jLRqMA8iNZox1zTKZw",
+    path=here
+    / "logs/reorientable/20210819_035217.161036-panda_suction/models/model_best-epoch_0142.pt",  # NOQA
+    md5="bddb1ee74ea6015cf57fa66e11dabf95",
 )
 models["franka_panda/panda_suction"].load_state_dict(torch.load(model_file))
 models["franka_panda/panda_suction"].eval()
@@ -113,7 +118,7 @@ def plan_dynamic_reorient(env, grasp_poses, reorient_poses, pickable):
     object_label = object_labels[object_fg_flags == 1][0]
     object_pose = object_poses[object_fg_flags == 1][0]
 
-    if env.reverse:
+    if getattr(env, "reverse", False):
         object_pose[:3] = env.PILE_POSITION + [0, -0.4, 0.1]
 
     with torch.no_grad():
