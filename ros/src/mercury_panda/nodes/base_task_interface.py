@@ -53,10 +53,17 @@ class BaseTaskInterface:
             ],
             callback=self._subscriber_base_callback,
         )
+        self._subscriber_base_points_stamp = None
         self._subscriber_base_points = None
         self._subscriber_base.subscribe()
 
     def _subscriber_base_callback(self, info_msg, rgb_msg, depth_msg):
+        HZ = 5
+        if self._subscriber_base_points_stamp is not None and (
+            info_msg.header.stamp - self._subscriber_base_points_stamp
+        ) < rospy.Duration(1 / HZ):
+            return
+
         K = np.array(info_msg.K).reshape(3, 3)
         bridge = cv_bridge.CvBridge()
         rgb = bridge.imgmsg_to_cv2(rgb_msg, desired_encoding="rgb8")
@@ -86,6 +93,7 @@ class BaseTaskInterface:
         if self._subscriber_base_points is not None:
             pp.remove_debug(self._subscriber_base_points)
         self._subscriber_base_points = subscriber_base_points
+        self._subscriber_base_points_stamp = info_msg.header.stamp
 
     @property
     def pi(self):
