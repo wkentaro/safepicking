@@ -288,6 +288,8 @@ class SafepickingTaskInterface(BaseTaskInterface):
             (num_instance, len(self._picking_env.CLASS_IDS)), dtype=np.int8
         )
         object_poses = np.zeros((num_instance, 7), dtype=np.float32)
+        assert self._env.object_ids is None
+        self._env.object_ids = []
         for i, obj_pose_msg in enumerate(obj_poses_msg.poses):
             pose = obj_pose_msg.pose
             instance_id = obj_pose_msg.instance_id
@@ -300,7 +302,7 @@ class SafepickingTaskInterface(BaseTaskInterface):
                 pose.orientation.w,
             )
             visual_file = mercury.datasets.ycb.get_visual_file(class_id)
-            mercury.pybullet.create_mesh_body(
+            obj_id = mercury.pybullet.create_mesh_body(
                 visual_file=visual_file,
                 position=position,
                 quaternion=quaternion,
@@ -320,6 +322,11 @@ class SafepickingTaskInterface(BaseTaskInterface):
                 quaternion[2],
                 quaternion[3],
             ]
+
+            if grasp_flags[i]:
+                self._env.fg_object_id = obj_id
+            else:
+                self._env.object_ids.append(obj_id)
 
         ee_poses = np.zeros(
             (self._picking_env.episode_length, 7), dtype=np.float32
