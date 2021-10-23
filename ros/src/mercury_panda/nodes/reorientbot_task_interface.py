@@ -284,10 +284,10 @@ class ReorientbotTaskInterface(BaseTaskInterface):
             rospy.logerr("Failed to plan placement")
             return result
 
-        self.movejs(result["js_pre_grasp"])
+        self.movejs(result["js_pre_grasp"], time_scale=3)
 
         js = self.pi.get_cartesian_path(j=result["j_grasp"])
-        self.movejs(js, time_scale=20)
+        self.movejs(js, time_scale=10)
 
         self.start_grasp()
         rospy.sleep(2)
@@ -295,22 +295,22 @@ class ReorientbotTaskInterface(BaseTaskInterface):
 
         self.movejs(result["js_pre_place"], time_scale=5)
 
-        self.movejs(result["js_place"], time_scale=15)
+        self.movejs(result["js_place"], time_scale=7.5)
 
         self.stop_grasp()
         rospy.sleep(9)
         self.pi.attachments = []
 
-        self.movejs(result["js_post_place"], time_scale=10, retry=True)
+        self.movejs(result["js_post_place"], time_scale=5, retry=True)
 
         js = self.pi.planj(
             self.pi.homej,
             obstacles=self._env.bg_objects + self._env.object_ids,
         )
         if js is None:
-            self.reset_pose(time_scale=5)
+            self.reset_pose(time_scale=3)
         else:
-            self.movejs(js, time_scale=5)
+            self.movejs(js, time_scale=3)
         self.wait_interpolation()
 
         return result
@@ -366,18 +366,18 @@ class ReorientbotTaskInterface(BaseTaskInterface):
             rospy.logerr("Failed to plan reorientation")
             return
 
-        self.movejs(result["js_pre_grasp"], time_scale=4)
+        self.movejs(result["js_pre_grasp"], time_scale=3)
 
         js = self.pi.get_cartesian_path(j=result["j_grasp"])
 
-        self.movejs(js, time_scale=20)
+        self.movejs(js, time_scale=10)
         self.wait_interpolation()
         self.start_grasp()
         rospy.sleep(2)
         self.pi.attachments = result["attachments"]
 
         js = result["js_place"]
-        self.movejs(js, time_scale=8)
+        self.movejs(js, time_scale=5)
 
         with pp.WorldSaver():
             self.pi.setj(js[-1])
@@ -388,7 +388,7 @@ class ReorientbotTaskInterface(BaseTaskInterface):
                 j = self.pi.solve_ik(c.pose, rotation_axis=None)
                 if j is not None:
                     js.append(j)
-        self.movejs(js, time_scale=10, wait=False)
+        self.movejs(js, time_scale=7.5, wait=False)
 
         self.stop_grasp()
 
@@ -398,7 +398,7 @@ class ReorientbotTaskInterface(BaseTaskInterface):
         js = result["js_post_place"]
         self.movejs(js, time_scale=5)
 
-        self.movejs([self.pi.homej], time_scale=4)
+        self.movejs([self.pi.homej], time_scale=3)
 
 
 def main():
