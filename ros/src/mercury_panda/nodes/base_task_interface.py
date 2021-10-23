@@ -59,6 +59,8 @@ class BaseTaskInterface:
         self._subscriber_base_points_stamp = None
         self._subscriber_base_points = None
 
+        self._workspace_initialized = False
+
     def _subscriber_base_callback(self, info_msg, rgb_msg, depth_msg):
         HZ = 5
         if self._subscriber_base_points_stamp is not None and (
@@ -257,6 +259,9 @@ class BaseTaskInterface:
         self.look_at(eye=[0.5, 0, 0.7], target=[0.5, 0, 0], *args, **kwargs)
 
     def init_workspace(self):
+        if self._workspace_initialized:
+            return
+
         # light
         p.configureDebugVisualizer(
             p.COV_ENABLE_SHADOWS, True, lightPosition=(100, -100, 0.5)
@@ -299,6 +304,8 @@ class BaseTaskInterface:
         )
         self._env.bg_objects.append(obj)
         self._bin = obj
+
+        self._workspace_initialized = True
 
         # _pybullet.annotate_pose(obj)
 
