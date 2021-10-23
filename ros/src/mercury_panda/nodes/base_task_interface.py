@@ -164,19 +164,16 @@ class BaseTaskInterface:
                 pp.step_simulation()
                 time.sleep(1 / 240)
 
-    def movejs(self, js, time_scale=None, wait=True, accel_scale=None):
+    def movejs(self, js, time_scale=None, wait=True):
         if not self.recover_from_error():
             return
         if time_scale is None:
             time_scale = 3
-        if accel_scale is None:
-            accel_scale = 0.75
-        max_accel = np.array([2, 1.25, 1.75, 1.75, 2.75, 3, 3])
-        max_accel *= accel_scale
         js = np.asarray(js)
+
         self.real2robot()
         self.ri.angle_vector_sequence(
-            js, time_scale=time_scale, max_accel=max_accel
+            js, time_scale=time_scale, max_pos_accel=1
         )
         if wait:
             self.wait_interpolation()
