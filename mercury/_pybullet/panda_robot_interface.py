@@ -310,12 +310,11 @@ class PandaRobotInterface:
             path_i = np.zeros((ndof,), dtype=float)
             for i_dof in range(ndof):
                 path_i[i_dof] = state[i_dof]
-
-            # simplify function can make path invalid
-            if not planner.validityChecker.isValid(path_i):
-                return None
-
             path[i_state] = path_i
+
+        if not np.allclose(j, path[-1]):
+            # the goal is not reached
+            return
 
         return path
 
