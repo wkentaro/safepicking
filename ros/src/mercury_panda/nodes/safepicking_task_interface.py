@@ -187,6 +187,7 @@ class SafepickingTaskInterface(BaseTaskInterface):
         assert j is not None
 
         with pp.WorldSaver():
+            self.pi.setj(j)
             grasp_pose = self.pi.get_pose("tipLink")
 
         js_extract = self.plan_extraction(
@@ -194,6 +195,21 @@ class SafepickingTaskInterface(BaseTaskInterface):
             target_class_id=TARGET_CLASS_ID,
             grasp_pose=grasp_pose,
         )
+
+        if self._env.fg_object_id is not None:
+            ee_to_world = grasp_pose
+            obj_to_world = pp.get_pose(self._env.fg_object_id)
+            obj_to_ee = pp.multiply(pp.invert(ee_to_world), obj_to_world)
+            attachments = [
+                pp.Attachment(
+                    self.pi.robot,
+                    self.pi.ee,
+                    obj_to_ee,
+                    self._env.fg_object_id,
+                )
+            ]
+        else:
+            attachments = []
 
         js_grasp = [j]
 
@@ -211,6 +227,7 @@ class SafepickingTaskInterface(BaseTaskInterface):
         self.movejs(js_grasp, time_scale=10)
 
         self.start_grasp()
+        self.pi.attachments = attachments
 
         self.movejs(js_extract, time_scale=20)
 
@@ -223,6 +240,7 @@ class SafepickingTaskInterface(BaseTaskInterface):
             self.movejs(js[:5], time_scale=10)
 
         self.stop_grasp()
+        self.pi.attachments = []
         rospy.sleep(6)
 
         if place:

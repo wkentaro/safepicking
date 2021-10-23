@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import IPython
+import pybullet_planning as pp
 
 import rospy
 
@@ -14,9 +15,12 @@ class CombinedTaskInterface(
     def run(self):
         SafepickingTaskInterface.run(self, place=False)
 
-        ee_to_world = self.pi.get_pose("tipLink")
+        if self._env.fg_object_id is None:
+            target = self.pi.get_pose("tipLink")[0]
+        else:
+            target = pp.get_pose(self._env.fg_object_id)[0]
 
-        ReorientbotTaskInterface.run(self, target=ee_to_world[0])
+        ReorientbotTaskInterface.run(self, target=target)
 
 
 rospy.init_node("combined_task_interface")
