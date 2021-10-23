@@ -164,7 +164,7 @@ class BaseTaskInterface:
                 pp.step_simulation()
                 time.sleep(1 / 240)
 
-    def movejs(self, js, time_scale=None, wait=True):
+    def movejs(self, js, time_scale=None, wait=True, retry=False):
         if not self.recover_from_error():
             return
         if time_scale is None:
@@ -172,11 +172,33 @@ class BaseTaskInterface:
         js = np.asarray(js)
 
         self.real2robot()
+        j_init = self.pi.getj()
+
         self.ri.angle_vector_sequence(
             js, time_scale=time_scale, max_pos_accel=1
         )
         if wait:
-            self.wait_interpolation()
+            success = self.wait_interpolation()
+            if success or not retry:
+                return
+
+            self.real2robot()
+            j_curr = self.pi.getj()
+
+            js = np.r_[[j_init], js]
+
+            for i in range(len(js) - 1):
+                dj1 = js[i + 1] - j_curr
+                dj2 = js[i + 1] - js[i]
+                dj1[abs(dj1) < 0.01] = 0
+                dj2[abs(dj2) < 0.01] = 0
+                if (np.sign(dj1) == np.sign(dj2)).all():
+                    break
+            else:
+                return
+            self.movejs(
+                js[i + 1 :], time_scale=time_scale, wait=wait, retry=False
+            )
 
     def wait_interpolation(self):
         self._subscriber_base.subscribe()

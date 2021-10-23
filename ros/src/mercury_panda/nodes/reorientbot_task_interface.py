@@ -301,7 +301,7 @@ class ReorientbotTaskInterface(BaseTaskInterface):
         rospy.sleep(9)
         self.pi.attachments = []
 
-        self.movejs(result["js_post_place"], time_scale=10)
+        self.movejs(result["js_post_place"], time_scale=10, retry=True)
 
         js = self.pi.planj(
             self.pi.homej,
