@@ -89,11 +89,14 @@ class ReorientbotTaskInterface(BaseTaskInterface):
         # self.scan_pointcloud()
         # annotate_pose(obj)
 
-    def run(self):
+    def run(self, target=None):
         self.init_workspace()
         self.init_task()
 
-        self.scan_pile()
+        if target is None:
+            self.scan_pile()
+        else:
+            self.scan_target(target=target)
 
         while True:
             result = self.pick_and_place()
@@ -107,16 +110,17 @@ class ReorientbotTaskInterface(BaseTaskInterface):
         self.look_at_pile()
         self._scan_singleview()
 
-    def scan_target(self):
-        self.look_at_target()
+    def scan_target(self, target=None):
+        self.look_at_target(target=target)
         self._scan_singleview()
 
-    def look_at_target(self):
-        if self._env.fg_object_id is None:
-            # default
-            target = [0.2, -0.5, 0.1]
-        else:
-            target = pp.get_pose(self._env.fg_object_id)[0]
+    def look_at_target(self, target=None):
+        if target is None:
+            if self._env.fg_object_id is None:
+                # default
+                target = [0.2, -0.5, 0.1]
+            else:
+                target = pp.get_pose(self._env.fg_object_id)[0]
         self.look_at(
             eye=[target[0] - 0.1, target[1], target[2] + 0.5],
             target=target,

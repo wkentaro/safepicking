@@ -79,7 +79,10 @@ class SafepickingTaskInterface(BaseTaskInterface):
         class_id_to_instance_ids = dict(class_id_to_instance_ids)
 
         camera_to_base = self.lookup_transform(
-            "panda_link0", cam_msg.header.frame_id, time=cam_msg.header.stamp
+            "panda_link0",
+            cam_msg.header.frame_id,
+            time=cam_msg.header.stamp,
+            timeout=rospy.Duration(1),
         )
 
         pcd_in_camera = mercury.geometry.pointcloud_from_depth(
@@ -131,7 +134,7 @@ class SafepickingTaskInterface(BaseTaskInterface):
         grasp_poses = np.hstack((pcd_in_base, quaternion_in_base))
         return grasp_poses
 
-    def run(self):
+    def run(self, place=True):
         TARGET_CLASS_ID = 3
 
         self.init_workspace()
@@ -140,6 +143,7 @@ class SafepickingTaskInterface(BaseTaskInterface):
 
         self._subscriber_safepicking.subscribe()
         self.start_passthrough()
+        rospy.sleep(5)
         while True:
             if not self._subscriber_safepicking.msgs:
                 continue
@@ -167,6 +171,18 @@ class SafepickingTaskInterface(BaseTaskInterface):
         if 1:
             pp.draw_pose(grasp_pose, width=2)
 
+        self.pi.setj(
+            [
+                0.9455609917640686,
+                -1.7446026802062988,
+                -1.1828051805496216,
+                -2.2014822959899902,
+                -1.2853317260742188,
+                1.2614742517471313,
+                -0.2561403810977936,
+            ]
+        )
+
         j = self.pi.solve_ik(grasp_pose, rotation_axis="z", validate=True)
         assert j is not None
 
@@ -192,22 +208,27 @@ class SafepickingTaskInterface(BaseTaskInterface):
 
         js_place = self.plan_placement(j_init=self.pi.homej)
 
-        self.movejs(js_grasp)
+        self.movejs(js_grasp, time_scale=10)
 
         self.start_grasp()
 
         self.movejs(js_extract, time_scale=20)
 
-        self.reset_pose()
+        if place:
+            self.reset_pose()
 
-        self.movejs(js_place)
+            self.movejs(js_place)
+        else:
+            js = np.linspace(js_extract[-1], self.pi.homej)
+            self.movejs(js[:5], time_scale=10)
 
         self.stop_grasp()
         rospy.sleep(6)
 
-        self.movejs(js_place[::-1])
+        if place:
+            self.movejs(js_place[::-1])
 
-        self.reset_pose()
+            self.reset_pose()
 
     def plan_placement(self, j_init):
         bin_to_base = pp.get_pose(self._bin)
@@ -344,9 +365,7 @@ class SafepickingTaskInterface(BaseTaskInterface):
 
             for action in actions:
                 a = action // 2
-                if i < 2:
-                    t = 0
-                elif i == self._picking_env.episode_length - 1:
+                if i == self._picking_env.episode_length - 1:
                     t = 1
                 else:
                     t = action % 2
