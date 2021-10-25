@@ -3,6 +3,14 @@
     uri: https://github.com/wkentaro/morefusion.git
     version: main
 - git:
+    local-name: moveit_calibration
+    uri: https://github.com/ros-planning/moveit_calibration.git
+    version: master
+- git:
+    local-name: panda_moveit_config
+    uri: https://github.com/ros-planning/panda_moveit_config.git
+    version: melodic-devel
+- git:
     local-name: realsense-ros
     uri: https://github.com/IntelRealSense/realsense-ros.git
     version: 2.2.3
