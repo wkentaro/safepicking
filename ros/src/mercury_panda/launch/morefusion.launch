@@ -58,10 +58,9 @@
       <remap from="~input/depth" to="/camera/aligned_depth_to_color/image_raw" />
       <remap from="~input/label_ins" to="/camera/octomap_server/output/label_rendered" />
       <remap from="~input/class" to="/camera/octomap_server/output/class" />
-      <!-- <remap from="~input/grids_noentry" to="/camera/octomap_server/output/grids_noentry" /> -->
+      <remap from="~input/grids_noentry" to="/camera/octomap_server/output/grids_noentry" />
       <rosparam subst_value="true">
-        with_occupancy: false
-        # with_occupancy: true
+        with_occupancy: true
         icp: true
       </rosparam>
     </node>
