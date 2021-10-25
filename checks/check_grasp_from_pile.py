@@ -105,7 +105,7 @@ def main():
 
         if ri.gripper.check_grasp():
             c = mercury.geometry.Coordinate(
-                *mercury.pybullet.get_pose(ri.robot, ri.ee)
+                *pybullet_planning.get_link_pose(ri.robot, ri.ee)
             )
             c.translate([0, 0, 0.5], wrt="world")
             j = ri.solve_ik(c.pose, rotation_axis="z")

@@ -53,7 +53,7 @@ def main():
         )
 
         c = mercury.geometry.Coordinate(
-            *mercury.pybullet.get_pose(ri.robot, ri.ee)
+            *pybullet_planning.get_link_pose(ri.robot, ri.ee),
         )
         c.position = pybullet_planning.get_pose(obj)[0]
         c.position[2] = pybullet_planning.get_aabb(obj)[1][2] + 0.1
@@ -71,7 +71,7 @@ def main():
             time.sleep(1 / 240)
 
         c = mercury.geometry.Coordinate(
-            *mercury.pybullet.get_pose(ri.robot, ri.ee)
+            *pybullet_planning.get_link_pose(ri.robot, ri.ee),
         )
 
         speed = np.random.choice([0.01, 0.002])
