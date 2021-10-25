@@ -291,20 +291,6 @@ class BaseTaskInterface:
         pp.set_pose(obj, ([0, 0, 0.25 + 1.05], [0, 0, 0, 1]))
         self._env.bg_objects.append(obj)
 
-        # bin
-        obj = mercury.pybullet.create_bin(
-            X=0.3, Y=0.3, Z=0.11, color=(0.7, 0.7, 0.7, 1)
-        )
-        pp.set_pose(
-            obj,
-            (
-                (0.4495000000000015, 0.5397000000000006, 0.059400000000000126),
-                (0.0, 0.0, 0.0, 1.0),
-            ),
-        )
-        self._env.bg_objects.append(obj)
-        self._bin = obj
-
         self._workspace_initialized = True
 
         # _pybullet.annotate_pose(obj)

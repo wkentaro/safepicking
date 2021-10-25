@@ -10,7 +10,6 @@ import IPython
 import numpy as np
 import path
 import pybullet_planning as pp
-import trimesh
 
 import mercury
 from mercury.examples.reorientation import _reorient
@@ -30,6 +29,7 @@ from sensor_msgs.msg import CameraInfo
 from sensor_msgs.msg import Image
 
 from _message_subscriber import MessageSubscriber
+import _tasks
 from _tsdf_from_depth import tsdf_from_depth
 from base_task_interface import BaseTaskInterface
 
@@ -52,42 +52,6 @@ class ReorientbotTaskInterface(BaseTaskInterface):
                 ("/singleview_3d_pose_estimation/output", ObjectPoseArray),
             ]
         )
-
-    def init_task(self):
-        # target place
-        visual_file = mercury.datasets.ycb.get_visual_file(class_id=3)
-        obj = mercury.pybullet.create_mesh_body(
-            visual_file=visual_file,
-            quaternion=_utils.get_canonical_quaternion(class_id=3),
-            rgba_color=(1, 1, 1, 0.5),
-            mesh_scale=(0.99, 0.99, 0.99),  # for virtual rendering
-        )
-        pp.set_pose(
-            obj,
-            (
-                (0.44410000000000166, 0.5560999999999995, 0.02929999999999988),
-                (
-                    -0.5032839784369476,
-                    -0.4819772480647679,
-                    -0.4778992452799924,
-                    0.5348041517765217,
-                ),
-            ),
-        )
-        self._obj_goal = obj
-        self._env.PLACE_POSE = pp.get_pose(self._obj_goal)
-        c = mercury.geometry.Coordinate(*self._env.PLACE_POSE)
-        c.translate([0, 0, 0.2], wrt="world")
-        self._env.PRE_PLACE_POSE = c.pose
-        # highlight target pose
-        mesh = trimesh.load(visual_file)
-        mesh.apply_transform(
-            mercury.geometry.transformation_matrix(*self._env.PLACE_POSE)
-        )
-        pp.draw_aabb(mesh.bounds, color=(1, 0, 0, 1))
-
-        # self.scan_pointcloud()
-        # annotate_pose(obj)
 
     def run(self, target=None):
         self.init_workspace()
@@ -131,6 +95,7 @@ class ReorientbotTaskInterface(BaseTaskInterface):
     def _scan_singleview(self):
         target_class_id = _utils.get_class_id(self._obj_goal)
 
+        stamp = rospy.Time.now()
         self._subscriber_reorientbot.msgs = None
         self._subscriber_reorientbot.subscribe()
         self.start_passthrough()
@@ -139,6 +104,8 @@ class ReorientbotTaskInterface(BaseTaskInterface):
             if not self._subscriber_reorientbot.msgs:
                 continue
             obj_poses_msg = self._subscriber_reorientbot.msgs[3]
+            if obj_poses_msg.header.stamp < stamp:
+                continue
             if target_class_id not in [
                 pose.class_id for pose in obj_poses_msg.poses
             ]:
@@ -404,6 +371,100 @@ class ReorientbotTaskInterface(BaseTaskInterface):
 
         self.movejs([self.pi.homej], time_scale=3)
 
+    def init_task(self):
+        # self._subscriber_base.subscribe()
+        # while self._subscriber_base_points is None:
+        #     pass
+        # self._subscriber_base.unsubscribe()
+
+        # bin
+        obj = mercury.pybullet.create_bin(
+            X=0.3, Y=0.3, Z=0.11, color=(0.7, 0.7, 0.7, 1)
+        )
+        pp.set_pose(
+            obj,
+            (
+                (0.4670000000000014, -0.0025, 0.08820000000000094),
+                (0.0, 0.0, 0.008999878500494453, 0.9999595002733742),
+            ),
+        )
+
+        # cracker_box
+        obj = mercury.pybullet.create_mesh_body(
+            mercury.datasets.ycb.get_visual_file(class_id=2)
+        )
+        pp.set_pose(
+            obj,
+            (
+                (
+                    0.4298000000000055,
+                    -0.07160000000000102,
+                    0.06810000000000037,
+                ),
+                (
+                    0.6950242570144112,
+                    0.009565935485992992,
+                    0.7188680629825536,
+                    0.008859066742884326,
+                ),
+            ),
+        )
+
+        # sugar_box
+        obj = mercury.pybullet.create_mesh_body(
+            mercury.datasets.ycb.get_visual_file(class_id=3)
+        )
+        pp.set_pose(
+            obj,
+            (
+                (
+                    0.41110000000000757,
+                    0.05680000000000025,
+                    0.05700000000000005,
+                ),
+                (
+                    0.6950242570144113,
+                    0.009565935485992997,
+                    0.7188680629825536,
+                    0.008859066742884331,
+                ),
+            ),
+        )
+
+        # mustard_bottle
+        obj = mercury.pybullet.create_mesh_body(
+            mercury.datasets.ycb.get_visual_file(class_id=5)
+        )
+        pp.set_pose(
+            obj,
+            (
+                (0.569899999999996, -0.06540000000000118, 0.06160000000000018),
+                (
+                    0.16129618279208996,
+                    0.6966397860813726,
+                    0.6862419415410084,
+                    -0.13322367483006758,
+                ),
+            ),
+        )
+
+        # tomato_can
+        obj = mercury.pybullet.create_mesh_body(
+            mercury.datasets.ycb.get_visual_file(class_id=4)
+        )
+        pp.set_pose(
+            obj,
+            (
+                (0.5252000000000009, 0.07300000000000002, 0.06700000000000034),
+                (
+                    0.0735985650058307,
+                    0.7025193412251814,
+                    0.701491180181464,
+                    -0.09465701538310073,
+                ),
+            ),
+        )
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -414,6 +475,9 @@ def main():
 
     rospy.init_node("reorientbot_task_interface")
     self = ReorientbotTaskInterface()  # NOQA
+
+    # _tasks.task_01(self)
+    _tasks.task_02(self)
 
     if args.cmd:
         exec(args.cmd)
