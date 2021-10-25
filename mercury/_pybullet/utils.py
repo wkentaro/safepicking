@@ -117,25 +117,31 @@ def is_colliding(id1, ids2=None, distance=0):
     return is_colliding
 
 
-def get_pose(body_id, link_id=-1, parent_body_id=None, parent_link_id=-1):
-    self_to_world = pybullet_planning.get_link_pose(body_id, link_id)
+def get_pose(obj, parent=None):
+    obj_to_world = pybullet_planning.get_pose(obj)
 
-    if parent_body_id is None:
-        self_to_parent = self_to_world
+    if parent is None:
+        obj_to_parent = obj_to_world
     else:
-        parent_to_world = pybullet_planning.get_link_pose(
-            parent_body_id, parent_link_id
+        parent_to_world = pybullet_planning.get_pose(parent)
+        world_to_parent = pybullet_planning.invert(parent_to_world)
+        obj_to_parent = pybullet_planning.multiply(
+            world_to_parent, obj_to_world
         )
-        world_to_parent = pybullet.invertTransform(
-            parent_to_world[0], parent_to_world[1]
+    return obj_to_parent
+
+
+def set_pose(obj, pose, parent=None):
+    obj_to_parent = pose
+
+    if parent is None:
+        obj_to_world = obj_to_parent
+    else:
+        parent_to_world = pybullet_planning.get_pose(parent)
+        obj_to_world = pybullet_planning.multiply(
+            parent_to_world, obj_to_parent
         )
-        self_to_parent = pybullet.multiplyTransforms(
-            world_to_parent[0],
-            world_to_parent[1],
-            self_to_world[0],
-            self_to_world[1],
-        )
-    return self_to_parent
+    pybullet_planning.set_pose(obj, obj_to_world)
 
 
 def step_and_sleep(seconds=np.inf):

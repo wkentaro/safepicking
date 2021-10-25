@@ -35,7 +35,8 @@ def draw_points(points, colors, size=1):
     return p.addUserDebugPoints(points[i], colors[i], pointSize=size)
 
 
-def annotate_pose(obj):
+def annotate_pose(obj, parent=None):
+    print("Press keys to annotate pose of an object.")
     while True:
         events = p.getKeyboardEvents()
 
@@ -81,8 +82,13 @@ p.resetDebugVisualizerCamera(
 """
             )
         elif events.get(ord("p")) == p.KEY_WAS_RELEASED:
-            pose = pp.get_pose(obj)
-            print(f"pp.set_pose(obj, {pose})")
+            pose = mercury.pybullet.get_pose(obj, parent=parent)
+            if parent is None:
+                print(f"mercury.pybullet.set_pose(obj, {pose})")
+            else:
+                print(f"mercury.pybullet.set_pose(obj, {pose}, parent=parent)")
+        elif events.get(ord("q")) == p.KEY_WAS_RELEASED:
+            break
         pp.set_pose(obj, c.pose)
 
         time.sleep(1 / 240)
