@@ -1,12 +1,12 @@
 -e git+https://github.com/wkentaro/bullet3.git@addUserDebugPoints#egg=pybullet
+-e git+https://github.com/wkentaro/scikit-robot.git@mercury#egg=scikit-robot
+-e git+https://github.com/wkentaro/pybullet_planning.git@safepicking#egg=pybullet_planning
 gym
 imgviz
 loguru
 open3d
 opencv-python
 path
-pybullet_planning @ git+https://github.com/wkentaro/pybullet_planning.git@safepicking
 scikit-image
-scikit-robot @ git+https://github.com/wkentaro/scikit-robot.git@safepicking
 torch
 trimesh[easy]
