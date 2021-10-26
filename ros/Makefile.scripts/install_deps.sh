@@ -25,4 +25,4 @@ set -x
 
 cd $CATKIN_WS
 
-rosdep install --from-path src -r -y
+rosdep install --from-path src -r -y -i

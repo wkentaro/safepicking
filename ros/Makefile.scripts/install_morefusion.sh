@@ -22,4 +22,4 @@ source /opt/ros/noetic/setup.bash
 
 set -x
 
-catkin build morefusion_panda morefusion_ros
+catkin build morefusion_ros
