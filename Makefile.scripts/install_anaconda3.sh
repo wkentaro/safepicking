@@ -38,6 +38,4 @@ cd -
 rm -rf $TMPDIR
 
 source $INSTALL_DIR/.anaconda3/bin/activate
-conda update -n base -y conda -q
-conda_install python=3.7
-conda deactivate
+conda_install 'python<3.9'  # for open3d-python
