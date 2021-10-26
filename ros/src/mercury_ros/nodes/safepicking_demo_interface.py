@@ -30,7 +30,7 @@ from std_srvs.srv import SetBool
 from std_srvs.srv import SetBoolRequest
 import tf
 
-from mercury_panda.msg import ObjectClassArray
+from mercury_ros.msg import ObjectClassArray
 from morefusion_ros.msg import ObjectClass as MFObjectClass
 from morefusion_ros.msg import (
     ObjectClassArray as MFObjectClassArray,  # NOQA

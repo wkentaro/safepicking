@@ -7,7 +7,7 @@ import message_filters
 import rospy
 from sensor_msgs.msg import Image
 
-from mercury_panda.msg import ObjectClassArray
+from mercury_ros.msg import ObjectClassArray
 
 import imgviz
 import numpy as np

@@ -7,8 +7,8 @@ import numpy as np
 from mercury.datasets.ycb import class_names
 
 import cv_bridge
-from mercury_panda.msg import ObjectClass
-from mercury_panda.msg import ObjectClassArray
+from mercury_ros.msg import ObjectClass
+from mercury_ros.msg import ObjectClassArray
 import rospy
 from sensor_msgs.msg import Image
 from topic_tools import LazyTransport

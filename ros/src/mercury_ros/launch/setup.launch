@@ -4,12 +4,12 @@
   <arg name="PROCESS" default="true" />
   <arg name="DYNAMIC" default="false" />
 
-  <include file="$(find mercury_panda)/launch/rs_rgbd.launch">
+  <include file="$(find mercury_ros)/launch/rs_rgbd.launch">
     <arg name="GUI" value="false" />
     <arg name="PROCESS" value="$(arg PROCESS)" />
   </include>
 
-  <include file="$(find mercury_panda)/launch/morefusion.launch">
+  <include file="$(find mercury_ros)/launch/morefusion.launch">
     <arg name="PASSTHROUGH" value="true" />
     <arg name="GUI" value="$(arg GUI)" />
     <arg name="PROCESS" value="$(arg PROCESS)" />

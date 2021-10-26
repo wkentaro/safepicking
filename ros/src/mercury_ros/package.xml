@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>mercury_panda</name>
+  <name>mercury_ros</name>
   <version>0.1.0</version>
   <description>TODO</description>
   <license>BSD</license>

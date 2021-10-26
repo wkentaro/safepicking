@@ -8,4 +8,4 @@
 /ros/logs/
 /ros/src/*
 !/ros/src/.rosinstall
-!/ros/src/mercury_panda/
+!/ros/src/mercury_ros/
