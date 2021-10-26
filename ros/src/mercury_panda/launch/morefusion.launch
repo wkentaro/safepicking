@@ -14,11 +14,11 @@
   <group unless="$(arg DYNAMIC)">
     <group ns="camera">
       <node name="render_voxel_grids"
-            pkg="morefusion_panda_ycb_video" type="render_voxel_grids.py"
+            pkg="morefusion_ros" type="render_voxel_grids.py"
             clear_params="true" if="$(arg PROCESS)">
       </node>
       <node name="octomap_server"
-            pkg="morefusion_panda_ycb_video" type="octomap_server"
+            pkg="morefusion_ros" type="octomap_server"
             clear_params="true"
             output="screen" if="$(arg PROCESS)">
         <remap from="~render" to="render_voxel_grids/render" />
@@ -35,7 +35,7 @@
       </node>
       <group ns="octomap_server">
         <node name="draw_instance_segmentation"
-              pkg="morefusion_panda_ycb_video" type="draw_instance_segmentation.py"
+              pkg="morefusion_ros" type="draw_instance_segmentation.py"
               clear_params="true">
           <remap from="~input/rgb" to="/camera/color/image_rect_color" unless="$(arg PASSTHROUGH)" />
           <remap from="~input/rgb" to="/camera/color/image_rect_color_passthrough/output" if="$(arg PASSTHROUGH)" />
@@ -49,7 +49,7 @@
     </group>
 
     <node name="singleview_3d_pose_estimation_static"
-          pkg="morefusion_panda_ycb_video" type="singleview_3d_pose_estimation.py"
+          pkg="morefusion_ros" type="singleview_3d_pose_estimation.py"
           clear_params="true"
           output="screen" if="$(arg PROCESS)">
       <remap from="~input/camera_info" to="/camera/color/camera_info" />
@@ -66,13 +66,13 @@
       </rosparam>
     </node>
     <node name="object_poses_to_markers_static"
-          pkg="morefusion_panda_ycb_video" type="object_poses_to_markers.py"
+          pkg="morefusion_ros" type="object_poses_to_markers.py"
           clear_params="true">
       <remap from="~input" to="singleview_3d_pose_estimation_static/output" />
     </node>
 
     <node name="object_mapping"
-          pkg="morefusion_panda_ycb_video" type="object_mapping.py"
+          pkg="morefusion_ros" type="object_mapping.py"
           clear_params="true" if="$(arg PROCESS)">
       <remap from="~input/poses" to="singleview_3d_pose_estimation_static/output" />
       <remap from="~input/grids" to="/camera/octomap_server/output/grids" />
@@ -82,12 +82,12 @@
     </node>
     <group ns="object_mapping">
       <node name="object_poses_to_markers"
-            pkg="morefusion_panda_ycb_video" type="object_poses_to_markers.py"
+            pkg="morefusion_ros" type="object_poses_to_markers.py"
             clear_params="true">
         <remap from="~input" to="output/poses" />
       </node>
       <node name="grids_to_markers"
-            pkg="morefusion_panda_ycb_video" type="voxel_grids_to_markers.py"
+            pkg="morefusion_ros" type="voxel_grids_to_markers.py"
             clear_params="true">
         <remap from="~input" to="output/grids" />
         <rosparam subst_value="true">
@@ -111,7 +111,7 @@
   </group>  <!-- unless="$(arg DYNAMIC)" -->
 
   <node name="singleview_3d_pose_estimation"
-        pkg="morefusion_panda_ycb_video" type="singleview_3d_pose_estimation.py"
+        pkg="morefusion_ros" type="singleview_3d_pose_estimation.py"
         clear_params="true"
         output="screen" if="$(arg PROCESS)">
     <remap from="~input/camera_info" to="/camera/color/camera_info" />
@@ -126,7 +126,7 @@
     </rosparam>
   </node>
   <node name="object_poses_to_markers"
-        pkg="morefusion_panda_ycb_video" type="object_poses_to_markers.py"
+        pkg="morefusion_ros" type="object_poses_to_markers.py"
         clear_params="true">
     <remap from="~input" to="singleview_3d_pose_estimation/output" />
   </node>

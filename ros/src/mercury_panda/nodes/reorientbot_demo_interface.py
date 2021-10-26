@@ -33,7 +33,7 @@ from std_srvs.srv import SetBoolRequest
 import tf
 
 from mercury_panda.msg import ObjectClassArray
-from morefusion_panda_ycb_video.msg import ObjectPoseArray
+from morefusion_ros.msg import ObjectPoseArray
 
 sys.path.insert(0, "../../../examples/reorientation")
 

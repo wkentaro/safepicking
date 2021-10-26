@@ -23,8 +23,8 @@ from mercury.examples.reorientation.reorient_dynamic import (
 )
 
 import cv_bridge
-from morefusion_panda_ycb_video.msg import ObjectClassArray
-from morefusion_panda_ycb_video.msg import ObjectPoseArray
+from morefusion_ros.msg import ObjectClassArray
+from morefusion_ros.msg import ObjectPoseArray
 import rospy
 from sensor_msgs.msg import CameraInfo
 from sensor_msgs.msg import Image

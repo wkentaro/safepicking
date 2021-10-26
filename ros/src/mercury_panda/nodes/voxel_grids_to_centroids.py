@@ -4,9 +4,9 @@ import numpy as np
 
 from geometry_msgs.msg import Pose
 from geometry_msgs.msg import PoseArray
-from morefusion_panda_ycb_video.msg import ObjectPose
-from morefusion_panda_ycb_video.msg import ObjectPoseArray
-from morefusion_panda_ycb_video.msg import VoxelGridArray
+from morefusion_ros.msg import ObjectPose
+from morefusion_ros.msg import ObjectPoseArray
+from morefusion_ros.msg import VoxelGridArray
 import rospy
 import topic_tools
 

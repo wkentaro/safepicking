@@ -16,7 +16,7 @@ from mercury.examples.picking import _env
 from mercury.examples.picking import _get_heightmap
 
 import cv_bridge
-from morefusion_panda_ycb_video.msg import ObjectClassArray
+from morefusion_ros.msg import ObjectClassArray
 import rospy
 from sensor_msgs.msg import CameraInfo
 from sensor_msgs.msg import Image
@@ -255,7 +255,7 @@ class SafepickingTaskInterface(BaseTaskInterface):
         ][0]
         maskmap = idmap == target_instance_id
 
-        from morefusion_panda_ycb_video.msg import ObjectPoseArray
+        from morefusion_ros.msg import ObjectPoseArray
 
         obj_poses_msg = rospy.wait_for_message(
             "/object_mapping/output/poses", ObjectPoseArray

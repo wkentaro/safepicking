@@ -31,11 +31,11 @@ from std_srvs.srv import SetBoolRequest
 import tf
 
 from mercury_panda.msg import ObjectClassArray
-from morefusion_panda_ycb_video.msg import ObjectClass as MFObjectClass
-from morefusion_panda_ycb_video.msg import (
+from morefusion_ros.msg import ObjectClass as MFObjectClass
+from morefusion_ros.msg import (
     ObjectClassArray as MFObjectClassArray,  # NOQA
 )
-from morefusion_panda_ycb_video.msg import ObjectPoseArray
+from morefusion_ros.msg import ObjectPoseArray
 
 sys.path.insert(0, "../../../examples/picking")
 
