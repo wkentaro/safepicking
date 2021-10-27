@@ -42,7 +42,12 @@ def create_mesh_body(
     assert quaternion is None or len(quaternion) == 4
     if rgba_color is not None and len(rgba_color) == 3:
         rgba_color = [rgba_color[0], rgba_color[1], rgba_color[2], 1]
-    if visual_file is not None:
+    if visual_file is None:
+        visual_shape_id = -1
+    else:
+        if visual_file is True:
+            # visual_file from collision_file
+            visual_file = collision_file
         visual_shape_id = pybullet.createVisualShape(
             shapeType=pybullet.GEOM_MESH,
             fileName=visual_file,
@@ -50,17 +55,18 @@ def create_mesh_body(
             meshScale=mesh_scale,
             rgbaColor=rgba_color,
         )
+    if collision_file is None:
+        collision_shape_id = -1
     else:
-        visual_shape_id = -1
-    if collision_file is not None:
+        if collision_file is True:
+            # collision_file from visual_file
+            collision_file = get_collision_file(visual_file)
         collision_shape_id = pybullet.createCollisionShape(
             shapeType=pybullet.GEOM_MESH,
             fileName=collision_file,
             collisionFramePosition=[0, 0, 0],
             meshScale=mesh_scale,
         )
-    else:
-        collision_shape_id = -1
     unique_id = pybullet.createMultiBody(
         baseMass=mass,
         baseInertialFramePosition=[0, 0, 0],
