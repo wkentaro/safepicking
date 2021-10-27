@@ -7,8 +7,10 @@ import time
 import numpy as np
 import path
 import pybullet
+import pybullet as p
 import pybullet_data
 import pybullet_planning
+import pybullet_planning as pp
 
 from .. import geometry
 
@@ -302,8 +304,117 @@ def stash_objects(object_ids):
 
 
 def pause():
-    print("Please press 'n' to start")
+    print(
+        """
+Usage:
+\tn: continue
+\tc: print camera pose
+"""
+    )
     while True:
         events = pybullet.getKeyboardEvents()
-        if events.get(ord("n")) == 4:
+        if events.get(ord("n")) == pybullet.KEY_WAS_RELEASED:
             break
+        elif events.get(ord("c")) == pybullet.KEY_WAS_RELEASED:
+            camera = pybullet_planning.get_camera()
+            print(
+                f"""
+p.resetDebugVisualizerCamera(
+    cameraYaw={camera.yaw},
+    cameraPitch={camera.pitch},
+    cameraDistance={camera.dist},
+    cameraTargetPosition={camera.target},
+)
+"""
+            )
+
+
+def annotate_pose(obj, parent=None):
+    print("Press keys to annotate pose of an object.")
+    while True:
+        events = p.getKeyboardEvents()
+
+        dp = 0.0001
+        dr = 0.001
+
+        sign = 1
+        if events.get(65306) == p.KEY_IS_DOWN:  # SHIFT
+            sign = -1
+        if events.get(65307) == p.KEY_IS_DOWN:  # CTRL
+            dp *= 10
+            dr *= 10
+
+        c = geometry.Coordinate(*pp.get_pose(obj))
+        if events.get(ord("k")) == p.KEY_IS_DOWN:
+            c.translate([dp, 0, 0], wrt="world")
+        elif events.get(ord("j")) == p.KEY_IS_DOWN:
+            c.translate([-dp, 0, 0], wrt="world")
+        elif events.get(ord("l")) == p.KEY_IS_DOWN:
+            c.translate([0, -dp, 0], wrt="world")
+        elif events.get(ord("h")) == p.KEY_IS_DOWN:
+            c.translate([0, dp, 0], wrt="world")
+        elif events.get(ord("i")) == p.KEY_IS_DOWN:
+            c.translate([0, 0, dp], wrt="world")
+        elif events.get(ord("m")) == p.KEY_IS_DOWN:
+            c.translate([0, 0, -dp], wrt="world")
+        elif events.get(ord("1")) == p.KEY_IS_DOWN:
+            c.rotate([dr * sign, 0, 0], wrt="world")
+        elif events.get(ord("2")) == p.KEY_IS_DOWN:
+            c.rotate([0, dr * sign, 0], wrt="world")
+        elif events.get(ord("3")) == p.KEY_IS_DOWN:
+            c.rotate([0, 0, dr * sign], wrt="world")
+        elif events.get(ord("c")) == p.KEY_WAS_RELEASED:
+            camera = pp.get_camera()
+            print(
+                f"""
+p.resetDebugVisualizerCamera(
+    cameraYaw={camera.yaw},
+    cameraPitch={camera.pitch},
+    cameraDistance={camera.dist},
+    cameraTargetPosition={camera.target},
+)
+"""
+            )
+        elif events.get(ord("p")) == p.KEY_WAS_RELEASED:
+            pose = get_pose(obj, parent=parent)
+            if parent is None:
+                print(f"mercury.pybullet.set_pose(obj, {pose})")
+            else:
+                print(f"mercury.pybullet.set_pose(obj, {pose}, parent=parent)")
+        elif events.get(ord("q")) == p.KEY_WAS_RELEASED:
+            break
+        pp.set_pose(obj, c.pose)
+
+        time.sleep(1 / 240)
+
+
+def draw_points(points, colors=None, size=1):
+    points = np.asarray(points)
+
+    if colors is None:
+        colors = np.full_like(points, (0.3, 0.7, 0.3), dtype=float)
+    else:
+        colors = np.asarray(colors)
+
+    if colors.dtype == np.uint8:
+        colors = colors.astype(np.float32) / 255
+
+    assert points.shape[-1] == 3
+    assert colors.shape[-1] == 3
+
+    points = points.reshape(-1, 3)
+    colors = colors.reshape(-1, 3)
+
+    mask = ~np.isnan(points).any(axis=1)
+    points = points[mask]
+    colors = colors[mask]
+
+    N = len(points)
+    assert len(colors) == N
+
+    MAX_NUM_POINTS = 130000
+    if N > MAX_NUM_POINTS:
+        i = np.random.permutation(N)[:MAX_NUM_POINTS]
+    else:
+        i = Ellipsis
+    return p.addUserDebugPoints(points[i], colors[i], pointSize=size)

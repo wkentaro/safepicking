@@ -9,6 +9,7 @@ import pybullet as p
 import pybullet_planning as pp
 
 import mercury
+from mercury.examples.reorientation import _env
 
 import actionlib
 from actionlib_msgs.msg import GoalStatus
@@ -23,12 +24,9 @@ from std_srvs.srv import Empty
 from std_srvs.srv import SetBool
 import tf
 
-from mercury.examples.reorientation import _env
-
 from _message_subscriber import MessageSubscriber
 from _panda import Panda
 from _panda_ros_robot_interface import PandaROSRobotInterface
-import _pybullet
 
 
 class BaseTaskInterface:
@@ -93,7 +91,7 @@ class BaseTaskInterface:
             pcd, mercury.geometry.transformation_matrix(*camera_to_base)
         )
 
-        subscriber_base_points = _pybullet.draw_points(pcd, rgb, size=1)
+        subscriber_base_points = mercury.pybullet.draw_points(pcd, rgb, size=1)
 
         if self._subscriber_base_points is not None:
             pp.remove_debug(self._subscriber_base_points)
@@ -300,7 +298,7 @@ class BaseTaskInterface:
 
         self._workspace_initialized = True
 
-        # _pybullet.annotate_pose(obj)
+        # mercury.pybullet.annotate_pose(obj)
 
 
 def main():

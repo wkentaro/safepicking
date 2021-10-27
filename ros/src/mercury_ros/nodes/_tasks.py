@@ -5,8 +5,6 @@ import mercury
 
 from mercury.examples.reorientation import _utils
 
-import _pybullet
-
 
 def set_obj_goal(self, obj_goal):
     self._obj_goal = obj_goal
@@ -80,7 +78,7 @@ def task_02(self):
         ),
     )
     if 0:
-        _pybullet.annotate_pose(obj)
+        mercury.pybullet.annotate_pose(obj)
     self._env.bg_objects.append(obj)
 
     parent = obj
