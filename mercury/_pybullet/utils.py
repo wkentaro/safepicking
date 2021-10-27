@@ -6,25 +6,22 @@ import time
 
 import numpy as np
 import path
-import pybullet
 import pybullet as p
-import pybullet_data
-import pybullet_planning
 import pybullet_planning as pp
 
 from .. import geometry
 
 
 def init_world(*args, **kwargs):
-    pybullet.connect(pybullet.GUI)
-    pybullet.setAdditionalSearchPath(pybullet_data.getDataPath())
-    pybullet.loadURDF("plane.urdf")
-    pybullet.setGravity(0, 0, -9.8)
+    p.connect(p.GUI)
+    pp.add_data_path()
+    p.loadURDF("plane.urdf")
+    p.setGravity(0, 0, -9.8)
 
 
 def get_body_unique_ids():
-    num_bodies = pybullet.getNumBodies()
-    unique_ids = [pybullet.getBodyUniqueId(i) for i in range(num_bodies)]
+    num_bodies = p.getNumBodies()
+    unique_ids = [p.getBodyUniqueId(i) for i in range(num_bodies)]
     return unique_ids
 
 
@@ -48,8 +45,8 @@ def create_mesh_body(
         if visual_file is True:
             # visual_file from collision_file
             visual_file = collision_file
-        visual_shape_id = pybullet.createVisualShape(
-            shapeType=pybullet.GEOM_MESH,
+        visual_shape_id = p.createVisualShape(
+            shapeType=p.GEOM_MESH,
             fileName=visual_file,
             visualFramePosition=[0, 0, 0],
             meshScale=mesh_scale,
@@ -61,13 +58,13 @@ def create_mesh_body(
         if collision_file is True:
             # collision_file from visual_file
             collision_file = get_collision_file(visual_file)
-        collision_shape_id = pybullet.createCollisionShape(
-            shapeType=pybullet.GEOM_MESH,
+        collision_shape_id = p.createCollisionShape(
+            shapeType=p.GEOM_MESH,
             fileName=collision_file,
             collisionFramePosition=[0, 0, 0],
             meshScale=mesh_scale,
         )
-    unique_id = pybullet.createMultiBody(
+    unique_id = p.createMultiBody(
         baseMass=mass,
         baseInertialFramePosition=[0, 0, 0],
         baseCollisionShapeIndex=collision_shape_id,
@@ -77,9 +74,9 @@ def create_mesh_body(
         useMaximalCoordinates=False,
     )
     if not texture:
-        pybullet.changeVisualShape(unique_id, -1, textureUniqueId=-1)
+        p.changeVisualShape(unique_id, -1, textureUniqueId=-1)
     if collision_file:
-        pybullet.addUserData(unique_id, "collision_file", collision_file)
+        p.addUserData(unique_id, "collision_file", collision_file)
     return unique_id
 
 
@@ -96,11 +93,11 @@ def get_collision_file(visual_file, resolution=200000):
 
 
 def get_debug_visualizer_image():
-    width, height, *_ = pybullet.getDebugVisualizerCamera()
-    _, _, rgba, depth, segm = pybullet.getCameraImage(
+    width, height, *_ = p.getDebugVisualizerCamera()
+    _, _, rgba, depth, segm = p.getCameraImage(
         width=width,
         height=height,
-        renderer=pybullet.ER_BULLET_HARDWARE_OPENGL,
+        renderer=p.ER_BULLET_HARDWARE_OPENGL,
     )
     rgb = rgba[:, :, :3]
     depth[segm == -1] = np.nan
@@ -108,7 +105,7 @@ def get_debug_visualizer_image():
 
 
 def get_aabb(unique_id):
-    aabb_min, aabb_max = pybullet.getAABB(unique_id)
+    aabb_min, aabb_max = p.getAABB(unique_id)
     return np.array(aabb_min), np.array(aabb_max)
 
 
@@ -118,7 +115,7 @@ def is_colliding(id1, ids2=None, distance=0):
         ids2 = ids2[ids2 != id1]
     is_colliding = False
     for id2 in ids2:
-        points = pybullet.getClosestPoints(id1, id2, distance=distance)
+        points = p.getClosestPoints(id1, id2, distance=distance)
         if points:
             is_colliding = True
             break
@@ -126,16 +123,14 @@ def is_colliding(id1, ids2=None, distance=0):
 
 
 def get_pose(obj, parent=None):
-    obj_to_world = pybullet_planning.get_pose(obj)
+    obj_to_world = pp.get_pose(obj)
 
     if parent is None:
         obj_to_parent = obj_to_world
     else:
-        parent_to_world = pybullet_planning.get_pose(parent)
-        world_to_parent = pybullet_planning.invert(parent_to_world)
-        obj_to_parent = pybullet_planning.multiply(
-            world_to_parent, obj_to_world
-        )
+        parent_to_world = pp.get_pose(parent)
+        world_to_parent = pp.invert(parent_to_world)
+        obj_to_parent = pp.multiply(world_to_parent, obj_to_world)
     return obj_to_parent
 
 
@@ -145,18 +140,16 @@ def set_pose(obj, pose, parent=None):
     if parent is None:
         obj_to_world = obj_to_parent
     else:
-        parent_to_world = pybullet_planning.get_pose(parent)
-        obj_to_world = pybullet_planning.multiply(
-            parent_to_world, obj_to_parent
-        )
-    pybullet_planning.set_pose(obj, obj_to_world)
+        parent_to_world = pp.get_pose(parent)
+        obj_to_world = pp.multiply(parent_to_world, obj_to_parent)
+    pp.set_pose(obj, obj_to_world)
 
 
 def step_and_sleep(seconds=np.inf):
     for i in itertools.count():
-        pybullet.stepSimulation()
-        time.sleep(pybullet_planning.get_time_step())
-        if int(round(i * pybullet_planning.get_time_step())) >= seconds:
+        p.stepSimulation()
+        time.sleep(pp.get_time_step())
+        if int(round(i * pp.get_time_step())) >= seconds:
             break
 
 
@@ -176,17 +169,17 @@ def get_camera_image(
     view_matrix[:, 2] *= -1
     view_matrix = view_matrix.flatten()
 
-    projection_matrix = pybullet.computeProjectionMatrixFOV(
+    projection_matrix = p.computeProjectionMatrixFOV(
         fov=np.rad2deg(fovy),
         aspect=1.0 * width / height,
         farVal=far,
         nearVal=near,
     )
-    if pybullet_planning.has_gui():
-        renderer = pybullet.ER_BULLET_HARDWARE_OPENGL
+    if pp.has_gui():
+        renderer = p.ER_BULLET_HARDWARE_OPENGL
     else:
-        renderer = pybullet.ER_TINY_RENDERER
-    _, _, rgba, depth, segm = pybullet.getCameraImage(
+        renderer = p.ER_TINY_RENDERER
+    _, _, rgba, depth, segm = p.getCameraImage(
         width=width,
         height=height,
         viewMatrix=view_matrix,
@@ -245,7 +238,7 @@ def draw_camera(
     lines = []
     for segment in segments:
         lines.append(
-            pybullet_planning.add_line(
+            pp.add_line(
                 segment[0],
                 segment[1],
                 color=marker_color,
@@ -266,27 +259,27 @@ def duplicate(
     **kwargs,
 ):
     if visual:
-        visual_data = pybullet.getVisualShapeData(body_id)
+        visual_data = p.getVisualShapeData(body_id)
         assert len(visual_data) == 1
         visual_file = visual_data[0][4].decode()
     else:
         visual_file = None
 
     if collision:
-        collision_file = pybullet.getUserData(
-            pybullet.getUserDataId(body_id, "collision_file")
+        collision_file = p.getUserData(
+            p.getUserDataId(body_id, "collision_file")
         ).decode()
     else:
         collision_file = None
 
     if position is None:
-        position = pybullet_planning.get_pose(body_id)[0]
+        position = pp.get_pose(body_id)[0]
 
     if quaternion is None:
-        quaternion = pybullet_planning.get_pose(body_id)[1]
+        quaternion = pp.get_pose(body_id)[1]
 
     if mass is None:
-        mass = pybullet_planning.get_dynamics_info(body_id).mass
+        mass = pp.get_dynamics_info(body_id).mass
 
     return create_mesh_body(
         visual_file=visual_file,
@@ -301,9 +294,9 @@ def duplicate(
 @contextlib.contextmanager
 def stash_objects(object_ids):
     try:
-        with pybullet_planning.LockRenderer(), pybullet_planning.WorldSaver():
+        with pp.LockRenderer(), pp.WorldSaver():
             for obj in object_ids:
-                pybullet_planning.set_pose(obj, ((0, 0, 1000), (0, 0, 0, 1)))
+                pp.set_pose(obj, ((0, 0, 1000), (0, 0, 0, 1)))
             yield
     finally:
         pass
@@ -318,11 +311,11 @@ Usage:
 """
     )
     while True:
-        events = pybullet.getKeyboardEvents()
-        if events.get(ord("n")) == pybullet.KEY_WAS_RELEASED:
+        events = p.getKeyboardEvents()
+        if events.get(ord("n")) == p.KEY_WAS_RELEASED:
             break
-        elif events.get(ord("c")) == pybullet.KEY_WAS_RELEASED:
-            camera = pybullet_planning.get_camera()
+        elif events.get(ord("c")) == p.KEY_WAS_RELEASED:
+            camera = pp.get_camera()
             print(
                 f"""
 p.resetDebugVisualizerCamera(
