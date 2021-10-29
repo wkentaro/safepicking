@@ -26,9 +26,9 @@ from _message_subscriber import MessageSubscriber
 from base_task_interface import BaseTaskInterface
 
 
-class SafepickingTaskInterface(BaseTaskInterface):
-    def __init__(self):
-        super().__init__()
+class SafepickingTaskInterface:
+    def __init__(self, base: BaseTaskInterface):
+        self.base = base
 
         self._picking_env = _env.PickFromPileEnv()
         self._agent = _agent.DqnAgent(
@@ -78,7 +78,7 @@ class SafepickingTaskInterface(BaseTaskInterface):
             class_id_to_instance_ids[cls.class_id].append(cls.instance_id)
         class_id_to_instance_ids = dict(class_id_to_instance_ids)
 
-        camera_to_base = self.lookup_transform(
+        camera_to_base = self.base.lookup_transform(
             "panda_link0",
             cam_msg.header.frame_id,
             time=cam_msg.header.stamp,
@@ -134,15 +134,18 @@ class SafepickingTaskInterface(BaseTaskInterface):
         grasp_poses = np.hstack((pcd_in_base, quaternion_in_base))
         return grasp_poses
 
+    def look_at_pile(self, *args, **kwargs):
+        self.look_at(eye=[0.5, 0, 0.7], target=[0.5, 0, 0], *args, **kwargs)
+
     def run(self, place=True):
         TARGET_CLASS_ID = 3
 
-        self.init_workspace()
+        self.base.init_workspace()
 
         self.look_at_pile()
 
         self._subscriber_safepicking.subscribe()
-        self.start_passthrough()
+        self.base.start_passthrough()
         rospy.sleep(5)
         while True:
             if not self._subscriber_safepicking.msgs:
@@ -153,7 +156,7 @@ class SafepickingTaskInterface(BaseTaskInterface):
             ]:
                 continue
             break
-        self.stop_passthrough()
+        self.base.stop_passthrough()
         self._subscriber_safepicking.unsubscribe()
 
         self.rosmsgs_to_obs()
@@ -171,7 +174,7 @@ class SafepickingTaskInterface(BaseTaskInterface):
         if 1:
             pp.draw_pose(grasp_pose, width=2)
 
-        self.pi.setj(
+        self.base.pi.setj(
             [
                 0.9455609917640686,
                 -1.7446026802062988,
@@ -183,12 +186,12 @@ class SafepickingTaskInterface(BaseTaskInterface):
             ]
         )
 
-        j = self.pi.solve_ik(grasp_pose, rotation_axis="z", validate=True)
+        j = self.base.pi.solve_ik(grasp_pose, rotation_axis="z", validate=True)
         assert j is not None
 
         with pp.WorldSaver():
-            self.pi.setj(j)
-            grasp_pose = self.pi.get_pose("tipLink")
+            self.base.pi.setj(j)
+            grasp_pose = self.base.pi.get_pose("tipLink")
 
         js_extract = self.plan_extraction(
             j_init=j,
@@ -196,16 +199,16 @@ class SafepickingTaskInterface(BaseTaskInterface):
             grasp_pose=grasp_pose,
         )
 
-        if self._env.fg_object_id is not None:
+        if self.base._env.fg_object_id is not None:
             ee_to_world = grasp_pose
-            obj_to_world = pp.get_pose(self._env.fg_object_id)
+            obj_to_world = pp.get_pose(self.base._env.fg_object_id)
             obj_to_ee = pp.multiply(pp.invert(ee_to_world), obj_to_world)
             attachments = [
                 pp.Attachment(
-                    self.pi.robot,
-                    self.pi.ee,
+                    self.base.pi.robot,
+                    self.base.pi.ee,
                     obj_to_ee,
-                    self._env.fg_object_id,
+                    self.base._env.fg_object_id,
                 )
             ]
         else:
@@ -214,59 +217,61 @@ class SafepickingTaskInterface(BaseTaskInterface):
         js_grasp = [j]
 
         for _ in range(5):
-            self.pi.setj(j)
-            c = mercury.geometry.Coordinate(*self.pi.get_pose("tipLink"))
+            self.base.pi.setj(j)
+            c = mercury.geometry.Coordinate(*self.base.pi.get_pose("tipLink"))
             c.translate([0, 0, -0.02], wrt="local")
-            j = self.pi.solve_ik(c.pose, validate=True)
+            j = self.base.pi.solve_ik(c.pose, validate=True)
             assert j is not None
             js_grasp.append(j)
         js_grasp = js_grasp[::-1]
 
-        js_place = self.plan_placement(j_init=self.pi.homej)
+        js_place = self.plan_placement(j_init=self.base.pi.homej)
 
-        self.movejs(js_grasp, time_scale=10)
+        self.base.movejs(js_grasp, time_scale=10)
 
-        self.start_grasp()
-        self.pi.attachments = attachments
+        self.base.start_grasp()
+        self.base.pi.attachments = attachments
 
-        self.movejs(js_extract, time_scale=20)
+        self.base.movejs(js_extract, time_scale=20)
 
         if place:
-            self.reset_pose()
+            self.base.reset_pose()
 
-            self.movejs(js_place)
+            self.base.movejs(js_place)
         else:
-            js = np.linspace(js_extract[-1], self.pi.homej)
-            self.movejs(js[:5], time_scale=10)
+            js = np.linspace(js_extract[-1], self.base.pi.homej)
+            self.base.movejs(js[:5], time_scale=10)
 
-        self.stop_grasp()
-        self.pi.attachments = []
+        self.base.stop_grasp()
+        self.base.pi.attachments = []
         rospy.sleep(6)
 
         if place:
-            self.movejs(js_place[::-1])
+            self.base.movejs(js_place[::-1])
 
-            self.reset_pose()
+            self.base.reset_pose()
 
     def plan_placement(self, j_init):
         bin_to_base = pp.get_pose(self._bin)
 
         with pp.WorldSaver():
-            self.pi.setj(j_init)
+            self.base.pi.setj(j_init)
 
-            c = mercury.geometry.Coordinate(*self.pi.get_pose("tipLink"))
+            c = mercury.geometry.Coordinate(*self.base.pi.get_pose("tipLink"))
             c.position = bin_to_base[0]
 
-            j = self.pi.solve_ik(c.pose, rotation_axis="z")
+            j = self.base.pi.solve_ik(c.pose, rotation_axis="z")
             assert j is not None
 
             js_place = [j]
 
             for _ in range(5):
-                self.pi.setj(j)
-                c = mercury.geometry.Coordinate(*self.pi.get_pose("tipLink"))
+                self.base.pi.setj(j)
+                c = mercury.geometry.Coordinate(
+                    *self.base.pi.get_pose("tipLink")
+                )
                 c.translate([0, 0, -0.02], wrt="local")
-                j = self.pi.solve_ik(c.pose, validate=True)
+                j = self.base.pi.solve_ik(c.pose, validate=True)
                 assert j is not None
                 js_place.append(j)
             js_place = js_place[::-1]
@@ -280,8 +285,8 @@ class SafepickingTaskInterface(BaseTaskInterface):
                 grasp_pose[0] + self._picking_env.HEIGHTMAP_SIZE / 2,
             ]
         )
-        aabb[0][2] = self._env.TABLE_OFFSET - 0.05
-        aabb[1][2] = self._env.TABLE_OFFSET + 0.5
+        aabb[0][2] = self.base._env.TABLE_OFFSET - 0.05
+        aabb[1][2] = self.base._env.TABLE_OFFSET + 0.5
         heightmap, _, idmap = _get_heightmap.get_heightmap(
             points=self.obs["pcd_in_base"],
             colors=np.zeros(self.obs["pcd_in_base"].shape, dtype=np.uint8),
@@ -306,8 +311,8 @@ class SafepickingTaskInterface(BaseTaskInterface):
             (num_instance, len(self._picking_env.CLASS_IDS)), dtype=np.int8
         )
         object_poses = np.zeros((num_instance, 7), dtype=np.float32)
-        assert self._env.object_ids is None
-        self._env.object_ids = []
+        assert self.base._env.object_ids is None
+        self.base._env.object_ids = []
         for i, obj_pose_msg in enumerate(obj_poses_msg.poses):
             pose = obj_pose_msg.pose
             instance_id = obj_pose_msg.instance_id
@@ -334,7 +339,7 @@ class SafepickingTaskInterface(BaseTaskInterface):
             object_poses[i] = np.r_[
                 position[0] - grasp_pose[0][0],
                 position[1] - grasp_pose[0][1],
-                position[2] - self._env.TABLE_OFFSET,
+                position[2] - self.base._env.TABLE_OFFSET,
                 quaternion[0],
                 quaternion[1],
                 quaternion[2],
@@ -342,9 +347,9 @@ class SafepickingTaskInterface(BaseTaskInterface):
             ]
 
             if grasp_flags[i]:
-                self._env.fg_object_id = obj_id
+                self.base._env.fg_object_id = obj_id
             else:
-                self._env.object_ids.append(obj_id)
+                self.base._env.object_ids.append(obj_id)
 
         ee_poses = np.zeros(
             (self._picking_env.episode_length, 7), dtype=np.float32
@@ -356,7 +361,7 @@ class SafepickingTaskInterface(BaseTaskInterface):
                 - [
                     grasp_pose[0][0],
                     grasp_pose[0][1],
-                    self._env.TABLE_OFFSET,
+                    self.base._env.TABLE_OFFSET,
                     0,
                     0,
                     0,
@@ -378,7 +383,7 @@ class SafepickingTaskInterface(BaseTaskInterface):
 
         world_saver = pp.WorldSaver()
 
-        self.pi.setj(j_init)
+        self.base.pi.setj(j_init)
 
         js = []
         for i in range(self._picking_env.episode_length):
@@ -396,14 +401,16 @@ class SafepickingTaskInterface(BaseTaskInterface):
                     t = action % 2
                 dx, dy, dz, da, db, dg = self._picking_env.actions[a]
 
-                c = mercury.geometry.Coordinate(*self.pi.get_pose("tipLink"))
+                c = mercury.geometry.Coordinate(
+                    *self.base.pi.get_pose("tipLink")
+                )
                 c.translate([dx, dy, dz], wrt="world")
                 c.rotate([da, db, dg], wrt="world")
 
-                j = self.pi.solve_ik(c.pose)
+                j = self.base.pi.solve_ik(c.pose)
                 if j is not None:
                     break
-            self.pi.setj(j)
+            self.base.pi.setj(j)
             js.append(j)
 
             if t == 1:
@@ -416,7 +423,7 @@ class SafepickingTaskInterface(BaseTaskInterface):
                     - [
                         grasp_pose[0][0],
                         grasp_pose[0][1],
-                        self._env.TABLE_OFFSET,
+                        self.base._env.TABLE_OFFSET,
                         0,
                         0,
                         0,
@@ -439,7 +446,8 @@ def main():
     args = parser.parse_args()
 
     rospy.init_node("safepicking_task_interface")
-    self = SafepickingTaskInterface()  # NOQA
+    base = BaseTaskInterface()
+    self = SafepickingTaskInterface(base=base)  # NOQA
 
     if args.cmd:
         exec(args.cmd)

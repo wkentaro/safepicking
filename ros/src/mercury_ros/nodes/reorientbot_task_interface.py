@@ -29,14 +29,13 @@ from sensor_msgs.msg import CameraInfo
 from sensor_msgs.msg import Image
 
 from _message_subscriber import MessageSubscriber
-import _tasks
 from _tsdf_from_depth import tsdf_from_depth
 from base_task_interface import BaseTaskInterface
 
 
-class ReorientbotTaskInterface(BaseTaskInterface):
-    def __init__(self):
-        super().__init__()
+class ReorientbotTaskInterface:
+    def __init__(self, base: BaseTaskInterface):
+        self.base = BaseTaskInterface()
 
         self._subscriber_reorientbot = MessageSubscriber(
             [
@@ -54,8 +53,8 @@ class ReorientbotTaskInterface(BaseTaskInterface):
         )
 
     def run(self, target=None):
-        self.init_workspace()
-        self.init_task()
+        self.base.init_workspace()
+        self.base.init_task()
 
         if target is None:
             self.scan_pile()
@@ -63,7 +62,7 @@ class ReorientbotTaskInterface(BaseTaskInterface):
             self.scan_target(target=target)
 
         while True:
-            result = self.pick_and_place()
+            result = self.base.pick_and_place()
             if "js_place" in result:
                 break
 
@@ -74,18 +73,23 @@ class ReorientbotTaskInterface(BaseTaskInterface):
         self.look_at_pile()
         self._scan_singleview()
 
+    def look_at_pile(self, *args, **kwargs):
+        self.base.look_at(
+            eye=[0.5, 0, 0.7], target=[0.5, 0, 0], *args, **kwargs
+        )
+
     def scan_target(self, target=None):
         self.look_at_target(target=target)
         self._scan_singleview()
 
     def look_at_target(self, target=None):
         if target is None:
-            if self._env.fg_object_id is None:
+            if self.base._env.fg_object_id is None:
                 # default
                 target = [0.2, -0.5, 0.1]
             else:
-                target = pp.get_pose(self._env.fg_object_id)[0]
-        self.look_at(
+                target = pp.get_pose(self.base._env.fg_object_id)[0]
+        self.base.look_at(
             eye=[target[0] - 0.1, target[1], target[2] + 0.5],
             target=target,
             rotation_axis="z",
@@ -98,7 +102,7 @@ class ReorientbotTaskInterface(BaseTaskInterface):
         stamp = rospy.Time.now()
         self._subscriber_reorientbot.msgs = None
         self._subscriber_reorientbot.subscribe()
-        self.start_passthrough()
+        self.base.start_passthrough()
         while True:
             rospy.sleep(0.1)
             if not self._subscriber_reorientbot.msgs:
@@ -111,7 +115,7 @@ class ReorientbotTaskInterface(BaseTaskInterface):
             ]:
                 continue
             break
-        self.stop_passthrough()
+        self.base.stop_passthrough()
         self._subscriber_reorientbot.unsubscribe()
 
         self.rosmsgs_to_env()
@@ -136,7 +140,7 @@ class ReorientbotTaskInterface(BaseTaskInterface):
         depth[depth == 0] = np.nan
         label = bridge.imgmsg_to_cv2(label_msg)
 
-        camera_to_base = self.lookup_transform(
+        camera_to_base = self.base.lookup_transform(
             "panda_link0",
             obj_poses_msg.header.frame_id,
             time=obj_poses_msg.header.stamp,
@@ -201,13 +205,13 @@ class ReorientbotTaskInterface(BaseTaskInterface):
                     collision_file=collision_file,
                     rgba_color=(0.5, 0.5, 0.5, 1),
                 )
-            self._env.bg_objects.append(bg_structure)
+            self.base._env.bg_objects.append(bg_structure)
 
-        if self._env.fg_object_id is not None:
-            pp.remove_body(self._env.fg_object_id)
-        self._env.fg_object_id = obj
-        self._env.object_ids = [obj]
-        self._env.update_obs()
+        if self.base._env.fg_object_id is not None:
+            pp.remove_body(self.base._env.fg_object_id)
+        self.base._env.fg_object_id = obj
+        self.base._env.object_ids = [obj]
+        self.base._env.update_obs()
 
     def plan_place(self, num_grasps):
         pcd_in_obj, normals_in_obj = _reorient.get_query_ocs(self._env)
@@ -219,7 +223,7 @@ class ReorientbotTaskInterface(BaseTaskInterface):
         keep = dist_from_centroid < np.median(dist_from_centroid)
         indices = indices[keep]
         p = p[keep]
-        if _utils.get_class_id(self._env.fg_object_id) in [5, 11]:
+        if _utils.get_class_id(self.base._env.fg_object_id) in [5, 11]:
             indices = np.r_[
                 np.random.choice(indices, num_grasps, p=p / p.sum()),
             ]
@@ -255,34 +259,33 @@ class ReorientbotTaskInterface(BaseTaskInterface):
             rospy.logerr("Failed to plan placement")
             return result
 
-        self.movejs(result["js_pre_grasp"], time_scale=3)
+        self.base.movejs(result["js_pre_grasp"], time_scale=3)
 
-        js = self.pi.get_cartesian_path(j=result["j_grasp"])
-        self.movejs(js, time_scale=10)
+        js = self.base.pi.get_cartesian_path(j=result["j_grasp"])
+        self.base.movejs(js, time_scale=10)
 
-        self.start_grasp()
+        self.base.start_grasp()
         rospy.sleep(2)
-        self.pi.attachments = result["attachments"]
+        self.base.pi.attachments = result["attachments"]
 
-        self.movejs(result["js_pre_place"], time_scale=5)
+        self.base.movejs(result["js_pre_place"], time_scale=5)
 
-        self.movejs(result["js_place"], time_scale=7.5)
+        self.base.movejs(result["js_place"], time_scale=7.5)
 
-        self.stop_grasp()
+        self.base.stop_grasp()
         rospy.sleep(9)
-        self.pi.attachments = []
+        self.base.pi.attachments = []
 
-        self.movejs(result["js_post_place"], time_scale=7.5, retry=True)
+        self.base.movejs(result["js_post_place"], time_scale=7.5, retry=True)
 
-        js = self.pi.planj(
-            self.pi.homej,
-            obstacles=self._env.bg_objects + self._env.object_ids,
+        js = self.base.pi.planj(
+            self.base.pi.homej,
+            obstacles=self.base._env.bg_objects + self.base._env.object_ids,
         )
         if js is None:
-            self.reset_pose(time_scale=3)
+            self.base.reset_pose(time_scale=3)
         else:
-            self.movejs(js, time_scale=3)
-        self.wait_interpolation()
+            self.base.movejs(js, time_scale=3)
 
         return result
 
@@ -337,39 +340,38 @@ class ReorientbotTaskInterface(BaseTaskInterface):
             rospy.logerr("Failed to plan reorientation")
             return
 
-        self.movejs(result["js_pre_grasp"], time_scale=3)
+        self.base.movejs(result["js_pre_grasp"], time_scale=3)
 
-        js = self.pi.get_cartesian_path(j=result["j_grasp"])
+        js = self.base.pi.get_cartesian_path(j=result["j_grasp"])
 
-        self.movejs(js, time_scale=10)
-        self.wait_interpolation()
-        self.start_grasp()
+        self.base.movejs(js, time_scale=10)
+        self.base.start_grasp()
         rospy.sleep(2)
-        self.pi.attachments = result["attachments"]
+        self.base.pi.attachments = result["attachments"]
 
         js = result["js_place"]
-        self.movejs(js, time_scale=5)
+        self.base.movejs(js, time_scale=5)
 
         with pp.WorldSaver():
-            self.pi.setj(js[-1])
-            c = mercury.geometry.Coordinate(*self.pi.get_pose("tipLink"))
+            self.base.pi.setj(js[-1])
+            c = mercury.geometry.Coordinate(*self.base.pi.get_pose("tipLink"))
             js = []
             for i in range(3):
                 c.translate([0, 0, -0.01], wrt="world")
-                j = self.pi.solve_ik(c.pose, rotation_axis=None)
+                j = self.base.pi.solve_ik(c.pose, rotation_axis=None)
                 if j is not None:
                     js.append(j)
-        self.movejs(js, time_scale=7.5, wait=False)
+        self.base.movejs(js, time_scale=7.5, wait=False)
 
-        self.stop_grasp()
+        self.base.stop_grasp()
 
         rospy.sleep(6)
-        self.pi.attachments = []
+        self.base.pi.attachments = []
 
         js = result["js_post_place"]
-        self.movejs(js, time_scale=5)
+        self.base.movejs(js, time_scale=5)
 
-        self.movejs([self.pi.homej], time_scale=3)
+        self.base.movejs([self.base.pi.homej], time_scale=3)
 
     def init_task(self):
         # self._subscriber_base.subscribe()
@@ -474,10 +476,8 @@ def main():
     args = parser.parse_args()
 
     rospy.init_node("reorientbot_task_interface")
-    self = ReorientbotTaskInterface()  # NOQA
-
-    # _tasks.task_01(self)
-    _tasks.task_02(self)
+    base = BaseTaskInterface()
+    self = ReorientbotTaskInterface(base)  # NOQA
 
     if args.cmd:
         exec(args.cmd)

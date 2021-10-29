@@ -260,9 +260,6 @@ class BaseTaskInterface:
         j = self._solve_ik_for_look_at(eye, target, rotation_axis)
         self.movejs([j], *args, **kwargs)
 
-    def look_at_pile(self, *args, **kwargs):
-        self.look_at(eye=[0.5, 0, 0.7], target=[0.5, 0, 0], *args, **kwargs)
-
     def init_workspace(self):
         if self._workspace_initialized:
             return
