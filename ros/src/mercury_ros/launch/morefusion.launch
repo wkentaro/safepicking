@@ -39,7 +39,7 @@
               clear_params="true">
           <remap from="~input/rgb" to="/camera/color/image_rect_color" unless="$(arg PASSTHROUGH)" />
           <remap from="~input/rgb" to="/camera/color/image_rect_color_passthrough/output" if="$(arg PASSTHROUGH)" />
-          <remap from="~input/label_ins" to="output/label_rendered" />
+          <remap from="~input/label_ins" to="output/label_tracked" />
           <remap from="~input/class" to="output/class" />
           <rosparam subst_value="true">
             approximate_sync: true
@@ -56,7 +56,7 @@
       <remap from="~input/rgb" to="/camera/color/image_rect_color" unless="$(arg PASSTHROUGH)" />
       <remap from="~input/rgb" to="/camera/color/image_rect_color_passthrough/output" if="$(arg PASSTHROUGH)" />
       <remap from="~input/depth" to="/camera/aligned_depth_to_color/image_raw" />
-      <remap from="~input/label_ins" to="/camera/octomap_server/output/label_rendered" />
+      <remap from="~input/label_ins" to="/camera/octomap_server/output/label_tracked" />
       <remap from="~input/class" to="/camera/octomap_server/output/class" />
       <remap from="~input/grids_noentry" to="/camera/octomap_server/output/grids_noentry" />
       <rosparam subst_value="true">
