@@ -15,4 +15,11 @@ cd $CATKIN_WS
 
 mkdir -p src/
 catkin init
-catkin build
+
+cd src
+if [ ! -d franka_ros ]; then
+  git clone https://github.com/frankaemika/franka_ros.git
+fi
+rosdep install --from-path . -r -y -i
+
+catkin build mercury_ros
