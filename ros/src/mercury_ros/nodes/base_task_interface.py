@@ -15,6 +15,7 @@ from actionlib_msgs.msg import GoalStatus
 import cv_bridge
 from franka_msgs.msg import ErrorRecoveryAction
 from franka_msgs.msg import ErrorRecoveryGoal
+from franka_msgs.msg import FrankaState
 import rospy
 from sensor_msgs.msg import CameraInfo
 from sensor_msgs.msg import Image
@@ -136,6 +137,12 @@ class BaseTaskInterface:
         )
 
     def recover_from_error(self):
+        state_msg = rospy.wait_for_message(
+            "/franka_state_controller/franka_states", FrankaState
+        )
+        if state_msg.robot_mode == FrankaState.ROBOT_MODE_MOVE:
+            return True
+
         client = actionlib.SimpleActionClient(
             "/franka_control/error_recovery", ErrorRecoveryAction
         )
