@@ -7,13 +7,12 @@ CATKIN_WS=$ROOT/ros
 
 set -e
 
-source /opt/ros/noetic/setup.bash
+source /opt/ros/kinetic/setup.bash
 
 set -x
 
 cd $CATKIN_WS
 
+mkdir -p src/
 catkin init
-catkin config --cmake-args -DCMAKE_BUILD_TYPE=Release -DOCTOMAP_OMP=1
-
-(cd src && wstool update)
+catkin build

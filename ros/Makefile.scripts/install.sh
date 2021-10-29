@@ -16,4 +16,4 @@ set -x
 
 cd $CATKIN_WS
 
-catkin build
+catkin build mercury_ros
