@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import IPython
-import pybullet_planning as pp
 
 import rospy
 
@@ -18,13 +17,7 @@ class CombinedTaskInterface:
 
     def run(self):
         self.safepicking.run(self, place=False)
-
-        if self.base._env.fg_object_id is None:
-            target = self.base.pi.get_pose("tipLink")[0]
-        else:
-            target = pp.get_pose(self.base._env.fg_object_id)[0]
-
-        self.reorientbot.run(self, target=target)
+        self.reorientbot.run(self)
 
 
 rospy.init_node("combined_task_interface")

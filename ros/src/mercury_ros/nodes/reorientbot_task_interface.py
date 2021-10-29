@@ -37,7 +37,7 @@ class ReorientbotTaskInterface:
     def __init__(self, base: BaseTaskInterface):
         self.base = BaseTaskInterface()
 
-        self._subscriber_reorientbot = MessageSubscriber(
+        self._sub_singleview = MessageSubscriber(
             [
                 ("/camera/aligned_depth_to_color/image_raw", Image),
                 (
@@ -52,14 +52,14 @@ class ReorientbotTaskInterface:
             ]
         )
 
-    def run(self, target=None):
+    def run_singleview(self):
         self.base.init_workspace()
         self.base.init_task()
 
-        if target is None:
-            self.scan_pile()
+        if self.base._env.fg_object_id is None:
+            self.capture_pile_singleview()
         else:
-            self.scan_target(target=target)
+            self.captue_target_singleview()
 
         while True:
             result = self.base.pick_and_place()
@@ -69,34 +69,17 @@ class ReorientbotTaskInterface:
             self.pick_and_reorient()
             self.scan_target()
 
-    def scan_pile(self):
-        self.look_at_pile()
-        self._scan_singleview()
+    def capture_pile_singleview(self):
+        self._look_at_pile()
+        self._wait_for_message_singleview()
+        self._process_message_singleview()
 
-    def look_at_pile(self, *args, **kwargs):
+    def _look_at_pile(self, *args, **kwargs):
         self.base.look_at(
             eye=[0.5, 0, 0.7], target=[0.5, 0, 0], *args, **kwargs
         )
 
-    def scan_target(self, target=None):
-        self.look_at_target(target=target)
-        self._scan_singleview()
-
-    def look_at_target(self, target=None):
-        if target is None:
-            if self.base._env.fg_object_id is None:
-                # default
-                target = [0.2, -0.5, 0.1]
-            else:
-                target = pp.get_pose(self.base._env.fg_object_id)[0]
-        self.base.look_at(
-            eye=[target[0] - 0.1, target[1], target[2] + 0.5],
-            target=target,
-            rotation_axis="z",
-            time_scale=4,
-        )
-
-    def _scan_singleview(self):
+    def _wait_for_message_singleview(self):
         target_class_id = _utils.get_class_id(self._obj_goal)
 
         stamp = rospy.Time.now()
@@ -118,9 +101,7 @@ class ReorientbotTaskInterface:
         self.base.stop_passthrough()
         self._subscriber_reorientbot.unsubscribe()
 
-        self.rosmsgs_to_env()
-
-    def rosmsgs_to_env(self, tsdf=True):
+    def _process_message_singleview(self, tsdf=True):
         cam_msg = rospy.wait_for_message(
             "/camera/color/camera_info", CameraInfo
         )
@@ -213,7 +194,61 @@ class ReorientbotTaskInterface:
         self.base._env.object_ids = [obj]
         self.base._env.update_obs()
 
-    def plan_place(self, num_grasps):
+    def capture_target_singleview(self):
+        self._look_at_pile()
+        self._wait_for_message_singleview()
+        self._process_message_singleview()
+
+    def _look_at_target(self):
+        if self.base._env.fg_object_id is None:
+            # default
+            target = [0.2, -0.5, 0.1]
+        else:
+            target = pp.get_pose(self.base._env.fg_object_id)[0]
+        self.base.look_at(
+            eye=[target[0] - 0.1, target[1], target[2] + 0.5],
+            target=target,
+            rotation_axis="z",
+            time_scale=4,
+        )
+
+    def pick_and_place(self, num_grasps=10):
+        result = self._plan_place(num_grasps=num_grasps)
+        if "js_place" not in result:
+            rospy.logerr("Failed to plan placement")
+            return result
+
+        self.base.movejs(result["js_pre_grasp"], time_scale=3)
+
+        js = self.base.pi.get_cartesian_path(j=result["j_grasp"])
+        self.base.movejs(js, time_scale=10)
+
+        self.base.start_grasp()
+        rospy.sleep(2)
+        self.base.pi.attachments = result["attachments"]
+
+        self.base.movejs(result["js_pre_place"], time_scale=5)
+
+        self.base.movejs(result["js_place"], time_scale=7.5)
+
+        self.base.stop_grasp()
+        rospy.sleep(9)
+        self.base.pi.attachments = []
+
+        self.base.movejs(result["js_post_place"], time_scale=7.5, retry=True)
+
+        js = self.base.pi.planj(
+            self.base.pi.homej,
+            obstacles=self.base._env.bg_objects + self.base._env.object_ids,
+        )
+        if js is None:
+            self.base.reset_pose(time_scale=3)
+        else:
+            self.base.movejs(js, time_scale=3)
+
+        return result
+
+    def _plan_place(self, num_grasps):
         pcd_in_obj, normals_in_obj = _reorient.get_query_ocs(self._env)
         dist_from_centroid = np.linalg.norm(pcd_in_obj, axis=1)
 
@@ -253,43 +288,46 @@ class ReorientbotTaskInterface:
 
         return result
 
-    def pick_and_place(self, num_grasps=10):
-        result = self.plan_place(num_grasps=num_grasps)
+    def pick_and_reorient(self, heuristic=False):
+        result = self._plan_reorient(heuristic=heuristic)
         if "js_place" not in result:
-            rospy.logerr("Failed to plan placement")
-            return result
+            rospy.logerr("Failed to plan reorientation")
+            return
 
         self.base.movejs(result["js_pre_grasp"], time_scale=3)
 
         js = self.base.pi.get_cartesian_path(j=result["j_grasp"])
-        self.base.movejs(js, time_scale=10)
 
+        self.base.movejs(js, time_scale=10)
         self.base.start_grasp()
         rospy.sleep(2)
         self.base.pi.attachments = result["attachments"]
 
-        self.base.movejs(result["js_pre_place"], time_scale=5)
+        js = result["js_place"]
+        self.base.movejs(js, time_scale=5)
 
-        self.base.movejs(result["js_place"], time_scale=7.5)
+        with pp.WorldSaver():
+            self.base.pi.setj(js[-1])
+            c = mercury.geometry.Coordinate(*self.base.pi.get_pose("tipLink"))
+            js = []
+            for i in range(3):
+                c.translate([0, 0, -0.01], wrt="world")
+                j = self.base.pi.solve_ik(c.pose, rotation_axis=None)
+                if j is not None:
+                    js.append(j)
+        self.base.movejs(js, time_scale=7.5, wait=False)
 
         self.base.stop_grasp()
-        rospy.sleep(9)
+
+        rospy.sleep(6)
         self.base.pi.attachments = []
 
-        self.base.movejs(result["js_post_place"], time_scale=7.5, retry=True)
+        js = result["js_post_place"]
+        self.base.movejs(js, time_scale=5)
 
-        js = self.base.pi.planj(
-            self.base.pi.homej,
-            obstacles=self.base._env.bg_objects + self.base._env.object_ids,
-        )
-        if js is None:
-            self.base.reset_pose(time_scale=3)
-        else:
-            self.base.movejs(js, time_scale=3)
+        self.base.movejs([self.base.pi.homej], time_scale=3)
 
-        return result
-
-    def plan_reorient(self, heuristic=False):
+    def _plan_reorient(self, heuristic=False):
         if heuristic:
             grasp_poses = _reorient.get_grasp_poses(self._env)
             grasp_poses = list(itertools.islice(grasp_poses, 12))
@@ -334,138 +372,11 @@ class ReorientbotTaskInterface:
             )
         return result
 
-    def pick_and_reorient(self, heuristic=False):
-        result = self.plan_reorient(heuristic=heuristic)
-        if "js_place" not in result:
-            rospy.logerr("Failed to plan reorientation")
-            return
-
-        self.base.movejs(result["js_pre_grasp"], time_scale=3)
-
-        js = self.base.pi.get_cartesian_path(j=result["j_grasp"])
-
-        self.base.movejs(js, time_scale=10)
-        self.base.start_grasp()
-        rospy.sleep(2)
-        self.base.pi.attachments = result["attachments"]
-
-        js = result["js_place"]
-        self.base.movejs(js, time_scale=5)
-
-        with pp.WorldSaver():
-            self.base.pi.setj(js[-1])
-            c = mercury.geometry.Coordinate(*self.base.pi.get_pose("tipLink"))
-            js = []
-            for i in range(3):
-                c.translate([0, 0, -0.01], wrt="world")
-                j = self.base.pi.solve_ik(c.pose, rotation_axis=None)
-                if j is not None:
-                    js.append(j)
-        self.base.movejs(js, time_scale=7.5, wait=False)
-
-        self.base.stop_grasp()
-
-        rospy.sleep(6)
-        self.base.pi.attachments = []
-
-        js = result["js_post_place"]
-        self.base.movejs(js, time_scale=5)
-
-        self.base.movejs([self.base.pi.homej], time_scale=3)
+    def capture_pile_multiview(self):
+        raise NotImplementedError
 
     def init_task(self):
-        # self._subscriber_base.subscribe()
-        # while self._subscriber_base_points is None:
-        #     pass
-        # self._subscriber_base.unsubscribe()
-
-        # bin
-        obj = mercury.pybullet.create_bin(
-            X=0.3, Y=0.3, Z=0.11, color=(0.7, 0.7, 0.7, 1)
-        )
-        pp.set_pose(
-            obj,
-            (
-                (0.4670000000000014, -0.0025, 0.08820000000000094),
-                (0.0, 0.0, 0.008999878500494453, 0.9999595002733742),
-            ),
-        )
-
-        # cracker_box
-        obj = mercury.pybullet.create_mesh_body(
-            mercury.datasets.ycb.get_visual_file(class_id=2)
-        )
-        pp.set_pose(
-            obj,
-            (
-                (
-                    0.4298000000000055,
-                    -0.07160000000000102,
-                    0.06810000000000037,
-                ),
-                (
-                    0.6950242570144112,
-                    0.009565935485992992,
-                    0.7188680629825536,
-                    0.008859066742884326,
-                ),
-            ),
-        )
-
-        # sugar_box
-        obj = mercury.pybullet.create_mesh_body(
-            mercury.datasets.ycb.get_visual_file(class_id=3)
-        )
-        pp.set_pose(
-            obj,
-            (
-                (
-                    0.41110000000000757,
-                    0.05680000000000025,
-                    0.05700000000000005,
-                ),
-                (
-                    0.6950242570144113,
-                    0.009565935485992997,
-                    0.7188680629825536,
-                    0.008859066742884331,
-                ),
-            ),
-        )
-
-        # mustard_bottle
-        obj = mercury.pybullet.create_mesh_body(
-            mercury.datasets.ycb.get_visual_file(class_id=5)
-        )
-        pp.set_pose(
-            obj,
-            (
-                (0.569899999999996, -0.06540000000000118, 0.06160000000000018),
-                (
-                    0.16129618279208996,
-                    0.6966397860813726,
-                    0.6862419415410084,
-                    -0.13322367483006758,
-                ),
-            ),
-        )
-
-        # tomato_can
-        obj = mercury.pybullet.create_mesh_body(
-            mercury.datasets.ycb.get_visual_file(class_id=4)
-        )
-        pp.set_pose(
-            obj,
-            (
-                (0.5252000000000009, 0.07300000000000002, 0.06700000000000034),
-                (
-                    0.0735985650058307,
-                    0.7025193412251814,
-                    0.701491180181464,
-                    -0.09465701538310073,
-                ),
-            ),
-        )
+        raise NotImplementedError
 
 
 def main():
