@@ -3,6 +3,7 @@
 import argparse
 import time
 
+import imgviz
 import IPython
 import numpy as np
 import pybullet as p
@@ -47,24 +48,25 @@ class BaseTaskInterface:
 
         self.real2robot()
 
-        self._subscriber_base = MessageSubscriber(
+        self._sub_points = MessageSubscriber(
             [
                 ("/camera/color/camera_info", CameraInfo),
                 ("/camera/color/image_rect_color", Image),
                 ("/camera/aligned_depth_to_color/image_raw", Image),
             ],
-            callback=self._subscriber_base_callback,
+            callback=self._sub_points_callback,
         )
-        self._subscriber_base_points_stamp = None
-        self._subscriber_base_points = None
+        self._sub_points_density = 1 / 9
+        self._sub_points_update_rate = 5
+        self._sub_points_stamp = None
+        self._sub_points_pybullet_id = None
 
         self._workspace_initialized = False
 
-    def _subscriber_base_callback(self, info_msg, rgb_msg, depth_msg):
-        HZ = 5
-        if self._subscriber_base_points_stamp is not None and (
-            info_msg.header.stamp - self._subscriber_base_points_stamp
-        ) < rospy.Duration(1 / HZ):
+    def _sub_points_callback(self, info_msg, rgb_msg, depth_msg):
+        if self._sub_points_stamp is not None and (
+            info_msg.header.stamp - self._sub_points_stamp
+        ) < rospy.Duration(1 / self._sub_points_update_rate):
             return
 
         K = np.array(info_msg.K).reshape(3, 3)
@@ -91,12 +93,16 @@ class BaseTaskInterface:
             pcd, mercury.geometry.transformation_matrix(*camera_to_base)
         )
 
-        subscriber_base_points = mercury.pybullet.draw_points(pcd, rgb, size=1)
+        height = int(round(rgb.shape[0] * np.sqrt(self._sub_points_density)))
+        rgb = imgviz.resize(rgb, height=height)
+        pcd = imgviz.resize(pcd, height=height)
 
-        if self._subscriber_base_points is not None:
-            pp.remove_debug(self._subscriber_base_points)
-        self._subscriber_base_points = subscriber_base_points
-        self._subscriber_base_points_stamp = info_msg.header.stamp
+        sub_points_pybullet_id = mercury.pybullet.draw_points(pcd, rgb, size=1)
+
+        if self._sub_points_pybullet_id is not None:
+            pp.remove_debug(self._sub_points_pybullet_id)
+        self._sub_points_pybullet_id = sub_points_pybullet_id
+        self._sub_points_stamp = info_msg.header.stamp
 
     @property
     def pi(self):
@@ -207,8 +213,8 @@ class BaseTaskInterface:
                 js[i + 1 :], time_scale=time_scale, wait=wait, retry=False
             )
 
-    def wait_interpolation(self):
-        self._subscriber_base.subscribe()
+    def wait_interpolation(self, callback=None):
+        self._sub_points.subscribe()
         controller_actions = self.ri.controller_table[self.ri.controller_type]
         while True:
             states = [action.get_state() for action in controller_actions]
@@ -216,7 +222,7 @@ class BaseTaskInterface:
                 break
             self.real2robot()
             rospy.sleep(0.01)
-        self._subscriber_base.unsubscribe()
+        self._sub_points.unsubscribe()
         if not all(s == GoalStatus.SUCCEEDED for s in states):
             rospy.logwarn("Some joint control requests have failed")
             return False
