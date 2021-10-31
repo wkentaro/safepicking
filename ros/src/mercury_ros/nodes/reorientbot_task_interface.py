@@ -62,20 +62,28 @@ class ReorientbotTaskInterface:
 
     def run_singleview(self):
         self.base.init_workspace()
-        self.base.init_task()
+        goals = self.init_task()
 
-        if self.base._env.fg_object_id is None:
+        for goal in goals:
+            self.base._env.fg_object_id = None
+            self.base._env.PLACE_POSE = goal["place_pose"]
+            self.base._env.LAST_PRE_PLACE_POSE = goal["last_pre_place_pose"]
+            self.base._env.PRE_PLACE_POSE = goal["pre_place_pose"]
+            self._obj_goal = goal["obj_goal"]
+
             self.capture_pile_singleview()
-        else:
-            self.captue_target_singleview()
 
-        while True:
-            result = self.base.pick_and_place()
-            if "js_place" in result:
-                break
+            while True:
+                result = self.pick_and_place()
+                if "js_place" in result:
+                    break
 
-            self.pick_and_reorient()
-            self.scan_target()
+                self.pick_and_reorient()
+                self.capture_target_singleview()
+
+            # clear tsdf
+            obj = self.base._env.bg_objects.pop(-1)
+            pp.remove_body(obj)
 
     def capture_pile_singleview(self):
         self._look_at_pile()
@@ -103,14 +111,14 @@ class ReorientbotTaskInterface:
         target_class_id = _utils.get_class_id(self._obj_goal)
 
         stamp = rospy.Time.now()
-        self._subscriber_reorientbot.msgs = None
-        self._subscriber_reorientbot.subscribe()
+        self._sub_singleview.msgs = None
+        self._sub_singleview.subscribe()
         self._start_passthrough_singleview()
         while True:
             rospy.sleep(0.1)
-            if not self._subscriber_reorientbot.msgs:
+            if not self._sub_singleview.msgs:
                 continue
-            obj_poses_msg = self._subscriber_reorientbot.msgs[3]
+            obj_poses_msg = self._sub_singleview.msgs[3]
             if obj_poses_msg.header.stamp < stamp:
                 continue
             if target_class_id not in [
@@ -119,7 +127,7 @@ class ReorientbotTaskInterface:
                 continue
             break
         self._stop_passthrough_singleview()
-        self._subscriber_reorientbot.unsubscribe()
+        self._sub_singleview.unsubscribe()
 
     def _process_message_singleview(self, tsdf=True):
         cam_msg = rospy.wait_for_message(
@@ -130,7 +138,7 @@ class ReorientbotTaskInterface:
             cls_msg,
             label_msg,
             obj_poses_msg,
-        ) = self._subscriber_reorientbot.msgs
+        ) = self._sub_singleview.msgs
 
         K = np.array(cam_msg.K).reshape(3, 3)
 
@@ -215,9 +223,9 @@ class ReorientbotTaskInterface:
         self.base._env.update_obs()
 
     def capture_target_singleview(self):
-        self._look_at_pile()
+        self._look_at_target()
         self._wait_for_message_singleview()
-        self._process_message_singleview()
+        self._process_message_singleview(tsdf=False)
 
     def _look_at_target(self):
         if self.base._env.fg_object_id is None:
@@ -269,7 +277,7 @@ class ReorientbotTaskInterface:
         return result
 
     def _plan_place(self, num_grasps):
-        pcd_in_obj, normals_in_obj = _reorient.get_query_ocs(self._env)
+        pcd_in_obj, normals_in_obj = _reorient.get_query_ocs(self.base._env)
         dist_from_centroid = np.linalg.norm(pcd_in_obj, axis=1)
 
         indices = np.arange(pcd_in_obj.shape[0])
@@ -304,7 +312,7 @@ class ReorientbotTaskInterface:
                     length=0.05,
                 )
 
-        result = _reorient.plan_place(self._env, grasp_poses)
+        result = _reorient.plan_place(self.base._env, grasp_poses)
 
         return result
 
@@ -349,16 +357,18 @@ class ReorientbotTaskInterface:
 
     def _plan_reorient(self, heuristic=False):
         if heuristic:
-            grasp_poses = _reorient.get_grasp_poses(self._env)
+            grasp_poses = _reorient.get_grasp_poses(self.base._env)
             grasp_poses = list(itertools.islice(grasp_poses, 12))
-            reorient_poses = _reorient.get_static_reorient_poses(self._env)
+            reorient_poses = _reorient.get_static_reorient_poses(
+                self.base._env
+            )
 
             result = {}
             for grasp_pose, reorient_pose in itertools.product(
                 grasp_poses, reorient_poses
             ):
                 result = _reorient.plan_reorient(
-                    self._env, grasp_pose, reorient_pose
+                    self.base._env, grasp_pose, reorient_pose
                 )
                 if "js_place" in result:
                     break
@@ -369,9 +379,9 @@ class ReorientbotTaskInterface:
                 reorient_poses,
                 pickable,
                 target_grasp_poses,
-            ) = get_goal_oriented_reorient_poses(self._env)
+            ) = get_goal_oriented_reorient_poses(self.base._env)
 
-            grasp_poses = _reorient.get_grasp_poses(self._env)  # in world
+            grasp_poses = _reorient.get_grasp_poses(self.base._env)  # in world
             grasp_poses = list(itertools.islice(grasp_poses, 25))
 
             for threshold in np.linspace(0.99, 0.5):
@@ -385,7 +395,7 @@ class ReorientbotTaskInterface:
             pickable = pickable[indices]
 
             result = plan_dynamic_reorient(
-                self._env,
+                self.base._env,
                 grasp_poses,
                 reorient_poses,
                 pickable,
@@ -491,7 +501,109 @@ class ReorientbotTaskInterface:
             client.call()
 
     def init_task(self):
-        raise NotImplementedError
+        shelf1 = _utils.create_shelf(X=0.29, Y=0.41, Z=0.285, N=2)
+        c = mercury.geometry.Coordinate()
+        c.rotate([0, 0, np.deg2rad(-90)])
+        c.translate([0.33, 0.54, self.base._env.TABLE_OFFSET], wrt="world")
+        pp.set_pose(shelf1, c.pose)
+
+        shelf2 = _utils.create_shelf(X=0.29, Y=0.41, Z=0.285, N=2)
+        c = mercury.geometry.Coordinate()
+        c.rotate([0, 0, np.deg2rad(-143)])
+        c.translate([0.80, 0.31, self.base._env.TABLE_OFFSET], wrt="world")
+        c.translate([0.02, -0.03, 0])
+        pp.set_pose(shelf2, c.pose)
+
+        color = (0.7, 0.7, 0.7, 1)
+        create = None  # [0, 1, 2]
+
+        box1 = mercury.pybullet.create_bin(
+            X=0.3, Y=0.3, Z=0.11, color=color, create=create
+        )
+        c = mercury.geometry.Coordinate()
+        c.rotate([np.deg2rad(9), 0, 0])
+        c.rotate([0, 0, np.deg2rad(-110)], wrt="world")
+        c.translate([0.85, -0.15, 0.09], wrt="world")
+        pp.set_pose(box1, c.pose)
+
+        box2 = mercury.pybullet.create_bin(
+            X=0.3, Y=0.3, Z=0.11, color=color, create=create
+        )
+        box1_to_world = pp.get_pose(box1)
+        c = mercury.geometry.Coordinate()
+        c.translate([0.31, 0, 0])
+        box2_to_box1 = c.pose
+        box2_to_world = pp.multiply(box1_to_world, box2_to_box1)
+        pp.set_pose(box2, box2_to_world)
+
+        self.base._env.bg_objects.append(shelf1)
+        self.base._env.bg_objects.append(shelf2)
+        self.base._env.bg_objects.append(box1)
+        self.base._env.bg_objects.append(box2)
+
+        # -----------------------------------------------------------------------------
+
+        goals = []
+
+        class_id = 2
+        obj = mercury.pybullet.create_mesh_body(
+            visual_file=mercury.datasets.ycb.get_visual_file(class_id),
+            rgba_color=(1, 1, 1, 0.5),
+            mesh_scale=(0.99, 0.99, 0.99),
+        )
+        c = mercury.geometry.Coordinate(
+            quaternion=_utils.get_canonical_quaternion(class_id)
+        )
+        c.rotate([0, 0, np.deg2rad(90)])
+        c.translate([0.06, 0.16, 0.43], wrt="world")
+        obj_to_shelf2 = c.pose
+        shelf2_to_world = pp.get_pose(shelf2)
+        obj_to_world = pp.multiply(shelf2_to_world, obj_to_shelf2)
+        pp.set_pose(obj, obj_to_world)
+        place_pose = obj_to_world
+        c.translate([0, -0.05, 0.02], wrt="world")
+        last_pre_place_pose = pp.multiply(shelf2_to_world, c.pose)
+        c.translate([0.25, 0, 0.05], wrt="world")
+        pre_place_pose = pp.multiply(shelf2_to_world, c.pose)
+        goals.append(
+            dict(
+                place_pose=place_pose,
+                last_pre_place_pose=last_pre_place_pose,
+                pre_place_pose=pre_place_pose,
+                obj_goal=obj,
+            ),
+        )
+
+        class_id = 2
+        obj = mercury.pybullet.create_mesh_body(
+            visual_file=mercury.datasets.ycb.get_visual_file(class_id),
+            rgba_color=(1, 1, 1, 0.5),
+            mesh_scale=(0.99, 0.99, 0.99),
+        )
+        c = mercury.geometry.Coordinate(
+            quaternion=_utils.get_canonical_quaternion(class_id)
+        )
+        c.rotate([0, 0, np.deg2rad(90)])
+        c.translate([0.06, 0.11, 0.43], wrt="world")
+        obj_to_shelf2 = c.pose
+        shelf2_to_world = pp.get_pose(shelf2)
+        obj_to_world = pp.multiply(shelf2_to_world, obj_to_shelf2)
+        pp.set_pose(obj, obj_to_world)
+        place_pose = obj_to_world
+        c.translate([0, -0.05, 0.02], wrt="world")
+        last_pre_place_pose = pp.multiply(shelf2_to_world, c.pose)
+        c.translate([0.25, 0, 0.05], wrt="world")
+        pre_place_pose = pp.multiply(shelf2_to_world, c.pose)
+        goals.append(
+            dict(
+                place_pose=place_pose,
+                last_pre_place_pose=last_pre_place_pose,
+                pre_place_pose=pre_place_pose,
+                obj_goal=obj,
+            ),
+        )
+
+        return goals
 
 
 def main():
