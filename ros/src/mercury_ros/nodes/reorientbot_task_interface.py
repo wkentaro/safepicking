@@ -34,6 +34,10 @@ from base_task_interface import BaseTaskInterface
 
 
 class ReorientbotTaskInterface:
+
+    pile_center = np.array([0.5, 0, 0])
+    pile_center.setflags(write=False)
+
     def __init__(self, base: BaseTaskInterface):
         self.base = base
 
@@ -50,6 +54,9 @@ class ReorientbotTaskInterface:
                 ),
                 ("/singleview_3d_pose_estimation/output", ObjectPoseArray),
             ]
+        )
+        self._sub_multiview = MessageSubscriber(
+            [("/object_mapping/output/poses", ObjectPoseArray)]
         )
 
     def run_singleview(self):
@@ -373,7 +380,74 @@ class ReorientbotTaskInterface:
         return result
 
     def capture_pile_multiview(self):
-        raise NotImplementedError
+        self.base.start_passthrough()
+        dxdy = [
+            # center-bottom
+            (-0.2, +0.0),
+            # left-bottom -> left-top
+            (-0.2, +0.3),
+            (+0.0, +0.3),
+            (+0.1, +0.3),
+            # center-top -> center-bottom
+            (+0.1, +0.0),
+            (+0.0, +0.0),
+            (-0.2, +0.0),
+            # right-bottom -> right-top
+            (-0.2, -0.2),
+            (+0.0, -0.2),
+        ]
+        with pp.WorldSaver():
+            self.base.pi.setj(self.base.pi.homej)
+
+            js = []
+            for i, (dx, dy) in enumerate(dxdy):
+                rotation_axis = True if i == 0 else "z"
+                j = self.base._solve_ik_for_look_at(
+                    eye=self.pile_center + [dx, dy, 0.7],
+                    target=self.pile_center + [dx / 2, dy / 2, 0],
+                    rotation_axis=rotation_axis,
+                )
+                js.append(j)
+                self.base.pi.setj(j)
+        self.base.stop_passthrough()
+
+        instance_id_to_object_id = {}
+
+        def wait_callback():
+            if self._sub_multiview.msgs is None:
+                return
+            (obj_poses_msg,) = self._sub_multiview.msgs
+            for obj_pose_msg in obj_poses_msg.poses:
+                instance_id = obj_pose_msg.instance_id
+                if instance_id in instance_id_to_object_id:
+                    # already spawned
+                    continue
+
+                class_id = obj_pose_msg.class_id
+                pose_msg = obj_pose_msg.pose
+                position = [getattr(pose_msg.position, key) for key in "xyz"]
+                quaternion = [
+                    getattr(pose_msg.orientation, key) for key in "xyzw"
+                ]
+                obj = mercury.pybullet.create_mesh_body(
+                    visual_file=mercury.datasets.ycb.get_visual_file(
+                        class_id=class_id
+                    ),
+                    collision_file=True,
+                    position=position,
+                    quaternion=quaternion,
+                )
+                self.base._env.object_ids.append(obj)
+                instance_id_to_object_id[instance_id] = obj
+
+        self._sub_multiview.subscribe()
+        self.base.start_passthrough()
+        self.base.movejs([js[0]], wait_callback=wait_callback)
+        while self._sub_multiview.msgs is None:
+            rospy.sleep(0.1)
+        self.base.movejs(js, time_scale=10, wait_callback=wait_callback)
+        self.base.stop_passthrough()
+        self._sub_multiview.unsubscribe()
 
     def init_task(self):
         raise NotImplementedError
