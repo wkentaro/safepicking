@@ -12,7 +12,7 @@
         <remap from="~input" to="image_rect_color" unless="$(arg PASSTHROUGH)" />
         <remap from="~input" to="image_rect_color_passthrough/output" if="$(arg PASSTHROUGH)" />
         <rosparam subst_value="true">
-          update_rate: 1
+          update_rate: 3
         </rosparam>
       </node>
     </group>

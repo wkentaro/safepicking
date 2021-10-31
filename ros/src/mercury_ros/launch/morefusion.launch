@@ -77,6 +77,7 @@
       <remap from="~input/grids" to="/camera/octomap_server/output/grids" />
       <rosparam subst_value="true">
         frame_id: panda_link0
+        n_votes: 2
       </rosparam>
     </node>
     <group ns="object_mapping">
