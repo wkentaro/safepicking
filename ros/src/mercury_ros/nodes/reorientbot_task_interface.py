@@ -27,6 +27,7 @@ from morefusion_ros.msg import ObjectPoseArray
 import rospy
 from sensor_msgs.msg import CameraInfo
 from sensor_msgs.msg import Image
+from std_srvs.srv import Empty
 
 from _message_subscriber import MessageSubscriber
 from _tsdf_from_depth import tsdf_from_depth
@@ -86,13 +87,25 @@ class ReorientbotTaskInterface:
             eye=[0.5, 0, 0.7], target=[0.5, 0, 0], *args, **kwargs
         )
 
+    def _start_passthrough_singleview(self):
+        servers = ["/camera/color/image_rect_color_passthrough"]
+        for server in servers:
+            client = rospy.ServiceProxy(server + "/request", Empty)
+            client.call()
+
+    def _stop_passthrough_singleview(self):
+        servers = ["/camera/color/image_rect_color_passthrough"]
+        for server in servers:
+            client = rospy.ServiceProxy(server + "/stop", Empty)
+            client.call()
+
     def _wait_for_message_singleview(self):
         target_class_id = _utils.get_class_id(self._obj_goal)
 
         stamp = rospy.Time.now()
         self._subscriber_reorientbot.msgs = None
         self._subscriber_reorientbot.subscribe()
-        self.base.start_passthrough()
+        self._start_passthrough_singleview()
         while True:
             rospy.sleep(0.1)
             if not self._subscriber_reorientbot.msgs:
@@ -105,7 +118,7 @@ class ReorientbotTaskInterface:
             ]:
                 continue
             break
-        self.base.stop_passthrough()
+        self._stop_passthrough_singleview()
         self._subscriber_reorientbot.unsubscribe()
 
     def _process_message_singleview(self, tsdf=True):
@@ -380,7 +393,8 @@ class ReorientbotTaskInterface:
         return result
 
     def capture_pile_multiview(self):
-        self.base.start_passthrough()
+        self._reset_multiview()
+
         dxdy = [
             # center-bottom
             (-0.2, +0.0),
@@ -409,7 +423,6 @@ class ReorientbotTaskInterface:
                 )
                 js.append(j)
                 self.base.pi.setj(j)
-        self.base.stop_passthrough()
 
         instance_id_to_object_id = {}
 
@@ -441,13 +454,41 @@ class ReorientbotTaskInterface:
                 instance_id_to_object_id[instance_id] = obj
 
         self._sub_multiview.subscribe()
-        self.base.start_passthrough()
+        self._start_passthrough_multiview()
         self.base.movejs([js[0]], wait_callback=wait_callback)
         while self._sub_multiview.msgs is None:
             rospy.sleep(0.1)
         self.base.movejs(js, time_scale=10, wait_callback=wait_callback)
-        self.base.stop_passthrough()
+        self._stop_passthrough_multiview()
         self._sub_multiview.unsubscribe()
+
+    def _reset_multiview(self):
+        self._stop_passthrough_multiview()
+        servers = [
+            "/camera/octomap_server",
+            "/object_mapping",
+        ]
+        for server in servers:
+            client = rospy.ServiceProxy(server + "/reset", Empty)
+            client.call()
+
+    def _start_passthrough_multiview(self):
+        servers = [
+            "/camera/color/image_rect_color_passthrough",
+            "/camera/depth_registered/points_passthrough",
+        ]
+        for server in servers:
+            client = rospy.ServiceProxy(server + "/request", Empty)
+            client.call()
+
+    def _stop_passthrough_multiview(self):
+        servers = [
+            "/camera/color/image_rect_color_passthrough",
+            "/camera/depth_registered/points_passthrough",
+        ]
+        for server in servers:
+            client = rospy.ServiceProxy(server + "/stop", Empty)
+            client.call()
 
     def init_task(self):
         raise NotImplementedError

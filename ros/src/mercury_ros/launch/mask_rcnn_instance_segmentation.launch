@@ -1,7 +1,6 @@
 <launch>
 
   <arg name="GUI" default="true" />
-  <arg name="PASSTHROUGH" default="false" />
   <arg name="PROCESS" default="true" />
 
   <group ns="/camera">
@@ -9,8 +8,7 @@
       <node name="image_rect_color_throttle"
             pkg="nodelet" type="nodelet"
             args="standalone jsk_topic_tools/LightweightThrottle" if="$(arg PROCESS)">
-        <remap from="~input" to="image_rect_color" unless="$(arg PASSTHROUGH)" />
-        <remap from="~input" to="image_rect_color_passthrough/output" if="$(arg PASSTHROUGH)" />
+        <remap from="~input" to="image_rect_color_passthrough/output" />
         <rosparam subst_value="true">
           update_rate: 3
         </rosparam>
