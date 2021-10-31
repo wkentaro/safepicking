@@ -177,7 +177,9 @@ class BaseTaskInterface:
                 pp.step_simulation()
                 time.sleep(1 / 240)
 
-    def movejs(self, js, time_scale=None, wait=True, retry=False):
+    def movejs(
+        self, js, time_scale=None, wait=True, retry=False, wait_callback=None
+    ):
         if not self.recover_from_error():
             return
         if time_scale is None:
@@ -191,7 +193,7 @@ class BaseTaskInterface:
             js, time_scale=time_scale, max_pos_accel=1
         )
         if wait:
-            success = self.wait_interpolation()
+            success = self.wait_interpolation(callback=wait_callback)
             if success or not retry:
                 return
 
@@ -221,6 +223,8 @@ class BaseTaskInterface:
             if all(s >= GoalStatus.SUCCEEDED for s in states):
                 break
             self.real2robot()
+            if callback is not None:
+                callback()
             rospy.sleep(0.01)
         self._sub_points.unsubscribe()
         if not all(s == GoalStatus.SUCCEEDED for s in states):
