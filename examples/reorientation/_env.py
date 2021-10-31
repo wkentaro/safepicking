@@ -76,10 +76,7 @@ class Env:
 
         pp.reset_simulation()
         pp.enable_gravity()
-        pp.set_camera_pose((0.7, -1, 0.8), (0, 0.1, 0.3))
-        p.configureDebugVisualizer(
-            p.COV_ENABLE_SHADOWS, True, lightPosition=(100, -100, 0.5)
-        )
+        pp.set_camera_pose((0.8, -0.6, 0.8), (0.1, 0.1, 0.35))
         with pp.LockRenderer():
             self.plane = pp.load_pybullet("plane.urdf")
             pp.set_pose(self.plane, ([0, 0, self.TABLE_OFFSET], [0, 0, 0, 1]))
