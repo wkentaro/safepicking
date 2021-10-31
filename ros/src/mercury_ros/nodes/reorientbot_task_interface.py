@@ -35,7 +35,7 @@ from base_task_interface import BaseTaskInterface
 
 class ReorientbotTaskInterface:
     def __init__(self, base: BaseTaskInterface):
-        self.base = BaseTaskInterface()
+        self.base = base
 
         self._sub_singleview = MessageSubscriber(
             [
