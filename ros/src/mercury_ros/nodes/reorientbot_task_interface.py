@@ -419,6 +419,12 @@ class ReorientbotTaskInterface:
 
             target_class_id = _utils.get_class_id(self._obj_goal)
 
+            if target_class_id not in [
+                _utils.get_class_id(o) for o in self.base._env.object_ids
+            ]:
+                rospy.logerr(f"Target object {target_class_id} is not found")
+                continue
+
             for object_id in self.base._env.object_ids:
                 if _utils.get_class_id(object_id) != target_class_id:
                     continue
