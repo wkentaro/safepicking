@@ -357,6 +357,8 @@ class ReorientbotTaskInterface:
 
         self.base.movejs([self.base.pi.homej], time_scale=3)
 
+        return result
+
     def _plan_reorient(self, heuristic=False):
         if heuristic:
             grasp_poses = _reorient.get_grasp_poses(self.base._env)
