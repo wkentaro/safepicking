@@ -751,7 +751,7 @@ class ReorientbotTaskInterface:
         goals.append(
             dict(
                 place_pose=place_pose,
-                last_pre_place_pose=last_pre_place_pose,
+                last_pre_place_pose=None,
                 pre_place_pose=pre_place_pose,
                 obj_goal=obj,
             ),
@@ -780,7 +780,7 @@ class ReorientbotTaskInterface:
         goals.append(
             dict(
                 place_pose=place_pose,
-                last_pre_place_pose=last_pre_place_pose,
+                last_pre_place_pose=None,
                 pre_place_pose=pre_place_pose,
                 obj_goal=obj,
             ),
