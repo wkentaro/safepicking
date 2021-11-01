@@ -57,7 +57,7 @@ class BaseTaskInterface:
             callback=self._sub_points_callback,
         )
         self._sub_points_density = 1 / 9
-        self._sub_points_update_rate = 5
+        self._sub_points_update_rate = 1
         self._sub_points_stamp = None
         self._sub_points_pybullet_id = None
 
@@ -82,6 +82,7 @@ class BaseTaskInterface:
                 "panda_link0",
                 info_msg.header.frame_id,
                 time=info_msg.header.stamp,
+                timeout=rospy.Duration(1 / self._sub_points_update_rate),
             )
         except tf.ExtrapolationException:
             return
