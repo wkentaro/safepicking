@@ -65,11 +65,7 @@ class ReorientbotTaskInterface:
         goals = self.init_task()
 
         for goal in goals:
-            self.base._env.fg_object_id = None
-            self.base._env.PLACE_POSE = goal["place_pose"]
-            self.base._env.LAST_PRE_PLACE_POSE = goal["last_pre_place_pose"]
-            self.base._env.PRE_PLACE_POSE = goal["pre_place_pose"]
-            self._obj_goal = goal["obj_goal"]
+            self._set_goal(goal)
 
             self.capture_pile_singleview()
 
@@ -406,17 +402,20 @@ class ReorientbotTaskInterface:
             )
         return result
 
+    def _set_goal(self, goal):
+        self.base._env.fg_object_id = None
+        self.base._env.PLACE_POSE = goal["place_pose"]
+        self.base._env.LAST_PRE_PLACE_POSE = goal["last_pre_place_pose"]
+        self.base._env.PRE_PLACE_POSE = goal["pre_place_pose"]
+        self._obj_goal = goal["obj_goal"]
+
     def run_multiview(self):
         self.base.init_workspace()
         goals = self.init_task()
         self.capture_pile_multiview()
 
         for goal in goals:
-            self.base._env.fg_object_id = None
-            self.base._env.PLACE_POSE = goal["place_pose"]
-            self.base._env.LAST_PRE_PLACE_POSE = goal["last_pre_place_pose"]
-            self.base._env.PRE_PLACE_POSE = goal["pre_place_pose"]
-            self._obj_goal = goal["obj_goal"]
+            self._set_goal(goal)
 
             target_class_id = _utils.get_class_id(self._obj_goal)
 
