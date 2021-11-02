@@ -5,7 +5,14 @@ import json
 import pprint
 
 from loguru import logger
+import numpy as np
 import path
+
+import mercury
+
+from _agent import DqnAgent
+from _env import PickFromPileEnv
+import _utils
 
 
 here = path.Path(__file__).abspath().parent
@@ -19,64 +26,45 @@ def main():
     parser.add_argument(
         "--weight-dir", type=path.Path, help="weight dir", required=True
     )
-    parser.add_argument("--seed", type=int, default=0, help="random seed")
     parser.add_argument("--nogui", action="store_true", help="no gui")
     parser.add_argument("--mp4", help="mp4")
-    parser.add_argument("--noise", action="store_true", help="noise")
+    parser.add_argument("--noise", type=float, default=0.0, help="pose noise")
+    parser.add_argument("--miss", type=float, default=0.0, help="pose miss")
     args = parser.parse_args()
 
     log_dir = args.weight_dir.parent.parent
 
     if args.nogui:
         scene_id = args.pile_file.stem
-        json_file = (
-            log_dir
-            / f"{'eval-noise' if args.noise else 'eval'}/{scene_id}/{args.seed}.json"  # NOQA
-        )
-        json_file.parent.makedirs_p()
+        basename = f"eval-noise_{args.noise}-miss_{args.miss}"
+        json_file = log_dir / f"{basename}/{scene_id}.json"
         if json_file.exists():
             logger.info(f"Result file already exists: {json_file}")
             return
-
-    import numpy as np
-
-    import mercury
-
-    from _agent import DqnAgent
-    from _env import PickFromPileEnv
-    import _utils
-
-    hparams_file = log_dir / "hparams.json"
-    with open(hparams_file) as f:
-        hparams = json.load(f)
-
-    pprint.pprint(hparams)
-
-    if args.noise:
-        pose_noise = (0, 0.3)
-        miss = (0, 0.5)
-    else:
-        pose_noise = 0
-        miss = 0
 
     env = PickFromPileEnv(
         gui=not args.nogui,
         mp4=args.mp4,
         speed=0.005,
-        pose_noise=pose_noise,
-        miss=miss,
+        pose_noise=args.noise,
+        miss=args.miss,
         raise_on_timeout=True,
     )
     env.eval = True
     try:
         obs = env.reset(
-            random_state=np.random.RandomState(args.seed),
+            random_state=np.random.RandomState(0),
             pile_file=args.pile_file,
         )
     except RuntimeError:
         with open(json_file, "w") as f:
             pass
         return
+
+    hparams_file = log_dir / "hparams.json"
+    with open(hparams_file) as f:
+        hparams = json.load(f)
+    pprint.pprint(hparams)
 
     agent = DqnAgent(env=env, model=hparams["model"])
     agent.build(training=False)
@@ -119,7 +107,7 @@ def main():
         data = dict(
             planner="Learned",
             scene_id=scene_id,
-            seed=args.seed,
+            seed=0,
             target_object_class=int(env.target_object_class),
             target_object_visibility=float(env.target_object_visibility),
             translations=dict(translations),
@@ -128,6 +116,7 @@ def main():
             sum_of_max_velocities=sum(max_velocities.values()),
         )
 
+        json_file.parent.makedirs_p()
         with open(json_file, "w") as f:
             json.dump(data, f, indent=2)
         logger.info(f"Saved to: {json_file}")

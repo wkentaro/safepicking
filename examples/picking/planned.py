@@ -32,23 +32,18 @@ def main():
         required=True,
         help="planner",
     )
-    parser.add_argument("--seed", type=int, default=0, help="random seed")
     parser.add_argument("--nogui", action="store_true", help="no gui")
     parser.add_argument("--mp4", help="mp4")
-    parser.add_argument(
-        "--pose-noise", type=float, default=0.0, help="pose noise"
-    )
-    parser.add_argument("--miss", type=float, default=0.2, help="miss")
+    parser.add_argument("--noise", type=float, default=0.0, help="pose noise")
+    parser.add_argument("--miss", type=float, default=0.0, help="pose miss")
     args = parser.parse_args()
 
     log_dir = here / f"logs/{args.planner}"
 
     if args.nogui:
         scene_id = args.pile_file.stem
-        json_file = (
-            log_dir
-            / f"eval-noise_{args.pose_noise}-miss_{args.miss}/{scene_id}/{args.seed}.json"  # NOQA
-        )
+        basename = f"eval-noise_{args.noise}-miss_{args.miss}"
+        json_file = log_dir / f"{basename}/{scene_id}.json"
         if json_file.exists():
             logger.info(f"Result file already exists: {json_file}")
             return
@@ -56,7 +51,8 @@ def main():
     env = PickFromPileEnv(
         gui=not args.nogui,
         mp4=args.mp4,
-        pose_noise=args.pose_noise,
+        speed=0.005,
+        pose_noise=args.noise,
         miss=args.miss,
         raise_on_timeout=True,
     )
@@ -187,7 +183,7 @@ def main():
         data = dict(
             planner=args.planner,
             scene_id=scene_id,
-            seed=args.seed,
+            seed=0,
             target_object_class=int(env.target_object_class),
             target_object_visibility=float(env.target_object_visibility),
             translations=dict(translations),

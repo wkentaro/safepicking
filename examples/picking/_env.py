@@ -388,6 +388,7 @@ class PickFromPileEnv(Env):
         self.target_object_visibility = data["visibility"][target_index]
 
         self.object_state = self.get_object_state(
+            pose_miss=self._miss,
             pose_noise=self._pose_noise,
             random_state=random_state,
         )
@@ -470,38 +471,47 @@ class PickFromPileEnv(Env):
 
         return heightmap, colormap, maskmap
 
-    def get_object_state(self, pose_noise=None, random_state=None):
-        if pose_noise is not None:
-            random_state = copy.deepcopy(random_state)
+    def get_object_state(self, pose_miss=0, pose_noise=0, random_state=None):
+        if pose_miss > 0:
+            random_state_miss = copy.deepcopy(random_state)
+        if pose_noise > 0:
+            random_state_noise = copy.deepcopy(random_state)
+        del random_state
+
         grasp_flags = np.zeros((len(self.object_ids),), dtype=np.uint8)
         object_labels = np.zeros(
             (len(self.object_ids), len(self.CLASS_IDS)), dtype=np.uint8
         )
         object_poses = np.zeros((len(self.object_ids), 7), dtype=np.float32)
         for i, object_id in enumerate(self.object_ids):
-            if isinstance(self._miss, tuple):
-                assert len(self._miss) == 2
-                miss = np.random.uniform(self._miss[0], self._miss[1])
-            else:
-                miss = self._miss
-            if self.object_visibilities[i] < miss:
-                continue
+            if pose_miss > 0:
+                if isinstance(pose_miss, tuple):
+                    assert len(pose_miss) == 2
+                    miss = random_state_miss.uniform(
+                        pose_miss[0], pose_miss[1]
+                    )
+                else:
+                    miss = pose_miss
+                if self.object_visibilities[i] < miss:
+                    continue
             grasp_flags[i] = object_id == self.target_object_id
             object_to_world = pp.get_pose(object_id)
             class_id = _utils.get_class_id(object_id)
             object_label = self.CLASS_IDS.index(class_id)
             object_labels[i] = np.eye(len(self.CLASS_IDS))[object_label]
-            if pose_noise is not None:
+            if pose_noise > 0:
                 if isinstance(pose_noise, tuple):
                     assert len(pose_noise) == 2
-                    scale = np.random.uniform(pose_noise[0], pose_noise[1])
+                    scale = random_state_noise.uniform(
+                        pose_noise[0], pose_noise[1]
+                    )
                 else:
                     scale = pose_noise
                 object_to_world = (
                     object_to_world[0]
-                    + random_state.normal(0, 0.01 * scale, 3),
+                    + random_state_noise.normal(0, 0.01 * scale, 3),
                     object_to_world[1]
-                    + random_state.normal(0, 0.03 * scale, 4),
+                    + random_state_noise.normal(0, 0.03 * scale, 4),
                 )
             object_poses[i] = np.hstack(object_to_world)
         return grasp_flags, object_labels, object_poses

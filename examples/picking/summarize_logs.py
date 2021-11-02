@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 
 import json
+import re
 
+import IPython
 import pandas
 import path
 
@@ -14,9 +16,13 @@ def main():
         if not log_dir.isdir():
             continue
 
+        # if "RRTConnect" in log_dir:
+        #     continue
+
         for eval_dir in log_dir.glob("eval*"):
-            if "noise_" in eval_dir or "miss_" in eval_dir:
-                continue
+            m = re.match(r"^eval-noise_(.*)-miss_(.*)$", eval_dir.basename())
+            noise, miss = [float(x) for x in m.groups()]
+
             for json_file in eval_dir.walk("*.json"):
                 with open(json_file) as f:
                     try:
@@ -24,11 +30,14 @@ def main():
                     except json.decoder.JSONDecodeError:
                         continue
 
-                assert int(json_file.stem) == 0
+                assert json_file.stem == json_data["scene_id"]
+                assert json_data["seed"] == 0
                 data.append(
                     {
-                        "eval_dir": "/".join(eval_dir.split("/")[-2:]),
-                        "scene_id": str(json_file.parent.stem),
+                        "log_dir": str(log_dir.stem),
+                        "scene_id": json_data["scene_id"],
+                        "noise": noise,
+                        "miss": miss,
                         "target_object_visibility": json_data[
                             "target_object_visibility"
                         ],
@@ -47,34 +56,38 @@ def main():
     pandas.set_option("display.float_format", "{:.3f}".format)
 
     df = pandas.DataFrame(data)
-    df2 = df.sort_values(["scene_id", "eval_dir"]).set_index(
-        ["scene_id", "eval_dir"]
+
+    N = 3 * 10 + 3
+
+    count = df.groupby(["scene_id"]).count()
+    valid_scene_ids = (
+        count[count == N].dropna().index.get_level_values("scene_id")
     )
-    df3 = df2.count(level=0)
-    valid_scene_ids = df3[
-        df3["target_object_visibility"] == df["eval_dir"].unique().size
-    ].index.values[:600]
 
-    print(f"Support: {len(valid_scene_ids)}")
-    print()
+    valid_scene_ids = valid_scene_ids[:600]
+    print("# of valid scene_ids:", len(valid_scene_ids))
 
-    df = df[df["scene_id"].isin(valid_scene_ids)]
+    df_valid = df[df["scene_id"].isin(valid_scene_ids)]
 
-    data = []
-    for scene_id in valid_scene_ids:
-        a = df[
-            (df["scene_id"] == scene_id)
-            & (df["eval_dir"] == "20210706_194543-conv_net/eval")
-        ]["sum_of_translations"].item()
-        b = df[
-            (df["scene_id"] == scene_id)
-            & (df["eval_dir"] == "20210709_005731-fusion_net-noise/eval")
-        ]["sum_of_translations"].item()
-        data.append(dict(diff=a - b, scene_id=scene_id))
-    df2 = pandas.DataFrame(data).sort_values("diff")
-    import IPython
+    if 0:
+        for scene_id in df["scene_id"]:
+            assert len(df_valid[df_valid["scene_id"] == scene_id]) in [0, N]
 
-    IPython.embed()  # NOQA
+    # summarize
+    print(df_valid.groupby(["log_dir", "noise", "miss"]).mean())
+
+    a = df_valid.groupby(["log_dir", "noise", "miss"]).mean().reset_index()
+    print(
+        a[(a["noise"] == 0) & (a["miss"] == 0)].set_index(
+            ["log_dir", "noise", "miss"]
+        )
+    )
+
+    b = a[(a["noise"] == 0.3) & (a["miss"] != 0)]
+    print(b.groupby("log_dir").mean())
+
+    if 0:
+        IPython.embed()
 
 
 if __name__ == "__main__":
