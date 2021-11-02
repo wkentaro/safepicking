@@ -175,16 +175,12 @@ def get_camera_image(
         farVal=far,
         nearVal=near,
     )
-    if pp.has_gui():
-        renderer = p.ER_BULLET_HARDWARE_OPENGL
-    else:
-        renderer = p.ER_TINY_RENDERER
     _, _, rgba, depth, segm = p.getCameraImage(
         width=width,
         height=height,
         viewMatrix=view_matrix,
         projectionMatrix=projection_matrix,
-        renderer=renderer,
+        renderer=p.ER_TINY_RENDERER,
     )
     rgb = rgba[:, :, :3]
     depth = np.asarray(depth, dtype=np.float32).reshape(height, width)
