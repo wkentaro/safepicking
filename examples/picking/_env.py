@@ -12,6 +12,7 @@ import numpy as np
 import path
 import pybullet as p
 import pybullet_planning as pp
+import trimesh
 
 from yarr.envs.env import Env
 from yarr.utils.observation_type import ObservationElement
@@ -224,8 +225,11 @@ class PickFromPileEnv(Env):
                 np.where(is_partially_occluded)[0]
             )
 
+        lock_renderer = pp.LockRenderer()
+
         num_instances = len(data["class_id"])
         object_ids = []
+        collision_ids = []
         for i in range(num_instances):
             class_id = data["class_id"][i]
             position = data["position"][i]
@@ -238,20 +242,28 @@ class PickFromPileEnv(Env):
             )
             collision_file = mercury.pybullet.get_collision_file(visual_file)
 
-            with pp.LockRenderer():
-                object_id = mercury.pybullet.create_mesh_body(
-                    # visual_file=visual_file,
-                    visual_file=collision_file,
-                    collision_file=collision_file,
-                    mass=mercury.datasets.ycb.masses[class_id],
-                    position=position,
-                    quaternion=quaternion,
-                    rgba_color=(1, 0.2, 0.2)
-                    if i == target_index
-                    else (0.8, 0.8, 0.8),
+            object_id = mercury.pybullet.create_mesh_body(
+                visual_file=visual_file,
+                # visual_file=collision_file,
+                collision_file=collision_file,
+                mass=mercury.datasets.ycb.masses[class_id],
+                position=position,
+                quaternion=quaternion,
+            )
+            collision_id = mercury.pybullet.create_mesh_body(
+                visual_file=collision_file,
+                position=(0, 0, 10),
+            )
+            if i == target_index:
+                pp.draw_aabb(
+                    trimesh.load(visual_file).bounds,
+                    parent=object_id,
+                    color=(0, 1, 0, 1),
+                    width=2,
                 )
 
             object_ids.append(object_id)
+            collision_ids.append(collision_id)
         target_object_id = object_ids[target_index]
 
         for object_id in object_ids:
@@ -260,6 +272,16 @@ class PickFromPileEnv(Env):
                     raise RuntimeError("object is colliding with robot")
                 else:
                     return self.reset()
+
+        # for _ in range(240):
+        #     pp.step_simulation()
+
+        object_poses = []
+        for object_id, collision_id in zip(object_ids, collision_ids):
+            object_pose = pp.get_pose(object_id)
+            object_poses.append(object_pose)
+            pp.set_pose(collision_id, object_pose)
+            pp.set_pose(object_id, ((0, 0, 10), (0, 0, 0, 1)))
 
         # get centroid of the target object's visible surface
         fovy = np.deg2rad(60)
@@ -270,9 +292,12 @@ class PickFromPileEnv(Env):
         )
         c.rotate([0, np.pi, 0])
         c.rotate([0, 0, -np.pi / 2])
-        _, depth, segm = mercury.pybullet.get_camera_image(
+        _, depth, segm_tmp = mercury.pybullet.get_camera_image(
             c.matrix, fovy=fovy, height=height, width=width
         )
+        segm = segm_tmp.copy()
+        for object_id, collision_id in zip(object_ids, collision_ids):
+            segm[segm_tmp == collision_id] = object_id
         K = mercury.geometry.opengl_intrinsic_matrix(fovy, height, width)
         pcd_in_camera = mercury.geometry.pointcloud_from_depth(
             depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
@@ -282,7 +307,7 @@ class PickFromPileEnv(Env):
         centroid_in_world = mercury.geometry.transform_points(
             [centroid_in_camera], c.matrix
         )[0]
-        pp.draw_pose((centroid_in_world, [0, 0, 0, 1]))
+        # pp.draw_pose((centroid_in_world, [0, 0, 0, 1]))
         del depth, segm, pcd_in_camera, K, points_in_camera
 
         # capture target-centered image
@@ -297,9 +322,20 @@ class PickFromPileEnv(Env):
             else:
                 return self.reset()
         self.ri.setj(j_capture)
-        rgb, depth, segm = self.ri.get_camera_image()
+        rgb, depth, segm_tmp = self.ri.get_camera_image()
+        segm = segm_tmp.copy()
+        for object_id, collision_id in zip(object_ids, collision_ids):
+            segm[segm_tmp == collision_id] = object_id
         K = self.ri.get_opengl_intrinsic_matrix()
         camera_to_world = self.ri.get_pose("camera_link")
+
+        for object_id, collision_id, object_pose in zip(
+            object_ids, collision_ids, object_poses
+        ):
+            pp.set_pose(object_id, object_pose)
+            pp.remove_body(collision_id)
+
+        lock_renderer.restore()
 
         # grasping
         pcd_in_camera = mercury.geometry.pointcloud_from_depth(
@@ -657,3 +693,11 @@ class PickFromPileEnv(Env):
             terminal=terminal,
             info=info,
         )
+
+
+if __name__ == "__main__":
+    import IPython
+
+    env = PickFromPileEnv()
+    env.reset()
+    IPython.embed()
