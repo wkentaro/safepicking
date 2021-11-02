@@ -244,33 +244,40 @@ class ReorientbotTaskInterface:
             rospy.logerr("Failed to plan placement")
             return result
 
-        self.base.movejs(result["js_pre_grasp"], time_scale=3)
+        self.base.movejs(result["js_pre_grasp"], time_scale=5, retry=True)
 
         js = self.base.pi.get_cartesian_path(j=result["j_grasp"])
-        self.base.movejs(js, time_scale=10)
 
-        self.base.start_grasp()
-        rospy.sleep(2)
+        if _utils.get_class_id(self.base._env.fg_object_id) == 5:
+            # likely to move
+            self.base.movejs(js[:-2], time_scale=10)
+            self.base.start_grasp()
+            self.base.movejs(js[-2:], time_scale=10)
+        else:
+            self.base.movejs(js, time_scale=10)
+            self.base.start_grasp()
+
+        rospy.sleep(1)
         self.base.pi.attachments = result["attachments"]
 
-        self.base.movejs(result["js_pre_place"], time_scale=5)
+        self.base.movejs(result["js_pre_place"], time_scale=5, retry=True)
 
-        self.base.movejs(result["js_place"], time_scale=7.5)
+        self.base.movejs(result["js_place"], time_scale=10)
 
         self.base.stop_grasp()
         rospy.sleep(9)
         self.base.pi.attachments = []
 
-        self.base.movejs(result["js_post_place"], time_scale=7.5, retry=True)
+        self.base.movejs(result["js_post_place"], time_scale=10, retry=True)
 
         js = self.base.pi.planj(
             self.base.pi.homej,
             obstacles=self.base._env.bg_objects + self.base._env.object_ids,
         )
         if js is None:
-            self.base.reset_pose(time_scale=3)
+            self.base.reset_pose(time_scale=8, retry=True)
         else:
-            self.base.movejs(js, time_scale=3)
+            self.base.movejs(js, time_scale=5, retry=True)
 
         return result
 
@@ -320,17 +327,24 @@ class ReorientbotTaskInterface:
             rospy.logerr("Failed to plan reorientation")
             return result
 
-        self.base.movejs(result["js_pre_grasp"], time_scale=3)
+        self.base.movejs(result["js_pre_grasp"], time_scale=5, retry=True)
 
         js = self.base.pi.get_cartesian_path(j=result["j_grasp"])
 
-        self.base.movejs(js, time_scale=10)
-        self.base.start_grasp()
-        rospy.sleep(2)
+        if _utils.get_class_id(self.base._env.fg_object_id) == 5:
+            # likely to move
+            self.base.movejs(js[:-2], time_scale=10)
+            self.base.start_grasp()
+            self.base.movejs(js[-2:], time_scale=10)
+        else:
+            self.base.movejs(js, time_scale=10)
+            self.base.start_grasp()
+
+        rospy.sleep(1)
         self.base.pi.attachments = result["attachments"]
 
         js = result["js_place"]
-        self.base.movejs(js, time_scale=5)
+        self.base.movejs(js, time_scale=5, retry=True)
 
         with pp.WorldSaver():
             self.base.pi.setj(js[-1])
@@ -341,7 +355,7 @@ class ReorientbotTaskInterface:
                 j = self.base.pi.solve_ik(c.pose, rotation_axis=None)
                 if j is not None:
                     js.append(j)
-        self.base.movejs(js, time_scale=7.5, wait=False)
+        self.base.movejs(js, time_scale=10, wait=False)
 
         self.base.stop_grasp()
 
@@ -351,7 +365,7 @@ class ReorientbotTaskInterface:
         js = result["js_post_place"]
         self.base.movejs(js, time_scale=5)
 
-        self.base.movejs([self.base.pi.homej], time_scale=3)
+        self.base.movejs([self.base.pi.homej], time_scale=3, retry=True)
 
         return result
 
@@ -412,6 +426,9 @@ class ReorientbotTaskInterface:
     def run_multiview(self):
         self.base.init_workspace()
         goals = self.init_task()
+
+        self.base.reset_pose(time_scale=10)
+
         self.capture_pile_multiview()
 
         for goal in goals:
@@ -468,7 +485,7 @@ class ReorientbotTaskInterface:
                         break
 
                 self.capture_target_singleview()
-                self.pick_and_place()
+                self.pick_and_place(num_grasps=20)
 
             self.base._env.object_ids.remove(self.base._env.fg_object_id)
             self.base._env.fg_object_id = None
@@ -487,9 +504,9 @@ class ReorientbotTaskInterface:
             (+0.1, +0.0),
             (+0.0, +0.0),
             (-0.2, +0.0),
-            # right-bottom -> right-top
-            (-0.2, -0.2),
-            (+0.0, -0.2),
+            # # right-bottom -> right-top
+            # (-0.2, -0.2),
+            # (+0.0, -0.2),
         ]
         with pp.WorldSaver():
             self.base.pi.setj(self.base.pi.homej)
@@ -535,12 +552,15 @@ class ReorientbotTaskInterface:
                 instance_id_to_object_id[instance_id] = obj
 
         self.base._env.object_ids = []
+        self._sub_multiview.msgs = None
         self._sub_multiview.subscribe()
         self._start_passthrough_multiview()
         self.base.movejs([js[0]], wait_callback=wait_callback)
         while self._sub_multiview.msgs is None:
             rospy.sleep(0.1)
-        self.base.movejs(js, time_scale=10, wait_callback=wait_callback)
+        self.base.movejs(
+            js, time_scale=12, wait_callback=wait_callback, retry=True
+        )
         self._stop_passthrough_multiview()
         self._sub_multiview.unsubscribe()
 
@@ -574,17 +594,30 @@ class ReorientbotTaskInterface:
 
     def init_task(self):
         shelf1 = _utils.create_shelf(X=0.29, Y=0.41, Z=0.285, N=2)
-        c = mercury.geometry.Coordinate()
-        c.rotate([0, 0, np.deg2rad(-90)])
-        c.translate([0.33, 0.54, self.base._env.TABLE_OFFSET], wrt="world")
-        pp.set_pose(shelf1, c.pose)
+        mercury.pybullet.set_pose(
+            shelf1,
+            (
+                (
+                    0.30150000000000315,
+                    0.5360000000000005,
+                    0.009900000000000003,
+                ),
+                (0.0, 0.0, -0.7071067811865478, 0.7071067811865472),
+            ),
+        )
 
         shelf2 = _utils.create_shelf(X=0.29, Y=0.41, Z=0.285, N=2)
-        c = mercury.geometry.Coordinate()
-        c.rotate([0, 0, np.deg2rad(-143)])
-        c.translate([0.80, 0.31, self.base._env.TABLE_OFFSET], wrt="world")
-        c.translate([0.02, -0.03, 0])
-        pp.set_pose(shelf2, c.pose)
+        mercury.pybullet.set_pose(
+            shelf2,
+            (
+                (
+                    0.7526728391044942,
+                    0.31192276483837894,
+                    0.011299999999999994,
+                ),
+                (0.0, 0.0, 0.9422915766421891, -0.33479334609453854),
+            ),
+        )
 
         color = (0.7, 0.7, 0.7, 1)
         create = None  # [0, 1, 2]
@@ -658,7 +691,7 @@ class ReorientbotTaskInterface:
             quaternion=_utils.get_canonical_quaternion(class_id)
         )
         c.rotate([0, 0, np.deg2rad(90)])
-        c.translate([0.06, 0.11, 0.43], wrt="world")
+        c.translate([0.06, 0.10, 0.43], wrt="world")
         obj_to_shelf2 = c.pose
         shelf2_to_world = pp.get_pose(shelf2)
         obj_to_world = pp.multiply(shelf2_to_world, obj_to_shelf2)

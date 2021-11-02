@@ -27,7 +27,7 @@ class Env:
     HEIGHTMAP_IMAGE_SIZE = 128
     HEIGHTMAP_SIZE = HEIGHTMAP_PIXEL_SIZE * HEIGHTMAP_IMAGE_SIZE
 
-    TABLE_OFFSET = 0.01
+    TABLE_OFFSET = 0.025
 
     PILES_DIR = home / "data/mercury/pile_generation"
     PILE_TRAIN_IDS = np.arange(0, 1000)
@@ -76,7 +76,7 @@ class Env:
 
         pp.reset_simulation()
         pp.enable_gravity()
-        pp.set_camera_pose((0.8, -0.6, 0.8), (0.1, 0.1, 0.35))
+        pp.set_camera_pose((1, -0.7, 0.8), (0.1, 0.1, 0.35))
         with pp.LockRenderer():
             self.plane = pp.load_pybullet("plane.urdf")
             pp.set_pose(self.plane, ([0, 0, self.TABLE_OFFSET], [0, 0, 0, 1]))

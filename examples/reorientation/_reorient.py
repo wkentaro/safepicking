@@ -126,6 +126,11 @@ def get_grasp_poses(env):
             pcd_in_camera - pcd_in_camera.mean(axis=0), axis=1
         )
         keep = dist_from_centroid < np.median(dist_from_centroid)
+        dist_from_centroid = dist_from_centroid[keep]
+        pcd_in_camera = pcd_in_camera[keep]
+        normals_in_camera = normals_in_camera[keep]
+        keep = dist_from_centroid < np.median(dist_from_centroid)
+        dist_from_centroid = dist_from_centroid[keep]
         pcd_in_camera = pcd_in_camera[keep]
         normals_in_camera = normals_in_camera[keep]
 
@@ -482,7 +487,7 @@ def plan_place(env, target_grasp_poses):
     j_init = env.ri.getj()
 
     nfail_j_grasp = 0
-    max_nfail_j_grasp = 18
+    max_nfail_j_grasp = 9
     for grasp_pose in target_grasp_poses:
         if nfail_j_grasp >= max_nfail_j_grasp:
             continue

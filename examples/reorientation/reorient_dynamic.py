@@ -172,7 +172,7 @@ def plan_dynamic_reorient(env, grasp_poses, reorient_poses, pickable):
         indices = np.argsort(reorientable_pred)[::-1]
 
     if _utils.get_class_id(env.fg_object_id) == 2:
-        keep = reorientable_pred[indices] > 0.5
+        keep = reorientable_pred[indices] > 0.4
         indices = indices[keep]
 
     assert (
@@ -192,6 +192,11 @@ def plan_dynamic_reorient(env, grasp_poses, reorient_poses, pickable):
         result = _reorient.plan_reorient(
             env, np.hstack(ee_to_world), np.hstack(obj_af_to_world)
         )
+
+        if _utils.get_class_id(env.fg_object_id) == 11:
+            if "js_place_length" in result and result["js_place_length"] > 4.5:
+                result.pop("js_place")
+                result.pop("js_place_length")
 
         if "js_place" in result:
             logger.success(
