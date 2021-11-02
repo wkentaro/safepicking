@@ -60,11 +60,15 @@ class ReorientbotTaskInterface:
             [("/object_mapping/output/poses", ObjectPoseArray)]
         )
 
+        self._goals = None
+
     def run_singleview(self):
         self.base.init_workspace()
-        goals = self.init_task()
 
-        for goal in goals:
+        if self._goals is None:
+            self.init_task()
+
+        for goal in self._goals:
             self._set_goal(goal)
 
             self.capture_pile_singleview()
@@ -425,13 +429,15 @@ class ReorientbotTaskInterface:
 
     def run_multiview(self):
         self.base.init_workspace()
-        goals = self.init_task()
+
+        if self._goals is None:
+            self.init_task()
 
         self.base.reset_pose(time_scale=10)
 
         self.capture_pile_multiview()
 
-        for goal in goals:
+        for goal in self._goals:
             self._set_goal(goal)
 
             target_class_id = _utils.get_class_id(self._obj_goal)
@@ -556,6 +562,7 @@ class ReorientbotTaskInterface:
         self._sub_multiview.subscribe()
         self._start_passthrough_multiview()
         self.base.movejs([js[0]], wait_callback=wait_callback)
+        rospy.sleep(1)
         while self._sub_multiview.msgs is None:
             rospy.sleep(0.1)
         self.base.movejs(
@@ -826,7 +833,7 @@ class ReorientbotTaskInterface:
             ),
         )
 
-        return goals
+        self._goals = goals
 
 
 def main():
