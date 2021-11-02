@@ -10,8 +10,8 @@ import pybullet_planning as pp
 
 import mercury
 
-from . import _utils
-from ._env import Env
+from mercury.examples.reorientation import _utils
+from mercury.examples.reorientation._env import Env
 
 
 home = path.Path("~").expanduser()

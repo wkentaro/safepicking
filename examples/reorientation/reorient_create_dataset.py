@@ -5,8 +5,8 @@ import path
 
 import mercury
 
-from _env import Env
-import _reorient
+from mercury.examples.reorientation._env import Env
+from mercury.examples.reorientation import _reorient
 
 
 here = path.Path(__file__).abspath().parent

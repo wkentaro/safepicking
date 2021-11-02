@@ -11,12 +11,13 @@ import torch
 
 import mercury
 
-from . import _reorient
-from . import _utils
-from ._env import Env
-
-from .pickable_reorient_poses import get_reorient_poses
-from .pickable_train import Model
+from mercury.examples.reorientation._env import Env
+from mercury.examples.reorientation import _reorient
+from mercury.examples.reorientation import _utils
+from mercury.examples.reorientation.pickable_reorient_poses import (
+    get_reorient_poses,  # NOQA
+)
+from mercury.examples.reorientation.pickable_train import Model
 
 
 here = path.Path(__file__).abspath().parent

@@ -12,9 +12,9 @@ import pybullet_planning as pp
 
 import mercury
 
-from _env import Env
-import _reorient
-import _utils
+from mercury.examples.reorientation._env import Env
+from mercury.examples.reorientation import _reorient
+from mercury.examples.reorientation import _utils
 
 
 def main():

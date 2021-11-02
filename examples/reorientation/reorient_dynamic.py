@@ -14,12 +14,13 @@ import torch
 
 import mercury
 
-from ._env import Env
-from . import _reorient
-from . import _utils
-
-from .pickable_eval import get_goal_oriented_reorient_poses
-from .reorientable_train import Model
+from mercury.examples.reorientation._env import Env
+from mercury.examples.reorientation import _reorient
+from mercury.examples.reorientation import _utils
+from mercury.examples.reorientation.pickable_eval import (
+    get_goal_oriented_reorient_poses,  # NOQA
+)
+from mercury.examples.reorientation.reorientable_train import Model
 
 
 here = path.Path(__file__).abspath().parent

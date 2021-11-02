@@ -8,7 +8,7 @@ import pybullet_planning as pp
 
 import mercury
 
-from . import _utils
+from mercury.examples.reorientation import _utils
 
 
 def get_query_ocs(env):

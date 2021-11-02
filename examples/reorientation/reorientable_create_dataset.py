@@ -11,10 +11,12 @@ import pybullet_planning as pp
 
 import mercury
 
-from _env import Env
-import _reorient
-import _utils
-from pickable_reorient_poses import get_reorient_poses
+from mercury.examples.reorientation._env import Env
+from mercury.examples.reorientation import _reorient
+from mercury.examples.reorientation import _utils
+from mercury.examples.reorientation.pickable_reorient_poses import (
+    get_reorient_poses,  # NOQA
+)
 
 
 home = path.Path("~").expanduser()
