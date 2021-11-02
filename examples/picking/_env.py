@@ -192,8 +192,6 @@ class PickFromPileEnv(Env):
             cameraTargetPosition=(0, 0, 0),
         )
         self.plane = p.loadURDF("plane.urdf")
-        pp.set_texture(self.plane)
-        pp.set_color(self.plane, (100 / 256, 100 / 256, 100 / 256, 1))
 
         self.ri = mercury.pybullet.PandaRobotInterface(
             suction_max_force=None,
