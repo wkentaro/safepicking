@@ -8,8 +8,8 @@ import pybullet_planning as pp
 
 import mercury
 
-from _agent import DqnAgent
-from _env import PickFromPileEnv
+from mercury.examples.picking._agent import DqnAgent
+from mercury.examples.picking._env import PickFromPileEnv
 
 
 def main():

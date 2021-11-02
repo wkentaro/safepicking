@@ -14,8 +14,8 @@ import pybullet_planning as pp
 
 import mercury
 
-from _env import PickFromPileEnv
-import _utils
+from mercury.examples.picking._env import PickFromPileEnv
+from mercury.examples.picking import _utils
 
 
 here = path.Path(__file__).abspath().parent

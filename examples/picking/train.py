@@ -23,10 +23,10 @@ from yarr.runners.pytorch_train_runner import PyTorchTrainRunner
 
 import mercury
 
-from _agent import DqnAgent
-from _env import PickFromPileEnv
-from _rollout_generator import RolloutGenerator
-from _stat_accumulator import SimpleAccumulator
+from mercury.examples.picking._agent import DqnAgent
+from mercury.examples.picking._env import PickFromPileEnv
+from mercury.examples.picking._rollout_generator import RolloutGenerator
+from mercury.examples.picking._stat_accumulator import SimpleAccumulator
 
 
 here = path.Path(__file__).abspath().parent
