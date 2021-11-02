@@ -58,12 +58,18 @@ def main():
         mp4=args.mp4,
         pose_noise=args.pose_noise,
         miss=args.miss,
+        raise_on_timeout=True,
     )
     env.eval = True
-    env.reset(
-        random_state=np.random.RandomState(args.seed),
-        pile_file=args.pile_file,
-    )
+    try:
+        env.reset(
+            random_state=np.random.RandomState(0),
+            pile_file=args.pile_file,
+        )
+    except RuntimeError:
+        with open(json_file, "w") as f:
+            pass
+        return
 
     ri = env.ri
     plane = env.plane
@@ -72,12 +78,24 @@ def main():
 
     ri.planner = args.planner
 
-    with pp.LockRenderer(), pp.WorldSaver():
+    with pp.WorldSaver():
+        # prepare for planning
+        is_missing_target_object = False
         for object_id, object_pose in zip(object_ids, env.object_state[2]):
             if (object_pose == 0).all():
+                if object_id == target_object_id:
+                    is_missing_target_object = True
                 pp.set_pose(object_id, ([1, 1, 1], [0, 0, 0, 1]))
             else:
                 pp.set_pose(object_id, (object_pose[:3], object_pose[3:]))
+        if not is_missing_target_object:
+            ee_to_world = ri.get_pose("tipLink")
+            obj_to_world = pp.get_pose(target_object_id)
+            obj_to_ee = pp.multiply(pp.invert(ee_to_world), obj_to_world)
+            ri.attachments = [
+                pp.Attachment(ri.robot, ri.ee, obj_to_ee, target_object_id)
+            ]
+
         if ri.planner == "Heuristic":
             c = mercury.geometry.Coordinate(*ri.get_pose("tipLink"))
             steps = []
@@ -85,16 +103,42 @@ def main():
                 c.translate([0, 0, 0.05], wrt="world")
                 j = ri.solve_ik(c.pose)
                 if j is not None:
-                    steps.append(ri.movej(j, speed=0.005))
-            steps.append(ri.movej(ri.homej, speed=0.005))
+                    steps.append(
+                        ri.movej(j, speed=0.005, raise_on_timeout=True)
+                    )
+            steps.append(
+                ri.movej(ri.homej, speed=0.005, raise_on_timeout=True)
+            )
             steps = itertools.chain(*steps)
         else:
-            steps = ri.move_to_homej(
-                bg_object_ids=[plane],
-                object_ids=object_ids,
-                speed=0.005,
-                timeout=20,
-            )
+            assert len(ri.attachments) <= 1
+
+            obstacles = [plane] + object_ids
+            if ri.attachments:
+                obstacles.remove(ri.attachments[0].child)
+
+            for min_distance in np.linspace(0, -0.05, num=6):
+                if ri.attachments:
+                    min_distances = {
+                        (ri.attachments[0].child, -1): min_distance
+                    }
+                else:
+                    min_distances = None
+                js = ri.planj(
+                    ri.homej,
+                    obstacles=obstacles,
+                    min_distances=min_distances,
+                )
+                if js is not None:
+                    break
+                logger.warning(f"js is None w/ min_distance={min_distance}")
+            else:
+                js = [ri.homej]
+
+            steps = []
+            for j in js:
+                steps.append(ri.movej(j, speed=0.005, raise_on_timeout=True))
+            steps = itertools.chain(*steps)
 
     poses = {}
     for object_id in object_ids:
