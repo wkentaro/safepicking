@@ -10,18 +10,24 @@ import pybullet_planning as pp
 
 import mercury
 
-from mercury.examples.reorientation import _utils
 from mercury.examples.reorientation._env import Env
+from mercury.examples.reorientation import _utils
 
 
 home = path.Path("~").expanduser()
 
 
 def get_reorient_poses(env):
-    bounds = (
-        (0.15, -0.50, env.TABLE_OFFSET + 0.001),
-        (0.30, -0.35, env.TABLE_OFFSET + 0.001),
-    )
+    if env._real:
+        bounds = (
+            (0.15, -0.50, env.TABLE_OFFSET + 0.001),
+            (0.30, -0.35, env.TABLE_OFFSET + 0.001),
+        )
+    else:
+        bounds = (
+            (0.25, -0.55, env.TABLE_OFFSET + 0.001),
+            (0.75, -0.35, env.TABLE_OFFSET + 0.001),
+        )
     if 0:
         pp.draw_aabb(bounds)
 
