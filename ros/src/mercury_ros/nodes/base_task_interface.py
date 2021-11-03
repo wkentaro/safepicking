@@ -21,7 +21,6 @@ from franka_msgs.msg import FrankaState
 import rospy
 from sensor_msgs.msg import CameraInfo
 from sensor_msgs.msg import Image
-from std_srvs.srv import Empty
 from std_srvs.srv import SetBool
 import tf
 
@@ -112,22 +111,6 @@ class BaseTaskInterface:
     @property
     def ri(self):
         return self._ri
-
-    def start_passthrough(self):
-        passthroughs = [
-            "/camera/color/image_rect_color_passthrough",
-        ]
-        for passthrough in passthroughs:
-            client = rospy.ServiceProxy(passthrough + "/request", Empty)
-            client.call()
-
-    def stop_passthrough(self):
-        passthroughs = [
-            "/camera/color/image_rect_color_passthrough",
-        ]
-        for passthrough in passthroughs:
-            client = rospy.ServiceProxy(passthrough + "/stop", Empty)
-            client.call()
 
     def lookup_transform(self, target_frame, source_frame, time, timeout=None):
         if timeout is not None:

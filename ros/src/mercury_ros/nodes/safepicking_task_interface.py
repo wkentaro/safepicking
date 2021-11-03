@@ -22,6 +22,7 @@ from morefusion_ros.msg import ObjectPoseArray
 import rospy
 from sensor_msgs.msg import CameraInfo
 from sensor_msgs.msg import Image
+from std_srvs.srv import Empty
 
 from _message_subscriber import MessageSubscriber
 from base_task_interface import BaseTaskInterface
@@ -116,6 +117,22 @@ class SafepickingTaskInterface:
             eye=[0.5, 0, 0.7], target=[0.5, 0, 0], *args, **kwargs
         )
 
+    def _start_passthrough(self):
+        passthroughs = [
+            "/camera/color/image_rect_color_passthrough",
+        ]
+        for passthrough in passthroughs:
+            client = rospy.ServiceProxy(passthrough + "/request", Empty)
+            client.call()
+
+    def _stop_passthrough(self):
+        passthroughs = [
+            "/camera/color/image_rect_color_passthrough",
+        ]
+        for passthrough in passthroughs:
+            client = rospy.ServiceProxy(passthrough + "/stop", Empty)
+            client.call()
+
     def capture_pile(self):
         if self.base._env.object_ids:
             for obj_id in self.base._env.object_ids:
@@ -126,8 +143,7 @@ class SafepickingTaskInterface:
         self._look_at_pile()
 
         self._sub_singleview.subscribe()
-        self.base.start_passthrough()
-        rospy.sleep(5)
+        self._start_passthrough()
         while True:
             if not self._sub_singleview.msgs:
                 continue
@@ -137,7 +153,7 @@ class SafepickingTaskInterface:
             if self._target_class_id not in class_ids_detected:
                 continue
             break
-        self.base.stop_passthrough()
+        self._stop_passthrough()
         self._sub_singleview.unsubscribe()
 
         camera_msg = rospy.wait_for_message(
