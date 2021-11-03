@@ -35,7 +35,7 @@ class SafepickingTaskInterface:
         self._picking_env = _env.PickFromPileEnv()
 
         example_dir = path.Path(mercury.__file__).parent / "examples/picking"
-        if 0:
+        if 1:
             # 0.465
             model = "fusion_net"
             weight_dir = (
@@ -47,7 +47,19 @@ class SafepickingTaskInterface:
                 path=weight_dir / "q.pth",
                 md5="886b36a99c5a44b54c513ec7fee4ae0d",
             )
-        else:
+        if 0:
+            # 0.487
+            model = "openloop_pose_net"
+            weight_dir = (
+                example_dir
+                / "logs/20210709_005731-openloop_pose_net-noise/weights/90500"
+            )
+            gdown.cached_download(
+                id="1qtfAKoUiZ2S3AJWJBdhphugJzCpr_Q9g",
+                path=weight_dir / "q.pth",
+                md5="ab29d8bbfd61d115215c2bad05609279",
+            )
+        if 0:
             # 0.507
             model = "conv_net"
             weight_dir = (
@@ -236,55 +248,84 @@ class SafepickingTaskInterface:
             target_instance_id=target_instance_id,
         )
 
-    def run(self, place=True):
+    def _plan_grasp(self):
+        j_init = self.base.pi.getj()
+
+        grasp_poses = self._get_grasp_poses()
+
+        centroid = np.mean(grasp_poses[:, :3], axis=0)
+        dist = np.linalg.norm(grasp_poses[:, :3] - centroid, axis=1)
+        argsort = np.argsort(dist)
+
+        for grasp_pose in grasp_poses[argsort]:
+            for gamma in np.linspace(-np.pi, np.pi, num=6):
+                c = mercury.geometry.Coordinate(grasp_pose[:3], grasp_pose[3:])
+                c.rotate([0, 0, gamma])
+
+                self.base.pi.setj(j_init)
+                j = self.base.pi.solve_ik(c.pose, n_init=10, validate=True)
+                if j is None:
+                    print("j_grasp is not found")
+                    continue
+                j_grasp = j
+
+                c.translate([0, 0, -0.1])
+                j = self.base.pi.solve_ik(c.pose, validate=True)
+                if j is None:
+                    print("j_pre_grasp is not found")
+                    continue
+                j_pre_grasp = j
+
+                self.base.pi.setj(j_pre_grasp)
+                obstacles = (
+                    self.base._env.bg_objects + self.base._env.object_ids
+                )
+                if self.base._env.fg_object_id:
+                    obstacles.remove(self.base._env.fg_object_id)
+                js_grasp = self.base.pi.planj(j_grasp, obstacles=obstacles)
+                if js_grasp is None:
+                    print("js_grasp is not found")
+                    continue
+
+                self.base.pi.setj(j_init)
+                js_pre_grasp = self.base.pi.planj(
+                    j_pre_grasp, obstacles=self.base._env.bg_objects
+                )
+                if js_pre_grasp is None:
+                    print("js_pre_grasp is not found")
+                    continue
+
+                return dict(
+                    j_pre_grasp=j_pre_grasp,
+                    js_pre_grasp=js_pre_grasp,
+                    j_grasp=j_grasp,
+                    js_grasp=js_grasp,
+                )
+
+    def run(self):
         self.base.init_workspace()
 
         self._target_class_id = 3
 
         self.capture_pile()
 
-        grasp_poses = self._get_grasp_poses()
+        result_grasp = self._plan_grasp()
 
-        centroid = np.mean(grasp_poses[:, :3], axis=0)
-        dist_from_centroid = np.linalg.norm(
-            grasp_poses[:, :3] - centroid, axis=1
-        )
-        index = np.argmin(dist_from_centroid)
-        grasp_pose = grasp_poses[index]
-        grasp_pose = np.hsplit(grasp_pose, [3])
+        js_extract = self._plan_extraction(j_grasp=result_grasp["j_grasp"])
 
-        if 1:
-            pp.draw_pose(grasp_pose, width=2)
+        result_place = self._plan_placement(j_init=self.base.pi.homej)
 
-        self.base.pi.setj(
-            [
-                0.9455609917640686,
-                -1.7446026802062988,
-                -1.1828051805496216,
-                -2.2014822959899902,
-                -1.2853317260742188,
-                1.2614742517471313,
-                -0.2561403810977936,
-            ]
-        )
+        self.base.movejs(result_grasp["js_pre_grasp"], time_scale=5)
+        self.base.movejs(result_grasp["js_grasp"], time_scale=15)
 
-        j = self.base.pi.solve_ik(grasp_pose, rotation_axis="z", validate=True)
-        assert j is not None
-
-        with pp.WorldSaver():
-            self.base.pi.setj(j)
-            grasp_pose = self.base.pi.get_pose("tipLink")
-
-        js_extract = self.plan_extraction(
-            j_init=j,
-            grasp_pose=grasp_pose,
-        )
-
+        self.base.start_grasp()
         if self.base._env.fg_object_id is not None:
-            ee_to_world = grasp_pose
+            with pp.WorldSaver():
+                self.base.pi.setj(result_grasp["j_grasp"])
+                ee_to_world = self.base.pi.get_pose("tipLink")
             obj_to_world = pp.get_pose(self.base._env.fg_object_id)
             obj_to_ee = pp.multiply(pp.invert(ee_to_world), obj_to_world)
-            attachments = [
+            self.base.pi.attachments = [
                 pp.Attachment(
                     self.base.pi.robot,
                     self.base.pi.ee,
@@ -292,60 +333,35 @@ class SafepickingTaskInterface:
                     self.base._env.fg_object_id,
                 )
             ]
-        else:
-            attachments = []
-
-        js_grasp = [j]
-
-        for _ in range(5):
-            self.base.pi.setj(j)
-            c = mercury.geometry.Coordinate(*self.base.pi.get_pose("tipLink"))
-            c.translate([0, 0, -0.02], wrt="local")
-            j = self.base.pi.solve_ik(c.pose, validate=True)
-            assert j is not None
-            js_grasp.append(j)
-        js_grasp = js_grasp[::-1]
-
-        js_place = self._plan_placement(j_init=self.base.pi.homej)
-
-        self.base.movejs(js_grasp, time_scale=10)
-
-        self.base.start_grasp()
-        self.base.pi.attachments = attachments
 
         self.base.movejs(js_extract, time_scale=20)
+        self.base.reset_pose()
 
-        if place:
-            self.base.reset_pose()
-
-            self.base.movejs(js_place)
-        else:
-            js = np.linspace(js_extract[-1], self.base.pi.homej)
-            self.base.movejs(js[:5], time_scale=10)
+        self.base.movejs(result_place["js_pre_place"], time_scale=5)
+        self.base.movejs(result_place["js_place"], time_scale=15)
 
         self.base.stop_grasp()
         self.base.pi.attachments = []
         rospy.sleep(6)
 
-        if place:
-            self.base.movejs(js_place[::-1])
+        self.base.movejs(result_place["js_place"][::-1], time_scale=10)
 
-            self.base.reset_pose()
+        self.base.reset_pose()
 
     def _plan_placement(self, j_init):
-        bin_to_base = pp.get_pose(self._bin)
+        bin_position = [0.2, -0.5, 0.1]
 
         with pp.WorldSaver():
             self.base.pi.setj(j_init)
 
             c = mercury.geometry.Coordinate(*self.base.pi.get_pose("tipLink"))
-            c.position = bin_to_base[0]
+            c.position = bin_position
 
             j = self.base.pi.solve_ik(c.pose, rotation_axis="z")
             assert j is not None
+            j_place = j
 
-            js_place = [j]
-
+            js_place = []
             for _ in range(5):
                 self.base.pi.setj(j)
                 c = mercury.geometry.Coordinate(
@@ -357,7 +373,15 @@ class SafepickingTaskInterface:
                 js_place.append(j)
             js_place = js_place[::-1]
 
-        return js_place
+            j_pre_place = js_place[0]
+            js_pre_place = [j_pre_place]
+
+        return dict(
+            j_pre_place=j_pre_place,
+            js_pre_place=js_pre_place,
+            j_place=j_place,
+            js_place=js_place,
+        )
 
     def _get_heightmap(self, center_xy):
         center = np.array([center_xy[0], center_xy[1], np.nan])
@@ -379,7 +403,12 @@ class SafepickingTaskInterface:
         idmap -= 1  # 0: background -> -1: background
         return heightmap, idmap
 
-    def _plan_extraction(self, j_init, grasp_pose):
+    def _plan_extraction(self, j_grasp):
+        world_saver = pp.WorldSaver()
+
+        self.base.pi.setj(j_grasp)
+        grasp_pose = self.base.pi.get_pose("tipLink")
+
         heightmap, idmap = self._get_heightmap(center_xy=grasp_pose[0][:2])
         target_instance_id = self.obs["target_instance_id"]
         maskmap = idmap == target_instance_id
@@ -439,10 +468,6 @@ class SafepickingTaskInterface:
         for key in observation:
             observation[key] = torch.as_tensor(observation[key])[None]
 
-        world_saver = pp.WorldSaver()
-
-        self.base.pi.setj(j_init)
-
         js = []
         for i in range(self._picking_env.episode_length):
             with torch.no_grad():
@@ -468,8 +493,8 @@ class SafepickingTaskInterface:
                 j = self.base.pi.solve_ik(c.pose)
                 if j is not None:
                     break
+            js.extend(self.base.pi.get_cartesian_path(j=j))
             self.base.pi.setj(j)
-            js.append(j)
 
             if t == 1:
                 break
