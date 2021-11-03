@@ -201,6 +201,7 @@ class PbPlanner:
         min_distances=None,
         min_distances_start_goal=None,
         planner="RRTConnect",
+        planner_range=0,
     ):
         ndof = len(ri.joints)
 
@@ -226,6 +227,7 @@ class PbPlanner:
         self.si.setup()
 
         self.planner = planner
+        self.planner_range = planner_range
 
     def plan(self, start_q, goal_q):
         log_level = ou.getLogLevel()
@@ -248,6 +250,7 @@ class PbPlanner:
         )
         optimizingPlanner = getattr(og, self.planner)(self.si)
         optimizingPlanner.setProblemDefinition(pdef)
+        optimizingPlanner.setRange(self.planner_range)
         optimizingPlanner.setup()
         solved = optimizingPlanner.solve(solveTime=1)
 
