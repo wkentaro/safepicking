@@ -562,8 +562,11 @@ class ReorientbotTaskInterface:
         self._sub_multiview.subscribe()
         self._start_passthrough_multiview()
         self.base.movejs([js[0]], wait_callback=wait_callback)
+        stamp = rospy.Time.now()
         rospy.sleep(1)
         while self._sub_multiview.msgs is None:
+            rospy.sleep(0.1)
+        while self._sub_multiview.msgs[0].header.stamp < stamp:
             rospy.sleep(0.1)
         self.base.movejs(
             js, time_scale=12, wait_callback=wait_callback, retry=True
