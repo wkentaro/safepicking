@@ -633,7 +633,7 @@ class PandaRobotInterface:
         if not (j is None) ^ (pose is None):
             raise ValueError("Either j or coords must be given")
 
-        p1 = self.get_pose("tipLink")
+        p_start = self.get_pose("tipLink")
 
         with pybullet_planning.WorldSaver():
             if j is None:
@@ -642,16 +642,20 @@ class PandaRobotInterface:
                     raise RuntimeError("IK failure")
             else:
                 self.setj(j)
-            j_final = j
+            j_end = j
 
-            p2 = self.get_pose("tipLink")
+            self.setj(j_end)
+            p_end = self.get_pose("tipLink")
 
-        js = []
-        for pose in pybullet_planning.interpolate_poses(p1, p2):
-            j = self.solve_ik(pose, rotation_axis=rotation_axis)
-            if j is not None and self.validatej(j):
-                js.append(j)
-        if j_final is not None:
-            js.append(j_final)
-        js = np.array(js)
+            js_reverse = [j_end]
+            for pose in pybullet_planning.interpolate_poses(p_end, p_start):
+                j = self.solve_ik(
+                    pose, rotation_axis=rotation_axis, validate=True
+                )
+                if j is None:
+                    return
+                js_reverse.append(j)
+                self.setj(j)
+
+        js = np.array(js_reverse[::-1])
         return js
