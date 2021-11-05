@@ -580,6 +580,9 @@ def plan_place(env, target_grasp_poses):
                     continue
                 result["j_last_pre_place"] = j
 
+            if result["j_last_pre_place"] is not None:
+                env.ri.setj(result["j_last_pre_place"])
+
             with env.ri.enabling_attachments():
                 j = env.ri.solve_ik(
                     env.PLACE_POSE,
