@@ -194,12 +194,10 @@ def plan_reorient(env, grasp_pose, reorient_pose):
 
         c = mercury.geometry.Coordinate(*ee_af_to_world)
         c.rotate([0, 0, dg])
-        j = env.ri.solve_ik(c.pose, n_init=5)
-        if j is None or not env.ri.validatej(
-            j,
-            obstacles=bg_object_ids,
-            min_distances=mercury.utils.StaticDict(-0.02),
-        ):
+        j = env.ri.solve_ik(
+            c.pose, n_init=5, validate=True, obstacles=bg_object_ids
+        )
+        if j is None:
             print("no j_grasp")
             continue
 
