@@ -66,16 +66,32 @@ class pbValidityChecker(ob.StateValidityChecker):
 
         links = pp.get_links(self.ri.robot)
         for link_a, link_b in itertools.combinations(links, 2):
+            link_name_a = pp.get_link_name(self.ri.robot, link_a)
+            link_name_b = pp.get_link_name(self.ri.robot, link_b)
+
             assert link_b > link_a
             if link_b - link_a == 1:
                 continue
-            if link_a == 6 and link_b == 8:
+
+            distance = 0
+
+            # XXX: specific configurations for panda_drl.urdf
+            # panda_link5: front arm
+            # panda_link6: arm head
+            # panda_link7: wrist
+            # panda_link8: palm tip
+            if (
+                link_name_a == "panda_link7"
+                and link_name_b == "panda_suction_gripper"
+            ):
                 continue
-            if link_a == 0 and link_b == 4:
-                distance = 0.04
-            else:
-                distance = 0
-            is_colliding |= (
+            if (
+                link_name_a == "panda_link5"
+                and link_name_b == "panda_suction_gripper"
+            ):
+                continue
+
+            is_colliding_i = (
                 len(
                     p.getClosestPoints(
                         bodyA=self.ri.robot,
@@ -87,6 +103,14 @@ class pbValidityChecker(ob.StateValidityChecker):
                 )
                 > 0
             )
+            # if is_colliding_i:
+            #     from loguru import logger
+            #
+            #     logger.warning(
+            #         f"{link_a}:{link_name_a} and {link_b}:{link_name_b} "
+            #         f"is self-colliding with distance of {distance}"
+            #     )
+            is_colliding |= is_colliding_i
 
         for attachment in self.ri.attachments:
             assert attachment.parent == self.ri.robot
