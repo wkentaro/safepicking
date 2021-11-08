@@ -156,23 +156,6 @@ def get_grasp_poses(env):
     obstacles = env.bg_objects + env.object_ids
     obstacles.remove(env.fg_object_id)
     for pose in zip(pcd_in_world[p], quaternion_in_world[p]):
-        j = env.ri.solve_ik(pose, rotation_axis="z")
-        if j is None:
-            continue
-        if not env.ri.validatej(j, obstacles=obstacles):
-            continue
-
-        # pre-grasp / post-grasp
-        c = mercury.geometry.Coordinate(*pose)
-        c.translate([0, 0, -0.1])
-        with pp.WorldSaver():
-            env.ri.setj(j)
-            j = env.ri.solve_ik(c.pose)
-            if j is None:
-                continue
-            if not env.ri.validatej(j, obstacles=obstacles):
-                continue
-
         yield np.hstack(pose)
 
 
