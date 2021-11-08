@@ -647,9 +647,7 @@ def plan_place(env, target_grasp_poses):
         env.ri.setj(result["j_place"])
         pose = env.ri.get_pose("tipLink")
         j = env.ri.solve_ik(pose)
-        if j is None:
-            js.append(result["j_place"])
-        else:
+        if j is not None:
             js.append(j)
         result["js_place"] = js
 
