@@ -153,6 +153,7 @@ class PandaRobotInterface:
         n_init=1,
         random_state=None,
         validate=False,
+        obstacles=None,
         **kwargs,
     ):
         if move_target is None:
@@ -175,7 +176,9 @@ class PandaRobotInterface:
                 **kwargs,
             )
             if result is not False:
-                if not validate or (validate and self.validatej(result)):
+                if not validate:
+                    break
+                if self.validatej(result, obstacles=obstacles):
                     break
             self.update_robot_model(sample_fn())
         else:
