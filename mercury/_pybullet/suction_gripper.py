@@ -112,7 +112,7 @@ class SuctionGripper:
         world_to_ee = pybullet_planning.invert(ee_to_world)
         obj_to_ee = pybullet_planning.multiply(world_to_ee, obj_to_world)
         self.add_constraint(
-            obj_body=obj_id,
+            obj=obj_id,
             obj_link=contact_link,
             obj_to_ee=obj_to_ee,
             grasp_point_on_obj=grasp_point_on_obj,
@@ -173,7 +173,12 @@ class SuctionGripper:
             if distance > 0.01:
                 # surface is apart more than 1cm
                 logger.warning("dropping grasped object as surfaces are apart")
-                self.release()
+                if self.contact_constraint is not None:
+                    try:
+                        p.removeConstraint(self.contact_constraint)
+                        self.contact_constraint = None
+                    except Exception:
+                        pass
 
     def release(self):
         if not self.activated:
