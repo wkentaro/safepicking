@@ -3,7 +3,9 @@
 import argparse
 import collections
 
+import cv2
 import gdown
+import imgviz
 import IPython
 import numpy as np
 import path
@@ -145,7 +147,7 @@ class SafepickingTaskInterface:
             client = rospy.ServiceProxy(passthrough + "/stop", Empty)
             client.call()
 
-    def capture_pile(self):
+    def capture_pile(self, wait_for_target=True):
         if self.base._env.object_ids:
             for obj_id in self.base._env.object_ids:
                 pp.remove_body(obj_id)
@@ -154,16 +156,19 @@ class SafepickingTaskInterface:
 
         self._look_at_pile()
 
+        stamp = rospy.Time.now()
         self._sub_singleview.subscribe()
         self._start_passthrough()
         while True:
             if not self._sub_singleview.msgs:
                 continue
-            class_ids_detected = [
-                c.class_id for c in self._sub_singleview.msgs[1].classes
-            ]
-            if self._target_class_id not in class_ids_detected:
+            depth_msg, cls_msg, lbl_msg, poses_msg = self._sub_singleview.msgs
+            if depth_msg.header.stamp < stamp:
                 continue
+            if wait_for_target:
+                class_ids_detected = [c.class_id for c in cls_msg.classes]
+                if self._target_class_id not in class_ids_detected:
+                    continue
             break
         self._stop_passthrough()
         self._sub_singleview.unsubscribe()
@@ -195,7 +200,12 @@ class SafepickingTaskInterface:
             class_id_to_instance_ids[cls.class_id].append(cls.instance_id)
         class_id_to_instance_ids = dict(class_id_to_instance_ids)
 
-        target_instance_id = class_id_to_instance_ids[self._target_class_id][0]
+        if self._target_class_id in class_id_to_instance_ids:
+            target_instance_id = class_id_to_instance_ids[
+                self._target_class_id
+            ][0]
+        else:
+            target_instance_id = None
 
         camera_to_base = self.base.lookup_transform(
             "panda_link0",
@@ -521,32 +531,59 @@ class SafepickingTaskInterface:
         return js
 
     def test_heightmap_change(self):
+        self.base.reset_pose()
+
         self._target_class_id = 5
 
-        self.capture_pile()
+        self.capture_pile(wait_for_target=True)
         heightmap, idmap = self._get_heightmap(
             self.base._env.PILE_POSITION[:2]
         )
-        heightmap[idmap == self.obs["target_instance_id"]] = np.nan
-        heightmap[heightmap == 0] = np.nan
+        target_mask = idmap == self.obs["target_instance_id"]
+        target_mask = cv2.dilate(
+            target_mask.astype(np.uint8), kernel=np.ones((7, 7))
+        ).astype(bool)
+
+        target_mask1 = target_mask
         heightmap1 = heightmap
 
+        self.base.reset_pose()
         input("Move an object and press key to continue:")
 
-        self.capture_pile()
+        self.capture_pile(wait_for_target=False)
         heightmap, idmap = self._get_heightmap(
             self.base._env.PILE_POSITION[:2]
         )
-        heightmap[idmap == self.obs["target_instance_id"]] = np.nan
-        heightmap[heightmap == 0] = np.nan
+        if self.obs["target_instance_id"] is not None:
+            target_mask = idmap == self.obs["target_instance_id"]
+            target_mask = cv2.dilate(
+                target_mask.astype(np.uint8), kernel=np.ones((7, 7))
+            ).astype(bool)
+        else:
+            target_mask = np.zeros_like(target_mask1)
+
+        target_mask2 = target_mask
         heightmap2 = heightmap
+
+        heightmap1[target_mask1 | target_mask2] = np.nan
+        heightmap2[target_mask1 | target_mask2] = np.nan
 
         diff = abs(heightmap1 - heightmap2)
         mask = diff > 0.01
         print(
-            diff[mask].sum(),
-            mask.sum() / mask.size,
+            f"Diff mask: {mask.mean():.1%}, "
+            f"Diff (mean): {diff[mask].mean():.3f}"
         )
+
+        depth2rgb = imgviz.Depth2RGB()
+        viz = imgviz.tile(
+            [
+                depth2rgb(heightmap1),
+                depth2rgb(heightmap2),
+                imgviz.bool2ubyte(mask),
+            ]
+        )
+        imgviz.io.imsave("/tmp/test_heightmap_change.jpg", viz)
 
 
 def main():
