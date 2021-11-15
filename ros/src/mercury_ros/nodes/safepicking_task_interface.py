@@ -277,6 +277,7 @@ class SafepickingTaskInterface:
             visual_file = mercury.datasets.ycb.get_visual_file(class_id)
             obj_id = mercury.pybullet.create_mesh_body(
                 visual_file=visual_file,
+                collision_file=True,
                 position=obj_to_base[0],
                 quaternion=obj_to_base[1],
             )
