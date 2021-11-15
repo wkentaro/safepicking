@@ -627,16 +627,28 @@ class PickFromPileEnv(Env):
                 time.sleep(pp.get_time_step())
 
         if terminate:
-            for _ in self.ri.movej(
-                self.ri.homej,
-                speed=self._speed,
-                timeout=10 * (0.01 / self._speed),
-                raise_on_timeout=self._raise_on_timeout,
-            ):
-                pp.step_simulation()
-                step_callback()
-                if self._gui:
-                    time.sleep(pp.get_time_step())
+            c = mercury.geometry.Coordinate(*self.ri.get_pose("tipLink"))
+            js = []
+            for _ in range(10):
+                c.translate([0, 0, 0.05], wrt="world")
+                j = self.ri.solve_ik(c.pose, validate=True)
+                if j is not None:
+                    js.append(j)
+                if c.position[2] > 0.5:
+                    break
+            js.append(self.ri.homej)
+
+            for j in js:
+                for _ in self.ri.movej(
+                    j,
+                    speed=self._speed,
+                    timeout=3 * (0.01 / self._speed),
+                    raise_on_timeout=self._raise_on_timeout,
+                ):
+                    pp.step_simulation()
+                    step_callback()
+                    if self._gui:
+                        time.sleep(pp.get_time_step())
 
         # ---------------------------------------------------------------------
 
