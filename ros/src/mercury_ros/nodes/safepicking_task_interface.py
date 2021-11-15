@@ -2,11 +2,14 @@
 
 import argparse
 import collections
+import datetime
+import json
 
 import cv2
 import gdown
 import imgviz
 import IPython
+from loguru import logger
 import numpy as np
 import path
 import pybullet_planning as pp
@@ -28,6 +31,9 @@ from std_srvs.srv import Empty
 
 from _message_subscriber import MessageSubscriber
 from base_task_interface import BaseTaskInterface
+
+
+here = path.Path(__file__).abspath().parent
 
 
 class SafepickingTaskInterface:
@@ -108,6 +114,24 @@ class SafepickingTaskInterface:
             self._target_class_id
         ][0]
         mask = ~np.isnan(depth) & (label == instance_id)
+
+        mask = mask.astype(np.uint8)
+        contour_mask = np.zeros(mask.shape, dtype=np.uint8)
+        contours, _ = cv2.findContours(
+            mask, mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_NONE
+        )
+        contour_mask = cv2.drawContours(
+            image=contour_mask,
+            contours=contours,
+            contourIdx=-1,
+            color=1,
+            thickness=10,
+        )
+        contour_mask = contour_mask.astype(bool)
+        mask = mask.astype(bool)
+
+        mask = mask & ~contour_mask
+
         pcd_in_camera = pcd_in_camera[mask]
         pcd_in_base = pcd_in_base[mask]
         normals_in_camera = normals_in_camera[mask]
@@ -312,10 +336,13 @@ class SafepickingTaskInterface:
                     js_grasp=js_grasp,
                 )
 
-    def run(self):
-        self.base.init_workspace()
+    def run(self, target_class_id):
+        self._target_class_id = target_class_id
 
-        self._target_class_id = 3
+        self.base.init_workspace()
+        self.base.reset_pose()
+
+        self.initialize_heightmap_comparison()
 
         self.capture_pile()
 
@@ -357,6 +384,8 @@ class SafepickingTaskInterface:
         self.base.movejs(result_place["js_place"][::-1], time_scale=10)
 
         self.base.reset_pose()
+
+        self.finalize_heightmap_comparison()
 
     def _plan_placement(self, j_init):
         bin_position = [0.2, -0.5, 0.1]
@@ -484,15 +513,14 @@ class SafepickingTaskInterface:
                 q = self._agent.q(observation)
 
             q = q[0].cpu().numpy().reshape(-1)
-            actions = np.argsort(q)[::-1]
+            action_indices = np.argsort(q)[::-1]
 
-            for action in actions:
-                a = action // 2
+            actions, terminals = action_indices // 2, action_indices % 2
+
+            for action, terminal in zip(actions, terminals):
                 if i == self._picking_env.episode_length - 1:
-                    t = 1
-                else:
-                    t = action % 2
-                dx, dy, dz, da, db, dg = self._picking_env.actions[a]
+                    terminal = 1
+                dx, dy, dz, da, db, dg = self._picking_env.actions[action]
 
                 c = mercury.geometry.Coordinate(
                     *self.base.pi.get_pose("tipLink")
@@ -506,7 +534,7 @@ class SafepickingTaskInterface:
             js.extend(self.base.pi.get_cartesian_path(j=j))
             self.base.pi.setj(j)
 
-            if t == 1:
+            if terminal == 1:
                 break
 
             ee_poses = np.r_[
@@ -530,11 +558,11 @@ class SafepickingTaskInterface:
 
         return js
 
-    def test_heightmap_change(self):
-        self.base.reset_pose()
+    def initialize_heightmap_comparison(self):
+        if self._target_class_id is None:
+            raise RuntimeError("self._target_class_id needs to be set")
 
-        self._target_class_id = 5
-
+        self.base.pi.setj(self.base.pi.homej)
         self.capture_pile(wait_for_target=True)
         heightmap, idmap = self._get_heightmap(
             self.base._env.PILE_POSITION[:2]
@@ -544,12 +572,10 @@ class SafepickingTaskInterface:
             target_mask.astype(np.uint8), kernel=np.ones((7, 7))
         ).astype(bool)
 
-        target_mask1 = target_mask
-        heightmap1 = heightmap
+        self._target_mask_init = target_mask
+        self._heightmap_init = heightmap
 
-        self.base.reset_pose()
-        input("Move an object and press key to continue:")
-
+    def finalize_heightmap_comparison(self):
         self.capture_pile(wait_for_target=False)
         heightmap, idmap = self._get_heightmap(
             self.base._env.PILE_POSITION[:2]
@@ -560,19 +586,25 @@ class SafepickingTaskInterface:
                 target_mask.astype(np.uint8), kernel=np.ones((7, 7))
             ).astype(bool)
         else:
-            target_mask = np.zeros_like(target_mask1)
+            target_mask = np.zeros_like(self._target_mask_init)
 
-        target_mask2 = target_mask
-        heightmap2 = heightmap
+        heightmap1, target_mask1 = self._heightmap_init, self._target_mask_init
+        heightmap2, target_mask2 = heightmap, target_mask
 
         heightmap1[target_mask1 | target_mask2] = np.nan
         heightmap2[target_mask1 | target_mask2] = np.nan
 
         diff = abs(heightmap1 - heightmap2)
-        mask = diff > 0.01
-        print(
-            f"Diff mask: {mask.mean():.1%}, "
-            f"Diff (mean): {diff[mask].mean():.3f}"
+
+        DIFF_THRESHOLD = 0.01
+        diff_mask = diff > DIFF_THRESHOLD
+
+        diff_mask_ratio = diff_mask.mean()
+        diff_mean = diff[diff_mask].mean()
+
+        logger.info(
+            f"Diff mask: {diff_mask_ratio:.1%}, "
+            f"Diff mean: {diff_mean:.3f} [m]"
         )
 
         depth2rgb = imgviz.Depth2RGB()
@@ -580,10 +612,42 @@ class SafepickingTaskInterface:
             [
                 depth2rgb(heightmap1),
                 depth2rgb(heightmap2),
-                imgviz.bool2ubyte(mask),
-            ]
+                imgviz.bool2ubyte(diff_mask),
+            ],
+            shape=(1, 3),
+            border=(255, 255, 255),
         )
-        imgviz.io.imsave("/tmp/test_heightmap_change.jpg", viz)
+
+        now = datetime.datetime.now()
+        log_dir = here / "logs" / now.strftime("%Y%m%d_%H%M%S.%f")
+        log_dir.makedirs_p()
+        np.save(log_dir / "heightmap1.npy", heightmap1)
+        np.save(log_dir / "heightmap2.npy", heightmap2)
+        np.save(log_dir / "diff.npy", diff)
+        imgviz.io.imsave(log_dir / "visualization.jpg", viz)
+        with open(log_dir / "data.json", "w") as f:
+            json.dump(
+                dict(
+                    timestamp=now.isoformat(),
+                    DIFF_THRESHOLD=DIFF_THRESHOLD,
+                    diff_mask_ratio=float(diff_mask_ratio),
+                    diff_mean=float(diff_mean),
+                ),
+                f,
+                indent=2,
+            )
+        rospy.loginfo(f"Saved to: {log_dir.realpath()}")
+
+    def test_heightmap_comparison(self):
+        self._target_class_id = 5
+
+        self.base.reset_pose()
+        self.initialize_heightmap_comparison()
+
+        self.base.reset_pose()
+        rospy.loginfo("Move an object and press key to continue")
+        mercury.pybullet.pause()
+        self.finalize_heightmap_comparison()
 
 
 def main():

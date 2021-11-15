@@ -1,4 +1,5 @@
 /examples/**/logs/
+/ros/src/mercury_ros/nodes/logs/
 
 /src/
 
