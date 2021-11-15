@@ -130,6 +130,19 @@ class SafepickingTaskInterface:
         contour_mask = contour_mask.astype(bool)
         mask = mask.astype(bool)
 
+        imgviz.io.imsave(
+            "/tmp/_get_grasp_poses.jpg",
+            imgviz.tile(
+                [
+                    imgviz.depth2rgb(depth),
+                    imgviz.label2rgb(label),
+                    imgviz.bool2ubyte(mask),
+                    imgviz.bool2ubyte(contour_mask),
+                ],
+                border=(255, 255, 255),
+            ),
+        )
+
         mask = mask & ~contour_mask
 
         pcd_in_camera = pcd_in_camera[mask]
