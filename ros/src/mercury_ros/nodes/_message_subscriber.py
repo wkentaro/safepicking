@@ -19,7 +19,7 @@ class MessageSubscriber:
 
         sync = message_filters.TimeSynchronizer(
             self._subscribers,
-            queue_size=50,
+            queue_size=100,
         )
         sync.registerCallback(self._callback)
 

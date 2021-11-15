@@ -301,12 +301,10 @@ class SafepickingTaskInterface:
 
         grasp_poses = self._get_grasp_poses()
 
-        centroid = np.mean(grasp_poses[:, :3], axis=0)
-        dist = np.linalg.norm(grasp_poses[:, :3] - centroid, axis=1)
-        argsort = np.argsort(dist)
+        p = np.random.permutation(len(grasp_poses))
 
-        for grasp_pose in grasp_poses[argsort]:
-            for gamma in np.linspace(-np.pi, np.pi, num=6):
+        for grasp_pose in grasp_poses[p]:
+            for gamma in np.random.uniform(-np.pi, np.pi, size=6):
                 c = mercury.geometry.Coordinate(grasp_pose[:3], grasp_pose[3:])
                 c.rotate([0, 0, gamma])
 
@@ -438,12 +436,14 @@ class SafepickingTaskInterface:
             js_place=js_place,
         )
 
-    def _get_heightmap(self, center_xy):
+    def _get_heightmap(self, center_xy, heightmap_size=None):
         center = np.array([center_xy[0], center_xy[1], np.nan])
+        if heightmap_size is None:
+            heightmap_size = self._picking_env.HEIGHTMAP_SIZE
         aabb = np.array(
             [
-                center - self._picking_env.HEIGHTMAP_SIZE / 2,
-                center + self._picking_env.HEIGHTMAP_SIZE / 2,
+                center - heightmap_size / 2,
+                center + heightmap_size / 2,
             ]
         )
         aabb[0][2] = self.base._env.TABLE_OFFSET - 0.05
@@ -544,7 +544,7 @@ class SafepickingTaskInterface:
                 c.translate([dx, dy, dz], wrt="world")
                 c.rotate([da, db, dg], wrt="world")
 
-                j = self.base.pi.solve_ik(c.pose)
+                j = self.base.pi.solve_ik(c.pose, validate=True)
                 if j is not None:
                     break
             js.extend(self.base.pi.get_cartesian_path(j=j))
@@ -581,7 +581,10 @@ class SafepickingTaskInterface:
         self.base.pi.setj(self.base.pi.homej)
         self.capture_pile(wait_for_target=True)
         heightmap, idmap = self._get_heightmap(
-            self.base._env.PILE_POSITION[:2]
+            self.base._env.PILE_POSITION[:2],
+            heightmap_size=self._picking_env.HEIGHTMAP_PIXEL_SIZE
+            * self._picking_env.HEIGHTMAP_IMAGE_SIZE
+            * 1.5,
         )
         target_mask = idmap == self.obs["target_instance_id"]
         target_mask = cv2.dilate(
@@ -594,7 +597,10 @@ class SafepickingTaskInterface:
     def finalize_heightmap_comparison(self):
         self.capture_pile(wait_for_target=False)
         heightmap, idmap = self._get_heightmap(
-            self.base._env.PILE_POSITION[:2]
+            self.base._env.PILE_POSITION[:2],
+            heightmap_size=self._picking_env.HEIGHTMAP_PIXEL_SIZE
+            * self._picking_env.HEIGHTMAP_IMAGE_SIZE
+            * 1.5,
         )
         if self.obs["target_instance_id"] is not None:
             target_mask = idmap == self.obs["target_instance_id"]
@@ -607,6 +613,8 @@ class SafepickingTaskInterface:
         heightmap1, target_mask1 = self._heightmap_init, self._target_mask_init
         heightmap2, target_mask2 = heightmap, target_mask
 
+        heightmap1[heightmap1 == 0] = np.nan
+        heightmap2[heightmap2 == 0] = np.nan
         heightmap1[target_mask1 | target_mask2] = np.nan
         heightmap2[target_mask1 | target_mask2] = np.nan
 
@@ -629,8 +637,15 @@ class SafepickingTaskInterface:
                 depth2rgb(heightmap1),
                 depth2rgb(heightmap2),
                 imgviz.bool2ubyte(diff_mask),
+                imgviz.label2rgb(
+                    diff_mask.astype(np.int32),
+                    imgviz.rgb2gray(depth2rgb(heightmap1)),
+                ),
+                imgviz.label2rgb(
+                    diff_mask.astype(np.int32),
+                    imgviz.rgb2gray(depth2rgb(heightmap2)),
+                ),
             ],
-            shape=(1, 3),
             border=(255, 255, 255),
         )
 
