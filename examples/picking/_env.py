@@ -463,9 +463,9 @@ class PickFromPileEnv(Env):
         return heightmap, colormap, maskmap
 
     def get_object_state(self, pose_miss=0, pose_noise=0, random_state=None):
-        if pose_miss > 0:
+        if pose_miss:
             random_state_miss = copy.deepcopy(random_state)
-        if pose_noise > 0:
+        if pose_noise:
             random_state_noise = copy.deepcopy(random_state)
         del random_state
 
@@ -475,7 +475,7 @@ class PickFromPileEnv(Env):
         )
         object_poses = np.zeros((len(self.object_ids), 7), dtype=np.float32)
         for i, object_id in enumerate(self.object_ids):
-            if pose_miss > 0:
+            if pose_miss:
                 if isinstance(pose_miss, tuple):
                     assert len(pose_miss) == 2
                     miss = random_state_miss.uniform(
@@ -490,7 +490,7 @@ class PickFromPileEnv(Env):
             class_id = _utils.get_class_id(object_id)
             object_label = self.CLASS_IDS.index(class_id)
             object_labels[i] = np.eye(len(self.CLASS_IDS))[object_label]
-            if pose_noise > 0:
+            if pose_noise:
                 if isinstance(pose_noise, tuple):
                     assert len(pose_noise) == 2
                     scale = random_state_noise.uniform(
