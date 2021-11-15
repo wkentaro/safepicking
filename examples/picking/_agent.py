@@ -194,6 +194,10 @@ class DqnAgent(Agent):
         return loss_weights
 
     def update(self, step, replay_sample):
+        replay_sample = replay_sample.copy()
+        for key, value in replay_sample.items():
+            replay_sample[key] = value.squeeze(1)  # remove task dimension
+
         self._update_q(replay_sample)
         soft_updates(self.q, self.q_target, tau=0.005)
         return dict(priority=self._priority)
