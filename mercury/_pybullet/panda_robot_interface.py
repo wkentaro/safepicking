@@ -276,6 +276,7 @@ class PandaRobotInterface:
         obstacles=None,
         min_distances=None,
         min_distances_start_goal=None,
+        planner_range=0,
     ):
         if self.planner == "Naive":
             return [j]
@@ -286,6 +287,7 @@ class PandaRobotInterface:
             min_distances=min_distances,
             min_distances_start_goal=min_distances_start_goal,
             planner=self.planner,
+            planner_range=planner_range,
         )
 
         planner.validityChecker.start = self.getj()

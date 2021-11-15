@@ -330,7 +330,9 @@ class SafepickingTaskInterface:
                 )
                 if self.base._env.fg_object_id:
                     obstacles.remove(self.base._env.fg_object_id)
-                js_grasp = self.base.pi.planj(j_grasp, obstacles=obstacles)
+                js_grasp = self.base.pi.planj(
+                    j_grasp, obstacles=obstacles, planner_range=0.01
+                )
                 if js_grasp is None:
                     print("js_grasp is not found")
                     continue
