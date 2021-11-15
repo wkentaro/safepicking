@@ -116,8 +116,8 @@ def main():
     ###################
 
     if hparams["noise"]:
-        pose_noise = (0, 2)
-        miss = (0.2, 0.4)
+        pose_noise = (1, 5)
+        miss = (0.2, 1)
     else:
         pose_noise = 0
         miss = 0
