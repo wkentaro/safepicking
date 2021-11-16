@@ -376,6 +376,7 @@ class SafepickingTaskInterface:
                     j_grasp=j_grasp,
                     js_grasp=js_grasp,
                 )
+        raise RuntimeError("grasp planning has failed")
 
     def run(self, target_class_id):
         self._target_class_id = target_class_id
