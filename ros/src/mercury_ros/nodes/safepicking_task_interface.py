@@ -45,6 +45,7 @@ class SafepickingTaskInterface:
         self._target_class_id = None
         self._sub_singleview = MessageSubscriber(
             [
+                ("/camera/color/image_rect_color_throttle/output", Image),
                 ("/camera/aligned_depth_to_color/image_raw", Image),
                 (
                     "/camera/mask_rcnn_instance_segmentation/output/class",
@@ -198,7 +199,13 @@ class SafepickingTaskInterface:
             if not self._sub_singleview.msgs:
                 rospy.loginfo_throttle(10, "Waiting for a message")
                 continue
-            depth_msg, cls_msg, lbl_msg, poses_msg = self._sub_singleview.msgs
+            (
+                rgb_msg,
+                depth_msg,
+                cls_msg,
+                lbl_msg,
+                poses_msg,
+            ) = self._sub_singleview.msgs
             if depth_msg.header.stamp < stamp:
                 rospy.loginfo_throttle(10, "Waiting for new messages")
                 continue
@@ -218,6 +225,7 @@ class SafepickingTaskInterface:
             "/camera/color/camera_info", CameraInfo
         )
         (
+            rgb_msg,
             depth_msg,
             cls_msg,
             label_msg,
@@ -227,6 +235,7 @@ class SafepickingTaskInterface:
         K = np.array(camera_msg.K).reshape(3, 3)
 
         bridge = cv_bridge.CvBridge()
+        rgb = bridge.imgmsg_to_cv2(rgb_msg, desired_encoding="rgb8")
         depth = bridge.imgmsg_to_cv2(depth_msg)
         assert depth.dtype == np.uint16
         depth = depth.astype(np.float32) / 1000
@@ -292,6 +301,7 @@ class SafepickingTaskInterface:
         self.obs = dict(
             camera_to_base=camera_to_base,
             K=K,
+            rgb=rgb,
             depth=depth,
             label=label,
             class_id_to_instance_ids=class_id_to_instance_ids,
@@ -480,15 +490,15 @@ class SafepickingTaskInterface:
         )
         aabb[0][2] = self.base._env.TABLE_OFFSET - 0.05
         aabb[1][2] = self.base._env.TABLE_OFFSET + 0.5
-        heightmap, _, idmap = _get_heightmap.get_heightmap(
+        heightmap, colormap, idmap = _get_heightmap.get_heightmap(
             points=self.obs["pcd_in_base"],
-            colors=np.zeros(self.obs["pcd_in_base"].shape, dtype=np.uint8),
+            colors=self.obs["rgb"],
             ids=self.obs["label"] + 1,  # -1: background -> 0: background
             aabb=aabb,
             pixel_size=self._picking_env.HEIGHTMAP_PIXEL_SIZE,
         )
         idmap -= 1  # 0: background -> -1: background
-        return heightmap, idmap
+        return heightmap, colormap, idmap
 
     def _plan_extraction(self, j_grasp):
         world_saver = pp.WorldSaver()
@@ -496,7 +506,7 @@ class SafepickingTaskInterface:
         self.base.pi.setj(j_grasp)
         grasp_pose = self.base.pi.get_pose("tipLink")
 
-        heightmap, idmap = self._get_heightmap(center_xy=grasp_pose[0][:2])
+        heightmap, _, idmap = self._get_heightmap(center_xy=grasp_pose[0][:2])
         target_instance_id = self.obs["target_instance_id"]
         maskmap = idmap == target_instance_id
 
@@ -612,7 +622,7 @@ class SafepickingTaskInterface:
 
         self.base.pi.setj(self.base.pi.homej)
         self.capture_pile(wait_for_target=True)
-        heightmap, idmap = self._get_heightmap(
+        heightmap, colormap, idmap = self._get_heightmap(
             self.base._env.PILE_POSITION[:2],
             heightmap_size=self._picking_env.HEIGHTMAP_PIXEL_SIZE
             * self._picking_env.HEIGHTMAP_IMAGE_SIZE
@@ -625,10 +635,11 @@ class SafepickingTaskInterface:
 
         self._target_mask_init = target_mask
         self._heightmap_init = heightmap
+        self._colormap_init = colormap
 
     def finalize_heightmap_comparison(self):
         self.capture_pile(wait_for_target=False)
-        heightmap, idmap = self._get_heightmap(
+        heightmap, colormap, idmap = self._get_heightmap(
             self.base._env.PILE_POSITION[:2],
             heightmap_size=self._picking_env.HEIGHTMAP_PIXEL_SIZE
             * self._picking_env.HEIGHTMAP_IMAGE_SIZE
@@ -642,8 +653,12 @@ class SafepickingTaskInterface:
         else:
             target_mask = np.zeros_like(self._target_mask_init)
 
-        heightmap1, target_mask1 = self._heightmap_init, self._target_mask_init
-        heightmap2, target_mask2 = heightmap, target_mask
+        heightmap1, target_mask1, colormap1 = (
+            self._heightmap_init,
+            self._target_mask_init,
+            self._colormap_init,
+        )
+        heightmap2, target_mask2, colormap2 = heightmap, target_mask, colormap
 
         heightmap1[heightmap1 == 0] = np.nan
         heightmap2[heightmap2 == 0] = np.nan
@@ -666,20 +681,24 @@ class SafepickingTaskInterface:
         depth2rgb = imgviz.Depth2RGB()
         viz = imgviz.tile(
             [
+                colormap1,
+                colormap2,
                 depth2rgb(heightmap1),
                 depth2rgb(heightmap2),
+                imgviz.depth2rgb(diff),
                 imgviz.bool2ubyte(diff_mask),
                 imgviz.label2rgb(
                     diff_mask.astype(np.int32),
-                    imgviz.rgb2gray(depth2rgb(heightmap1)),
+                    imgviz.rgb2gray(colormap1),
                     alpha=0.7,
                 ),
                 imgviz.label2rgb(
                     diff_mask.astype(np.int32),
-                    imgviz.rgb2gray(depth2rgb(heightmap2)),
+                    imgviz.rgb2gray(colormap1),
                     alpha=0.7,
                 ),
             ],
+            shape=(-1, 2),
             border=(255, 255, 255),
         )
 
