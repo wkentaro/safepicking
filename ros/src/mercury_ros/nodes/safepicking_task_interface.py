@@ -334,10 +334,15 @@ class SafepickingTaskInterface:
                 )
                 if self.base._env.fg_object_id:
                     obstacles.remove(self.base._env.fg_object_id)
-                js_grasp = self.base.pi.planj(
-                    j_grasp, obstacles=obstacles, planner_range=0.01
-                )
-                if js_grasp is None:
+                js_grasp = self.base.pi.get_cartesian_path(j_grasp)
+                # js_grasp = self.base.pi.planj(
+                #     j_grasp, obstacles=obstacles, planner_range=0.01
+                # )
+                # if js_grasp is None:
+                if not all(
+                    self.base.pi.validatej(j, obstacles=obstacles)
+                    for j in js_grasp
+                ):
                     print("js_grasp is not found")
                     continue
 
