@@ -196,13 +196,19 @@ class SafepickingTaskInterface:
         self._start_passthrough()
         while True:
             if not self._sub_singleview.msgs:
+                rospy.loginfo_throttle(10, "Waiting for a message")
                 continue
             depth_msg, cls_msg, lbl_msg, poses_msg = self._sub_singleview.msgs
             if depth_msg.header.stamp < stamp:
+                rospy.loginfo_throttle(10, "Waiting for new messages")
                 continue
             if wait_for_target:
                 class_ids_detected = [c.class_id for c in cls_msg.classes]
                 if self._target_class_id not in class_ids_detected:
+                    rospy.loginfo_throttle(
+                        10,
+                        f"Waiting for detection: class_id={self._target_class_id}",  # NOQA
+                    )
                     continue
             break
         self._stop_passthrough()
