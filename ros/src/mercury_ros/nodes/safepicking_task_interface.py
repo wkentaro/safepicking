@@ -418,6 +418,8 @@ class SafepickingTaskInterface:
 
         self.finalize_heightmap_comparison()
 
+        self.base.reset_pose()
+
     def reset_pose_after_extraction(self, time_scale=None):
         c = mercury.geometry.Coordinate(*self.base.pi.get_pose("tipLink"))
         js = []
