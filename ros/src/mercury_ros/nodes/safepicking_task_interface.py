@@ -299,6 +299,14 @@ class SafepickingTaskInterface:
 
         grasp_poses = self._get_grasp_poses()
 
+        if self._target_class_id == 11:
+            # heavy
+            centroid = np.mean(grasp_poses[:, :3], axis=0)
+            dist = np.linalg.norm(grasp_poses[:, :3] - centroid, axis=1)
+            i_dist = np.argsort(dist)
+            keep = i_dist[: i_dist.shape[0] // 2]  # closer than median
+            grasp_poses = grasp_poses[keep]
+
         p = np.random.permutation(len(grasp_poses))
 
         for grasp_pose in grasp_poses[p]:
