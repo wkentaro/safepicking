@@ -693,7 +693,9 @@ class SafepickingTaskInterface:
         with open(log_dir / "data.json", "w") as f:
             json.dump(
                 dict(
-                    model=self._agent._kwargs["model"],
+                    model=self._agent._kwargs["model"]
+                    if hasattr(self, "_agent")
+                    else None,
                     timestamp=now.isoformat(),
                     DIFF_THRESHOLD=DIFF_THRESHOLD,
                     diff_mask_ratio=float(diff_mask_ratio),
@@ -704,8 +706,8 @@ class SafepickingTaskInterface:
             )
         rospy.loginfo(f"Saved to: {log_dir.realpath()}")
 
-    def test_heightmap_comparison(self):
-        self._target_class_id = 5
+    def test_heightmap_comparison(self, target_class_id):
+        self._target_class_id = target_class_id
 
         self.base.reset_pose()
         self.initialize_heightmap_comparison()
