@@ -426,7 +426,7 @@ class SafepickingTaskInterface:
         self.base.movejs(js, time_scale=time_scale)
 
     def _plan_placement(self, j_init):
-        bin_position = [0.2, -0.5, 0.1]
+        bin_position = [0.25, -0.45, 0.1]
 
         with pp.WorldSaver():
             self.base.pi.setj(j_init)
