@@ -42,47 +42,6 @@ class SafepickingTaskInterface:
 
         self._picking_env = _env.PickFromPileEnv()
 
-        example_dir = path.Path(mercury.__file__).parent / "examples/picking"
-        if 1:
-            # 0.465
-            model = "fusion_net"
-            weight_dir = (
-                example_dir
-                / "logs/20210709_005731-fusion_net-noise/weights/84500"
-            )
-            gdown.cached_download(
-                id="1MBfMHpfOrcMuBFHbKvHiw6SA5f7q1T6l",
-                path=weight_dir / "q.pth",
-                md5="886b36a99c5a44b54c513ec7fee4ae0d",
-            )
-        if 0:
-            # 0.487
-            model = "openloop_pose_net"
-            weight_dir = (
-                example_dir
-                / "logs/20210709_005731-openloop_pose_net-noise/weights/90500"
-            )
-            gdown.cached_download(
-                id="1qtfAKoUiZ2S3AJWJBdhphugJzCpr_Q9g",
-                path=weight_dir / "q.pth",
-                md5="ab29d8bbfd61d115215c2bad05609279",
-            )
-        if 0:
-            # 0.507
-            model = "conv_net"
-            weight_dir = (
-                example_dir / "logs/20210706_194543-conv_net/weights/91500"
-            )
-            gdown.cached_download(
-                id="1mcI34DQunVDbc5F4ENhkk1-MRspQEleH",
-                path=weight_dir / "q.pth",
-                md5="ebf2e7b874f322fe7f38d0e39375d943",
-            )
-
-        self._agent = _agent.DqnAgent(env=self._picking_env, model=model)
-        self._agent.build(training=False)
-        self._agent.load_weights(weight_dir)
-
         self._target_class_id = None
         self._sub_singleview = MessageSubscriber(
             [
@@ -98,6 +57,45 @@ class SafepickingTaskInterface:
                 ("/singleview_3d_pose_estimation/output", ObjectPoseArray),
             ]
         )
+
+    def init_agent(self, model):
+        example_dir = path.Path(mercury.__file__).parent / "examples/picking"
+        if model == "fusion_net":
+            # 0.465
+            weight_dir = (
+                example_dir
+                / "logs/20210709_005731-fusion_net-noise/weights/84500"
+            )
+            gdown.cached_download(
+                id="1MBfMHpfOrcMuBFHbKvHiw6SA5f7q1T6l",
+                path=weight_dir / "q.pth",
+                md5="886b36a99c5a44b54c513ec7fee4ae0d",
+            )
+        if model == "openloop_pose_net":
+            # 0.487
+            weight_dir = (
+                example_dir
+                / "logs/20210709_005731-openloop_pose_net-noise/weights/90500"
+            )
+            gdown.cached_download(
+                id="1qtfAKoUiZ2S3AJWJBdhphugJzCpr_Q9g",
+                path=weight_dir / "q.pth",
+                md5="ab29d8bbfd61d115215c2bad05609279",
+            )
+        if model == "conv_net":
+            # 0.507
+            weight_dir = (
+                example_dir / "logs/20210706_194543-conv_net/weights/91500"
+            )
+            gdown.cached_download(
+                id="1mcI34DQunVDbc5F4ENhkk1-MRspQEleH",
+                path=weight_dir / "q.pth",
+                md5="ebf2e7b874f322fe7f38d0e39375d943",
+            )
+
+        self._agent = _agent.DqnAgent(env=self._picking_env, model=model)
+        self._agent.build(training=False)
+        self._agent.load_weights(weight_dir)
 
     def _get_grasp_poses(self):
         camera_to_base = self.obs["camera_to_base"]
@@ -640,10 +638,12 @@ class SafepickingTaskInterface:
                 imgviz.label2rgb(
                     diff_mask.astype(np.int32),
                     imgviz.rgb2gray(depth2rgb(heightmap1)),
+                    alpha=0.7,
                 ),
                 imgviz.label2rgb(
                     diff_mask.astype(np.int32),
                     imgviz.rgb2gray(depth2rgb(heightmap2)),
+                    alpha=0.7,
                 ),
             ],
             border=(255, 255, 255),
@@ -659,6 +659,7 @@ class SafepickingTaskInterface:
         with open(log_dir / "data.json", "w") as f:
             json.dump(
                 dict(
+                    model=self._agent._kwargs["model"],
                     timestamp=now.isoformat(),
                     DIFF_THRESHOLD=DIFF_THRESHOLD,
                     diff_mask_ratio=float(diff_mask_ratio),
