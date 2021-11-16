@@ -397,7 +397,7 @@ class SafepickingTaskInterface:
             ]
 
         self.base.movejs(js_extract, time_scale=20)
-        self.base.reset_pose()
+        self.reset_pose_after_extraction(time_scale=10)
 
         self.base.movejs(result_place["js_pre_place"], time_scale=5)
         self.base.movejs(result_place["js_place"], time_scale=15)
@@ -411,6 +411,19 @@ class SafepickingTaskInterface:
         self.base.reset_pose()
 
         self.finalize_heightmap_comparison()
+
+    def reset_pose_after_extraction(self, time_scale=None):
+        c = mercury.geometry.Coordinate(*self.base.pi.get_pose("tipLink"))
+        js = []
+        for _ in range(10):
+            c.translate([0, 0, 0.05], wrt="world")
+            j = self.base.pi.solve_ik(c.pose, validate=True)
+            if j is not None:
+                js.append(j)
+            if c.position[2] > 0.5:
+                break
+        js.append(self.base.pi.homej)
+        self.base.movejs(js, time_scale=time_scale)
 
     def _plan_placement(self, j_init):
         bin_position = [0.2, -0.5, 0.1]
