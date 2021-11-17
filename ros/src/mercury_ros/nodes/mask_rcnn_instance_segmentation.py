@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import itertools
+
 from chainercv.links.model.fpn import MaskRCNNFPNResNet50
 import gdown
 import numpy as np
@@ -92,6 +94,26 @@ class MaskRCNNInstanceSegmentationNode(LazyTransport):
         #     class_ids = class_ids[keep]
         #     masks = masks[keep]
         #     confs = confs[keep]
+
+        if len(class_ids) > 0:
+            remove = []
+            for i, j in itertools.combinations(range(len(class_ids)), 2):
+                cls1, conf1, mask1 = class_ids[i], confs[i], masks[i]
+                cls2, conf2, mask2 = class_ids[j], confs[j], masks[j]
+                if cls1 != cls2:
+                    continue
+                iou = (mask1 & mask2).sum() / (mask1 | mask2).sum()
+                if iou > 0.5:
+                    if conf1 > conf2:
+                        remove.append(j)
+                    else:
+                        remove.append(i)
+            keep = np.arange(len(class_ids))
+            keep = keep[~np.isin(keep, remove)]
+
+            class_ids = class_ids[keep]
+            masks = masks[keep]
+            confs = confs[keep]
 
         if len(class_ids) > 0:
             sort = np.argsort(confs)
