@@ -124,7 +124,7 @@ class SafepickingTaskInterface:
             contours=contours,
             contourIdx=-1,
             color=1,
-            thickness=10,
+            thickness=8,
         )
         contour_mask = contour_mask.astype(bool)
         mask = mask.astype(bool)
@@ -315,7 +315,7 @@ class SafepickingTaskInterface:
 
         grasp_poses = self._get_grasp_poses()
 
-        if self._target_class_id == 11:
+        if self._target_class_id in [11, 16]:
             # heavy
             centroid = np.mean(grasp_poses[:, :3], axis=0)
             dist = np.linalg.norm(grasp_poses[:, :3] - centroid, axis=1)
@@ -344,17 +344,13 @@ class SafepickingTaskInterface:
                     continue
                 j_pre_grasp = j
 
-                self.base.pi.setj(j_pre_grasp)
+                self.base.pi.setj(j_grasp)
+                js_grasp = self.base.pi.get_cartesian_path(j_pre_grasp)[::-1]
                 obstacles = (
                     self.base._env.bg_objects + self.base._env.object_ids
                 )
                 if self.base._env.fg_object_id:
                     obstacles.remove(self.base._env.fg_object_id)
-                js_grasp = self.base.pi.get_cartesian_path(j_grasp)
-                # js_grasp = self.base.pi.planj(
-                #     j_grasp, obstacles=obstacles, planner_range=0.01
-                # )
-                # if js_grasp is None:
                 if not all(
                     self.base.pi.validatej(j, obstacles=obstacles)
                     for j in js_grasp
@@ -439,13 +435,13 @@ class SafepickingTaskInterface:
             j = self.base.pi.solve_ik(c.pose, validate=True)
             if j is not None:
                 js.append(j)
-            if c.position[2] > 0.5:
+            if c.position[2] > 0.4:
                 break
         js.append(self.base.pi.homej)
         self.base.movejs(js, time_scale=time_scale)
 
     def _plan_placement(self, j_init):
-        bin_position = [0.25, -0.45, 0.1]
+        bin_position = [0.25, -0.5, 0.1]
 
         with pp.WorldSaver():
             self.base.pi.setj(j_init)
@@ -520,6 +516,8 @@ class SafepickingTaskInterface:
         for i in range(num_instance):
             obj_id = self.base._env.object_ids[i]
             class_id = _utils.get_class_id(obj_id)
+            if class_id not in self._picking_env.CLASS_IDS:
+                continue
             position, quaternion = pp.get_pose(obj_id)
             grasp_flags[i] = obj_id == self.base._env.fg_object_id
             object_label = self._picking_env.CLASS_IDS.index(class_id)
