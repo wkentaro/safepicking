@@ -106,7 +106,7 @@ class SafepickingTaskInterface:
         pcd_in_base = self.obs["pcd_in_base"]
 
         normals_in_camera = mercury.geometry.normals_from_pointcloud(
-            pcd_in_camera
+            pcd_in_camera, ksize=4
         )
 
         instance_id = self.obs["class_id_to_instance_ids"][

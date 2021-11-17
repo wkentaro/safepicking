@@ -1,9 +1,9 @@
 import numpy as np
 
 
-def normals_from_pointcloud(points):
+def normals_from_pointcloud(points, **kwargs):
     if points.ndim == 3:
-        return _normals_from_pointcloud_organized(points)
+        return _normals_from_pointcloud_organized(points, **kwargs)
     elif points.ndim == 2:
         return _normals_from_pointcloud_unorganized(points)
     else:
@@ -27,7 +27,7 @@ def _normals_from_pointcloud_unorganized(points):
 
 
 # Modified from https://github.com/jmccormac/pySceneNetRGBD/blob/master/calculate_surface_normals.py  # NOQA
-def _normals_from_pointcloud_organized(points):
+def _normals_from_pointcloud_organized(points, ksize=2):
     # These lookups denote yx offsets from the anchor point for 8 surrounding
     # directions from the anchor A depicted below.
     #  -----------
@@ -39,7 +39,7 @@ def _normals_from_pointcloud_organized(points):
     #  -----------
     assert points.shape[2] == 3
 
-    d = 2
+    d = ksize
     H, W = points.shape[:2]
     points = np.pad(
         points,
