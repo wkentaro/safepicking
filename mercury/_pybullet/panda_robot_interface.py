@@ -296,17 +296,17 @@ class PandaRobotInterface:
         planner.validityChecker.goal = j
 
         if not planner.validityChecker.isValid(self.getj()):
-            # logger.warning("Start state is invalid")
+            logger.warning("Start state is invalid")
             return
 
         if not planner.validityChecker.isValid(j):
-            # logger.warning("Goal state is invalid")
+            logger.warning("Goal state is invalid")
             return
 
         result = planner.plan(self.getj(), j)
 
         if result is None:
-            # logger.warning("No solution found")
+            logger.warning("No solution found")
             return
 
         ndof = len(self.joints)
