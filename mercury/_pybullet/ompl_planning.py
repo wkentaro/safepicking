@@ -48,8 +48,6 @@ class pbValidityChecker(ob.StateValidityChecker):
 
         with pp.WorldSaver():
             self.ri.setj(j)
-            for attachment in self.ri.attachments:
-                attachment.assign()
 
             is_valid = self.check_self_collision(
                 min_distances=min_distances

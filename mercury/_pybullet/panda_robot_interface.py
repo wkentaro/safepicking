@@ -109,6 +109,8 @@ class PandaRobotInterface:
     def setj(self, joint_positions):
         for joint, joint_position in zip(self.joints, joint_positions):
             p.resetJointState(self.robot, joint, joint_position)
+        for attachment in self.attachments:
+            attachment.assign()
 
     def getj(self):
         joint_positions = []
