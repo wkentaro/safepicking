@@ -91,6 +91,11 @@ class pbValidityChecker(ob.StateValidityChecker):
             ):
                 continue
 
+            # XXX: specific configurations for panda_suction.urdf
+            # panda_link7: wrist
+            if link_name_a == "panda_link7" and link_name_b == "baseLink":
+                continue
+
             is_colliding_i = (
                 len(
                     p.getClosestPoints(
