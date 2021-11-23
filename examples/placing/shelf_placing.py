@@ -17,10 +17,10 @@ class Env(_placing.Env):
                 c.translate([0.02, 0, 0], wrt="world")
                 waypoints.append(c.pose)
 
-                c.translate([0, 0, 0.02], wrt="world")
+                c.translate([-0.02, 0, 0], wrt="world")
                 waypoints.append(c.pose)
 
-                c.translate([-0.04, 0, 0.04], wrt="world")
+                c.translate([-0.02, 0, 0.02], wrt="world")
                 waypoints.append(c.pose)
             elif self._target_obj == self.objects["mustard_bottle"]:
                 c.translate([0, 0, -0.02], wrt="world")
@@ -29,7 +29,7 @@ class Env(_placing.Env):
                 c.translate([0, 0, 0.02], wrt="world")
                 waypoints.append(c.pose)
 
-                c.translate([0, 0, 0.04], wrt="world")
+                c.translate([0, 0, 0.02], wrt="world")
                 waypoints.append(c.pose)
         else:
             waypoints.append(c.pose)
@@ -126,25 +126,24 @@ class Env(_placing.Env):
 
 
 if __name__ == "__main__":
-    env = Env(mp4="cracker_box-pose_error03-waypoints.mp4")
+    pose_errors = [
+        # # no error
+        # ([0, 0, 0], [0, 0, 0, 0]),
+        # collide with the shelf
+        ([0, 0, 0.015], [0, 0, 0, 0]),
+        # collide with the other box
+        ([-0.015, 0, 0], [0, 0, 0, 0]),
+        # off from the other box,
+        ([0.015, 0, 0], [0, 0, 0, 0]),
+    ]
 
-    # # collide with the shelf
-    # env.run(
-    #     env.objects["cracker_box_02"],
-    #     pose_error=([0, 0, 0.02], [0, 0, 0, 0]),
-    # )
+    env = Env()
 
-    # # collide with the other box
-    # env.run(
-    #     env.objects["cracker_box_02"],
-    #     pose_error=([-0.02, 0, 0], [0, 0, 0, 0]),
-    # )
-
-    # off from the other box
-    env.run(
-        env.objects["cracker_box_02"],
-        pose_error=([0.02, 0, 0], [0, 0, 0, 0]),
-    )
+    for pose_error in pose_errors:
+        env.run(
+            env.objects["cracker_box_02"],
+            pose_error=pose_error,
+        )
 
     # # collide with the shelf
     # env.run(
