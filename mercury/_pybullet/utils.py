@@ -391,6 +391,9 @@ def draw_points(points, colors=None, size=1):
     else:
         colors = np.asarray(colors)
 
+    if colors.ndim == 1:
+        colors = np.repeat(colors[None, :], points.shape[0], axis=0)
+
     if colors.dtype == np.uint8:
         colors = colors.astype(np.float32) / 255
 
