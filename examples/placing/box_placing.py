@@ -12,24 +12,33 @@ class Env(_placing.Env):
     def get_place_waypoints(self, place_pose):
         waypoints = []
         c = mercury.geometry.Coordinate(*place_pose)
-        if self._waypoints == "annotation_norot":
-            c.translate([0, -0.02, 0], wrt="world")
-            waypoints.append(c.pose)
-            c.translate([0, 0.02, 0.02], wrt="world")
-            waypoints.append(c.pose)
-            c.translate([0, 0.02, 0.03], wrt="world")
-            waypoints.append(c.pose)
-        elif self._waypoints == "annotation":
-            c.translate([0, -0.02, 0], wrt="world")
-            waypoints.append(c.pose)
-            c.translate([0, 0.02, 0.02], wrt="world")
-            waypoints.append(c.pose)
-            c.translate([0, 0, 0.03], wrt="world")
-            c.rotate([np.deg2rad(30), 0, 0], wrt="world")
-            waypoints.append(c.pose)
+        if self._target_obj == self.objects["tomato_can"]:
+            if self._waypoints.startswith("annotation"):
+                c.translate([0, -0.01, 0], wrt="world")
+                waypoints.append(c.pose)
+                c.translate([0, 0.01, 0.01], wrt="world")
+                waypoints.append(c.pose)
+                c.translate([0, 0.01, 0.03], wrt="world")
+                waypoints.append(c.pose)
+            else:
+                assert self._waypoints == "none"
+                waypoints.append(c.pose)
         else:
-            assert self._waypoints == "none"
-            waypoints.append(c.pose)
+            if self._waypoints.startswith("annotation"):
+                c.translate([0, -0.01, 0], wrt="world")
+                waypoints.append(c.pose)
+                c.translate([0, 0.01, 0.03], wrt="world")
+                waypoints.append(c.pose)
+                c.translate([0, 0.01, 0.04], wrt="world")
+                c.translate([0.01, 0, 0], wrt="world")
+                if self._waypoints == "annotation":
+                    c.rotate([0, np.deg2rad(45), 0], wrt="world")
+                waypoints.append(c.pose)
+                c.translate([0, 0, 0.03], wrt="world")
+                waypoints.append(c.pose)
+            else:
+                assert self._waypoints == "none"
+                waypoints.append(c.pose)
         c.translate([0, 0, 0.2], wrt="world")
         waypoints.append(c.pose)
         return waypoints[::-1]
@@ -64,7 +73,7 @@ class Env(_placing.Env):
             collision_file=mercury.pybullet.get_collision_file(
                 mercury.datasets.ycb.get_visual_file(class_id)
             ),
-            mass=0.1,
+            mass=mercury.datasets.ycb.masses[class_id],
             rgba_color=(1, 0, 0, 1),
         )
         mercury.pybullet.set_pose(
@@ -93,7 +102,7 @@ class Env(_placing.Env):
             collision_file=mercury.pybullet.get_collision_file(
                 mercury.datasets.ycb.get_visual_file(class_id)
             ),
-            mass=0.1,
+            mass=mercury.datasets.ycb.masses[class_id],
             rgba_color=(0, 1, 0, 1),
         )
         mercury.pybullet.set_pose(
@@ -122,7 +131,7 @@ class Env(_placing.Env):
             collision_file=mercury.pybullet.get_collision_file(
                 mercury.datasets.ycb.get_visual_file(class_id)
             ),
-            mass=0.1,
+            mass=mercury.datasets.ycb.masses[class_id],
             rgba_color=(0, 0, 1, 1),
         )
         mercury.pybullet.set_pose(
@@ -180,22 +189,32 @@ class Env(_placing.Env):
 
 
 if __name__ == "__main__":
-    waypoints = "annotation"
-    pose_errors = [
-        # no error
-        ([0, 0, 0], [0, 0, 0, 0]),
-        # collide with the cracker_box
-        ([0, 0.02, 0], [0, 0, 0, 0]),
-        # collide with the bin
-        ([0, -0.02, 0], [0, 0, 0, 0]),
+    waypoints_list = [
+        "none",
+        # "annotation_norot",
+        # "annotation",
     ]
-    for i, pose_error in enumerate(pose_errors):
-        env = Env(
-            # mp4=f"{waypoints}-pose_error{i}.mp4",
-            waypoints=waypoints,
-        )
-        env.run(
-            target_obj=env.objects["tomato_can"],
-            pose_error=pose_error,
-        )
-        pp.disconnect()
+    for waypoints in waypoints_list:
+        pose_errors = [
+            # no error
+            ([0, 0, 0], [0, 0, 0, 0]),
+            # # collide with the cracker_box
+            ([0, 0.01, 0], [0, 0, 0, 0]),
+            # # collide with the bin
+            ([0, -0.01, 0], [0, 0, 0, 0]),
+            # collide with the cracker_box and the bin
+            ([0.01, 0.01, 0], [0, 0, 0, 0]),
+            # collide with the other object
+            ([-0.01, 0, 0], [0, 0, 0, 0]),
+        ]
+        for i, pose_error in enumerate(pose_errors):
+            env = Env(
+                # mp4=f"sugar_box-{waypoints}-pose_error{i}.mp4",
+                waypoints=waypoints,
+            )
+            env.run(
+                # target_obj=env.objects["tomato_can"],
+                target_obj=env.objects["sugar_box"],
+                pose_error=pose_error,
+            )
+            pp.disconnect()

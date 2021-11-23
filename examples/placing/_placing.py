@@ -233,4 +233,4 @@ class Env:
             pp.step_simulation()
             time.sleep(pp.get_time_step())
 
-        mercury.pybullet.pause()
+        # mercury.pybullet.pause()
