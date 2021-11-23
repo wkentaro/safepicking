@@ -4,6 +4,7 @@ import queue
 import time
 
 import imgviz
+from loguru import logger
 import numpy as np
 import pybullet as p
 import pybullet_planning as pp
@@ -12,8 +13,9 @@ import mercury
 
 
 class Env:
-    def __init__(self, mp4=None):
+    def __init__(self, mp4=None, waypoints="none"):
         self._use_visual = False
+        self._waypoints = waypoints
 
         pp.connect(mp4=mp4)
         p.setGravity(0, 0, -9.8)
@@ -155,6 +157,7 @@ class Env:
                 js = []
 
                 waypoints = self.get_place_waypoints(place_pose)
+                pp.draw_pose(waypoints[0], length=0.05, width=2)
                 j = self.pi.solve_ik(
                     waypoints[0],
                     move_target=self.pi.robot_model.attachment_link0,
@@ -165,6 +168,7 @@ class Env:
                 j_start = j
                 for waypoint in waypoints[1:]:
                     self.pi.setj(j_start)
+                    pp.draw_pose(waypoint, length=0.05, width=2)
                     j_end = self.pi.solve_ik(
                         waypoint,
                         move_target=self.pi.robot_model.attachment_link0,
@@ -188,19 +192,19 @@ class Env:
         max_forces = queue.deque(maxlen=60)
         for _ in (_ for j in js for _ in self.pi.movej(j, speed=0.002)):
             pp.step_simulation()
-            self.pi.step_simulation()
             time.sleep(pp.get_time_step())
-
-            if not self.pi.gripper.contact_constraint:
-                # robot stops when there was large force applied on ee
-                break
 
             points = p.getContactPoints(
                 bodyA=self.pi.robot, linkIndexA=self.pi.ee
             )
             max_force = max(p[9] for p in points) if points else 0
             max_forces.append(max_force)
-            if np.mean(max_forces) > 50:
+            MAX_FORCE_THRESHOLD = 50
+            if np.mean(max_forces) > MAX_FORCE_THRESHOLD:
+                logger.error(
+                    "Stopped the robot because of large force "
+                    f">{MAX_FORCE_THRESHOLD}N"
+                )
                 break
 
         self.pi.ungrasp()
@@ -209,10 +213,9 @@ class Env:
             pp.step_simulation()
             time.sleep(pp.get_time_step())
 
-        index = np.argmin(
-            np.linalg.norm(np.array(js) - self.pi.getj(), axis=1)
-        )
-        for _ in (_ for j in js[:index][::-1] for _ in self.pi.movej(j)):
+        with pp.LockRenderer():
+            js = self.pi.get_cartesian_path(js[1])
+        for _ in (_ for j in js for _ in self.pi.movej(j, speed=0.002)):
             pp.step_simulation()
             time.sleep(pp.get_time_step())
 

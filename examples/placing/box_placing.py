@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import numpy as np
 import pybullet_planning as pp
 
 import mercury
@@ -9,16 +10,36 @@ import _placing
 
 class Env(_placing.Env):
     def get_place_waypoints(self, place_pose):
+        waypoints = []
         c = mercury.geometry.Coordinate(*place_pose)
+        if self._waypoints == "annotation_norot":
+            c.translate([0, -0.02, 0], wrt="world")
+            waypoints.append(c.pose)
+            c.translate([0, 0.02, 0.02], wrt="world")
+            waypoints.append(c.pose)
+            c.translate([0, 0.02, 0.03], wrt="world")
+            waypoints.append(c.pose)
+        elif self._waypoints == "annotation":
+            c.translate([0, -0.02, 0], wrt="world")
+            waypoints.append(c.pose)
+            c.translate([0, 0.02, 0.02], wrt="world")
+            waypoints.append(c.pose)
+            c.translate([0, 0, 0.03], wrt="world")
+            c.rotate([np.deg2rad(30), 0, 0], wrt="world")
+            waypoints.append(c.pose)
+        else:
+            assert self._waypoints == "none"
+            waypoints.append(c.pose)
         c.translate([0, 0, 0.2], wrt="world")
-        return [c.pose]
+        waypoints.append(c.pose)
+        return waypoints[::-1]
 
     def _init_objects(self):
         objects = {}
 
         # bin
         obj = mercury.pybullet.create_bin(
-            X=0.33, Y=0.31, Z=0.11, color=(0.7, 0.7, 0.7, 0.5)
+            X=0.335, Y=0.31, Z=0.11, color=(0.7, 0.7, 0.7, 0.5)
         )
         mercury.pybullet.set_pose(
             obj,
@@ -45,7 +66,6 @@ class Env(_placing.Env):
             ),
             mass=0.1,
             rgba_color=(1, 0, 0, 1),
-            # mass=mercury.datasets.ycb.masses[class_id],
         )
         mercury.pybullet.set_pose(
             obj,
@@ -75,7 +95,6 @@ class Env(_placing.Env):
             ),
             mass=0.1,
             rgba_color=(0, 1, 0, 1),
-            # mass=mercury.datasets.ycb.masses[class_id],
         )
         mercury.pybullet.set_pose(
             obj,
@@ -105,7 +124,6 @@ class Env(_placing.Env):
             ),
             mass=0.1,
             rgba_color=(0, 0, 1, 1),
-            # mass=mercury.datasets.ycb.masses[class_id],
         )
         mercury.pybullet.set_pose(
             obj,
@@ -136,18 +154,6 @@ class Env(_placing.Env):
             mass=mercury.datasets.ycb.masses[class_id],
             rgba_color=(1, 1, 0, 1),
         )
-        pp.set_pose(
-            obj,
-            (
-                (0.5252000000000009, 0.07049999999999995, 0.06700000000000034),
-                (
-                    -0.03968261331907751,
-                    0.7070224261017329,
-                    0.7038029876137785,
-                    0.05662096621665727,
-                ),
-            ),
-        )
         mercury.pybullet.set_pose(
             obj,
             (
@@ -174,5 +180,22 @@ class Env(_placing.Env):
 
 
 if __name__ == "__main__":
-    env = Env()
-    env.run()
+    waypoints = "annotation"
+    pose_errors = [
+        # no error
+        ([0, 0, 0], [0, 0, 0, 0]),
+        # collide with the cracker_box
+        ([0, 0.02, 0], [0, 0, 0, 0]),
+        # collide with the bin
+        ([0, -0.02, 0], [0, 0, 0, 0]),
+    ]
+    for i, pose_error in enumerate(pose_errors):
+        env = Env(
+            # mp4=f"{waypoints}-pose_error{i}.mp4",
+            waypoints=waypoints,
+        )
+        env.run(
+            target_obj=env.objects["tomato_can"],
+            pose_error=pose_error,
+        )
+        pp.disconnect()
