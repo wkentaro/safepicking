@@ -205,6 +205,16 @@ class Env:
                     "Stopped the robot because of large force "
                     f">{MAX_FORCE_THRESHOLD}N"
                 )
+                points = p.getContactPoints(bodyA=self.pi.attachments[0].child)
+                mercury.pybullet.draw_points(
+                    [
+                        p[5]
+                        for p in points
+                        if (p[2], p[4]) != (self.pi.robot, self.pi.ee)
+                    ],
+                    colors=[1, 0, 0],
+                    size=5,
+                )
                 break
 
         self.pi.ungrasp()
