@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import time
+import itertools
 
 import numpy as np
 import pybullet as p
@@ -13,53 +13,94 @@ import shelf_placing
 
 
 if __name__ == "__main__":
+    target_obj = "sugar_box"
+    # target_obj = "tomato_can"
+    # target_obj = "cracker_box_02"
+    # target_obj = "mustard_bottle"
     if 1:
-        env = box_placing.Env()
+        env = box_placing.Env(
+            # mp4=f"box-{target_obj}.mp4"
+        )
     else:
-        env = shelf_placing.Env()
+        env = shelf_placing.Env(
+            # mp4=f"shelf-{target_obj}.mp4"
+        )
+    target_obj = env.objects[target_obj]
 
-    if 1:
-        # target_obj = env.objects["tomato_can"]
-        target_obj = env.objects["sugar_box"]
-    else:
-        target_obj = env.objects["cracker_box_02"]
-        # target_obj = env.objects["mustard_bottle"]
+    mercury.pybullet.duplicate(
+        target_obj,
+        visual=True,
+        collision=False,
+        mass=0,
+        rgba_color=(1, 0, 0, 0.5),
+    )
+
+    pp.disable_gravity()
 
     with pp.WorldSaver():
-        waypoints = []
-        for _ in range(100):
-            for distance in [-0.01, 0, 0.01]:
-                normals = []
-                for obj in env.objects.values():
+        waypoints = [np.hstack(pp.get_pose(target_obj))]
+        bounds = [pp.get_aabb(target_obj)]
+        for i in itertools.count():
+            force_max = [0, 0, 0]
+
+            pp.remove_all_debug()
+            for obj in env.objects.values():
+                pp.set_velocity(obj, ((0, 0, 0), (0, 0, 0)))
+
+                for distance in [-0.01, 0, 0.01, 0.02]:
                     if obj == target_obj:
                         continue
                     points = p.getClosestPoints(
                         target_obj, obj, distance=distance
                     )
                     for point in points:
-                        # mercury.pybullet.draw_points(
-                        #     [point[5]], colors=[0, 0, 1], size=3
-                        # )
                         normal = np.array(point[7])
-                        # pp.add_line(point[5], point[5] + 0.1 * normal)
-                        normals.append(normal)
-                if normals:
-                    break
-            position, quaternion = pp.get_pose(target_obj)
-            vel = np.sum(normals, axis=0)
-            if np.linalg.norm(vel) == 0:
+
+                        force = np.array(normal) * 100 * (0.03 - distance)
+                        force_max = np.maximum(force_max, np.abs(force))
+
+                        p.applyExternalForce(
+                            objectUniqueId=target_obj,
+                            linkIndex=-1,
+                            forceObj=force,
+                            posObj=point[5],
+                            flags=p.WORLD_FRAME,
+                        )
+            pp.step_simulation()
+
+            bounds.append(pp.get_aabb(target_obj))
+
+            bound_origin = bounds[0]
+            bound_current = bounds[-1]
+
+            bound_diff_lower = bound_origin.lower - bound_current.lower
+            bound_diff_upper = bound_origin.upper - bound_current.upper
+            bound_diff = np.maximum(
+                np.abs(bound_diff_lower), np.abs(bound_diff_upper)
+            )
+
+            # if i > 100:
+            #     torque = [0, 0, 0]
+            #     if force_max[0] >= 2.9 and bound_diff[0] < 0.02:
+            #         torque[1] = np.pi * ((0.02 - bound_diff[0]) * 10)
+            #     if force_max[1] >= 2.9 and bound_diff[1] < 0.02:
+            #         torque[0] = np.pi * ((0.02 - bound_diff[1]) * 10)
+            #     p.applyExternalTorque(
+            #         objectUniqueId=target_obj,
+            #         linkIndex=-1,
+            #         torqueObj=torque,
+            #         flags=p.WORLD_FRAME,
+            #     )
+            #     print(bound_diff, torque)
+
+            waypoints.append(np.hstack(pp.get_pose(target_obj)))
+
+            if not mercury.pybullet.is_colliding(target_obj, distance=0.02):
                 break
-            vel /= np.linalg.norm(vel)
-            # pp.add_line(position, position + 0.1 * vel, color=[1, 0, 0])
+            if i > 1000:
+                break
+            # time.sleep(1 / 240)
 
-            position = position + 0.001 * vel
-            pp.set_pose(target_obj, (position, quaternion))
-
-            waypoints.append((position, quaternion))
-
-    while True:
-        for waypoint in waypoints:
-            pp.set_pose(target_obj, waypoint)
-            time.sleep(0.01)
+    # np.save("waypoints.npy", np.array(waypoints))
 
     mercury.pybullet.pause()
