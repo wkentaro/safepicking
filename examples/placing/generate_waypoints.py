@@ -2,6 +2,8 @@
 
 import itertools
 
+# import time
+
 import numpy as np
 import pybullet as p
 import pybullet_planning as pp
@@ -37,36 +39,34 @@ if __name__ == "__main__":
 
     pp.disable_gravity()
 
+    def step():
+        force_max = [0, 0, 0]
+        for obj in env.objects.values():
+            pp.set_velocity(obj, ((0, 0, 0), (0, 0, 0)))
+
+            if obj == target_obj:
+                continue
+            points = p.getClosestPoints(target_obj, obj, distance=0.02)
+            for point in points:
+                normal = np.array(point[7])
+                force = np.array(normal) * 100 * (0.03 - point[8])
+                force_max = np.maximum(force_max, np.abs(force))
+                p.applyExternalForce(
+                    objectUniqueId=target_obj,
+                    linkIndex=-1,
+                    forceObj=force,
+                    posObj=point[5],
+                    flags=p.WORLD_FRAME,
+                )
+        pp.step_simulation()
+        return force_max
+
     with pp.WorldSaver():
         waypoints = [np.hstack(pp.get_pose(target_obj))]
         bounds = [pp.get_aabb(target_obj)]
         for i in itertools.count():
-            force_max = [0, 0, 0]
-
-            pp.remove_all_debug()
-            for obj in env.objects.values():
-                pp.set_velocity(obj, ((0, 0, 0), (0, 0, 0)))
-
-                for distance in [-0.01, 0, 0.01, 0.02]:
-                    if obj == target_obj:
-                        continue
-                    points = p.getClosestPoints(
-                        target_obj, obj, distance=distance
-                    )
-                    for point in points:
-                        normal = np.array(point[7])
-
-                        force = np.array(normal) * 100 * (0.03 - distance)
-                        force_max = np.maximum(force_max, np.abs(force))
-
-                        p.applyExternalForce(
-                            objectUniqueId=target_obj,
-                            linkIndex=-1,
-                            forceObj=force,
-                            posObj=point[5],
-                            flags=p.WORLD_FRAME,
-                        )
-            pp.step_simulation()
+            for _ in range(10):
+                force_max = step()
 
             bounds.append(pp.get_aabb(target_obj))
 
@@ -79,28 +79,43 @@ if __name__ == "__main__":
                 np.abs(bound_diff_lower), np.abs(bound_diff_upper)
             )
 
-            # if i > 100:
-            #     torque = [0, 0, 0]
-            #     if force_max[0] >= 2.9 and bound_diff[0] < 0.02:
-            #         torque[1] = np.pi * ((0.02 - bound_diff[0]) * 10)
-            #     if force_max[1] >= 2.9 and bound_diff[1] < 0.02:
-            #         torque[0] = np.pi * ((0.02 - bound_diff[1]) * 10)
-            #     p.applyExternalTorque(
-            #         objectUniqueId=target_obj,
-            #         linkIndex=-1,
-            #         torqueObj=torque,
-            #         flags=p.WORLD_FRAME,
-            #     )
-            #     print(bound_diff, torque)
+            if i > 5:
+                c = mercury.geometry.Coordinate(*pp.get_pose(target_obj))
+                flag = 0
+                if force_max[0] >= 2.9 and bound_diff[0] < 0.02:
+                    flag = 1
+                    c.rotate([0, np.deg2rad(1), 0], wrt="world")
+                if force_max[1] >= 2.9 and bound_diff[1] < 0.02:
+                    flag = 1
+                    c.rotate([np.deg2rad(1), 0, 0], wrt="world")
+                if flag:
+                    pp.set_pose(target_obj, c.pose)
+                    for _ in range(10):
+                        step()
 
             waypoints.append(np.hstack(pp.get_pose(target_obj)))
 
             if not mercury.pybullet.is_colliding(target_obj, distance=0.02):
                 break
-            if i > 1000:
+            if i > 100:
                 break
-            # time.sleep(1 / 240)
 
-    # np.save("waypoints.npy", np.array(waypoints))
+    np.save("sugar_box.npy", waypoints)
+
+    pp.enable_gravity()
+
+    # while True:
+    #     for waypoint in waypoints:
+    #         c = mercury.geometry.Coordinate(*np.hsplit(waypoint, [3]))
+    #         c.translate([-0.01, -0.01, 0], wrt="world")
+    #         pp.set_pose(target_obj, c.pose)
+    #         for obj in env.objects.values():
+    #             if obj == target_obj:
+    #                 continue
+    #             points = p.getClosestPoints(target_obj, obj, distance=0)
+    #             if points:
+    #                 for point in points:
+    #                     pp.draw_point(point[5], color=[0, 0, 1])
+    #         time.sleep(1 / 1000)
 
     mercury.pybullet.pause()
