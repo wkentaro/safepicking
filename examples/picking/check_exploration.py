@@ -6,10 +6,10 @@ import imgviz
 import numpy as np
 import pybullet_planning as pp
 
-import mercury
+import safepicking
 
-from mercury.examples.picking._agent import DqnAgent
-from mercury.examples.picking._env import PickFromPileEnv
+from safepicking.examples.picking._agent import DqnAgent
+from safepicking.examples.picking._env import PickFromPileEnv
 
 
 def main():
@@ -77,10 +77,10 @@ def main():
                     grasp_flags, object_labels, object_poses
                 ):
                     class_id = env.CLASS_IDS[np.argwhere(object_label)[0, 0]]
-                    visual_file = mercury.datasets.ycb.get_visual_file(
+                    visual_file = safepicking.datasets.ycb.get_visual_file(
                         class_id=class_id
                     )
-                    mercury.pybullet.create_mesh_body(
+                    safepicking.pybullet.create_mesh_body(
                         visual_file=visual_file,
                         texture=False,
                         rgba_color=(1, 0, 0, 0.5)

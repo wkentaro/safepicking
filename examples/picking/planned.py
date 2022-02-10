@@ -12,10 +12,10 @@ import path
 import pybullet as p
 import pybullet_planning as pp
 
-import mercury
+import safepicking
 
-from mercury.examples.picking._env import PickFromPileEnv
-from mercury.examples.picking import _utils
+from safepicking.examples.picking._env import PickFromPileEnv
+from safepicking.examples.picking import _utils
 
 
 here = path.Path(__file__).abspath().parent
@@ -93,7 +93,7 @@ def main():
             ]
 
         if ri.planner == "Heuristic":
-            c = mercury.geometry.Coordinate(*ri.get_pose("tipLink"))
+            c = safepicking.geometry.Coordinate(*ri.get_pose("tipLink"))
             steps = []
             for _ in range(5):
                 c.translate([0, 0, 0.05], wrt="world")
@@ -170,7 +170,7 @@ def main():
         if object_id == target_object_id:
             continue
         class_id = _utils.get_class_id(object_id)
-        class_name = mercury.datasets.ycb.class_names[class_id]
+        class_name = safepicking.datasets.ycb.class_names[class_id]
         logger.info(
             f"[{object_id}] {class_name:20s}: "
             f"translation={translations[object_id]:.2f}, "

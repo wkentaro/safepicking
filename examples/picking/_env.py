@@ -18,10 +18,10 @@ from yarr.envs.env import Env
 from yarr.utils.observation_type import ObservationElement
 from yarr.utils.transition import Transition
 
-import mercury
+import safepicking
 
-from mercury.examples.picking._get_heightmap import get_heightmap
-from mercury.examples.picking import _utils
+from safepicking.examples.picking._get_heightmap import get_heightmap
+from safepicking.examples.picking import _utils
 
 
 home = path.Path("~").expanduser()
@@ -29,7 +29,7 @@ home = path.Path("~").expanduser()
 
 class PickFromPileEnv(Env):
 
-    PILES_DIR = home / "data/mercury/pile_generation"
+    PILES_DIR = home / "data/safepicking/pile_generation"
     PILE_CENTER = np.array([0.5, 0, 0])
 
     HEIGHTMAP_PIXEL_SIZE = 0.004
@@ -193,13 +193,13 @@ class PickFromPileEnv(Env):
         )
         self.plane = p.loadURDF("plane.urdf")
 
-        self.ri = mercury.pybullet.PandaRobotInterface(
+        self.ri = safepicking.pybullet.PandaRobotInterface(
             suction_max_force=None,
             suction_surface_threshold=np.deg2rad(20),
             suction_surface_alignment=False,
             planner="RRTConnect",
         )
-        c_cam_to_ee = mercury.geometry.Coordinate()
+        c_cam_to_ee = safepicking.geometry.Coordinate()
         c_cam_to_ee.translate([0, -0.05, -0.1])
         self.ri.add_camera(
             pose=c_cam_to_ee.pose,
@@ -235,20 +235,22 @@ class PickFromPileEnv(Env):
 
             position += self.PILE_CENTER
 
-            visual_file = mercury.datasets.ycb.get_visual_file(
+            visual_file = safepicking.datasets.ycb.get_visual_file(
                 class_id=class_id
             )
-            collision_file = mercury.pybullet.get_collision_file(visual_file)
+            collision_file = safepicking.pybullet.get_collision_file(
+                visual_file
+            )
 
-            object_id = mercury.pybullet.create_mesh_body(
+            object_id = safepicking.pybullet.create_mesh_body(
                 visual_file=visual_file,
                 # visual_file=collision_file,
                 collision_file=collision_file,
-                mass=mercury.datasets.ycb.masses[class_id],
+                mass=safepicking.datasets.ycb.masses[class_id],
                 position=position,
                 quaternion=quaternion,
             )
-            collision_id = mercury.pybullet.create_mesh_body(
+            collision_id = safepicking.pybullet.create_mesh_body(
                 visual_file=collision_file,
                 position=(0, 0, 10),
             )
@@ -265,7 +267,9 @@ class PickFromPileEnv(Env):
         target_object_id = object_ids[target_index]
 
         for object_id in object_ids:
-            if mercury.pybullet.is_colliding(object_id, ids2=[self.ri.robot]):
+            if safepicking.pybullet.is_colliding(
+                object_id, ids2=[self.ri.robot]
+            ):
                 if raise_on_failure:
                     raise RuntimeError("object is colliding with robot")
                 else:
@@ -285,31 +289,31 @@ class PickFromPileEnv(Env):
         fovy = np.deg2rad(60)
         height = 128
         width = 128
-        c = mercury.geometry.Coordinate(
+        c = safepicking.geometry.Coordinate(
             (self.PILE_CENTER[0], self.PILE_CENTER[1], 0.7)
         )
         c.rotate([0, np.pi, 0])
         c.rotate([0, 0, -np.pi / 2])
-        _, depth, segm_tmp = mercury.pybullet.get_camera_image(
+        _, depth, segm_tmp = safepicking.pybullet.get_camera_image(
             c.matrix, fovy=fovy, height=height, width=width
         )
         segm = segm_tmp.copy()
         for object_id, collision_id in zip(object_ids, collision_ids):
             segm[segm_tmp == collision_id] = object_id
-        K = mercury.geometry.opengl_intrinsic_matrix(fovy, height, width)
-        pcd_in_camera = mercury.geometry.pointcloud_from_depth(
+        K = safepicking.geometry.opengl_intrinsic_matrix(fovy, height, width)
+        pcd_in_camera = safepicking.geometry.pointcloud_from_depth(
             depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
         )
         points_in_camera = pcd_in_camera[segm == target_object_id]
         centroid_in_camera = points_in_camera.mean(axis=0)
-        centroid_in_world = mercury.geometry.transform_points(
+        centroid_in_world = safepicking.geometry.transform_points(
             [centroid_in_camera], c.matrix
         )[0]
         # pp.draw_pose((centroid_in_world, [0, 0, 0, 1]))
         del depth, segm, pcd_in_camera, K, points_in_camera
 
         # capture target-centered image
-        c = mercury.geometry.Coordinate(*self.ri.get_pose("camera_link"))
+        c = safepicking.geometry.Coordinate(*self.ri.get_pose("camera_link"))
         c.position = (centroid_in_world[0], centroid_in_world[1], 0.7)
         j_capture = self.ri.solve_ik(
             c.pose, move_target=self.ri.robot_model.camera_link
@@ -336,26 +340,26 @@ class PickFromPileEnv(Env):
         lock_renderer.restore()
 
         # grasping
-        pcd_in_camera = mercury.geometry.pointcloud_from_depth(
+        pcd_in_camera = safepicking.geometry.pointcloud_from_depth(
             depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
         )
-        normals_in_camera = mercury.geometry.normals_from_pointcloud(
+        normals_in_camera = safepicking.geometry.normals_from_pointcloud(
             pcd_in_camera
         )
 
-        T_camera_to_world = mercury.geometry.transformation_matrix(
+        T_camera_to_world = safepicking.geometry.transformation_matrix(
             *camera_to_world
         )
-        pcd_in_world = mercury.geometry.transform_points(
+        pcd_in_world = safepicking.geometry.transform_points(
             pcd_in_camera, T_camera_to_world
         )
         normals_in_world = (
-            mercury.geometry.transform_points(
+            safepicking.geometry.transform_points(
                 pcd_in_camera + normals_in_camera, T_camera_to_world
             )
             - pcd_in_world
         )
-        quaternion_in_world = mercury.geometry.quaternion_from_vec2vec(
+        quaternion_in_world = safepicking.geometry.quaternion_from_vec2vec(
             [0, 0, 1], normals_in_world.reshape(-1, 3)
         ).reshape(normals_in_world.shape[0], normals_in_world.shape[1], 4)
         poses = np.concatenate((pcd_in_world, quaternion_in_world), axis=2)[
@@ -556,7 +560,7 @@ class PickFromPileEnv(Env):
     def validate_action(self, act_result):
         dx, dy, dz, da, db, dg = self.actions[act_result.action[0]]
         with pp.LockRenderer(), pp.WorldSaver():
-            c = mercury.geometry.Coordinate(*self.ri.get_pose("tipLink"))
+            c = safepicking.geometry.Coordinate(*self.ri.get_pose("tipLink"))
             c.translate([dx, dy, dz], wrt="world")
             c.rotate([da, db, dg], wrt="world")
             j = self.ri.solve_ik(c.pose, n_init=1)
@@ -627,7 +631,7 @@ class PickFromPileEnv(Env):
                 time.sleep(pp.get_time_step())
 
         if terminate:
-            c = mercury.geometry.Coordinate(*self.ri.get_pose("tipLink"))
+            c = safepicking.geometry.Coordinate(*self.ri.get_pose("tipLink"))
             js = []
             for _ in range(10):
                 c.translate([0, 0, 0.05], wrt="world")

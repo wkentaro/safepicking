@@ -8,9 +8,9 @@ from yarr.agents.agent import ActResult
 from yarr.agents.agent import Agent
 from yarr.agents.agent import ScalarSummary
 
-from mercury.examples.picking._conv_net import ConvNet
-from mercury.examples.picking._fusion_net import FusionNet
-from mercury.examples.picking._pose_net import PoseNet
+from safepicking.examples.picking._conv_net import ConvNet
+from safepicking.examples.picking._fusion_net import FusionNet
+from safepicking.examples.picking._pose_net import PoseNet
 
 
 class DqnModel(torch.nn.Module):

@@ -21,12 +21,12 @@ from yarr.replay_buffer.wrappers.pytorch_replay_buffer import (
 from yarr.runners.env_runner import EnvRunner
 from yarr.runners.pytorch_train_runner import PyTorchTrainRunner
 
-import mercury
+import safepicking
 
-from mercury.examples.picking._agent import DqnAgent
-from mercury.examples.picking._env import PickFromPileEnv
-from mercury.examples.picking._rollout_generator import RolloutGenerator
-from mercury.examples.picking._stat_accumulator import SimpleAccumulator
+from safepicking.examples.picking._agent import DqnAgent
+from safepicking.examples.picking._env import PickFromPileEnv
+from safepicking.examples.picking._rollout_generator import RolloutGenerator
+from safepicking.examples.picking._stat_accumulator import SimpleAccumulator
 
 
 here = path.Path(__file__).abspath().parent
@@ -93,7 +93,7 @@ def main():
     log_dir = here / "logs" / log_dir
     log_dir.makedirs_p()
 
-    hparams["git_hash"] = mercury.utils.git_hash(cwd=here, log_dir=log_dir)
+    hparams["git_hash"] = safepicking.utils.git_hash(cwd=here, log_dir=log_dir)
     hparams["hostname"] = socket.gethostname()
 
     with open(log_dir / "hparams.json", "w") as f:

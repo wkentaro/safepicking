@@ -8,7 +8,7 @@ from loguru import logger
 import numpy as np
 import path
 
-import mercury
+import safepicking
 
 from _agent import DqnAgent
 from _env import PickFromPileEnv
@@ -94,7 +94,7 @@ def main():
         if object_id == env.target_object_id:
             continue
         class_id = _utils.get_class_id(object_id)
-        class_name = mercury.datasets.ycb.class_names[class_id]
+        class_name = safepicking.datasets.ycb.class_names[class_id]
         logger.info(
             f"[{object_id:2d}] {class_name:20s}: "
             f"translation={translations[object_id]:.2f}, "
