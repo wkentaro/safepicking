@@ -45,7 +45,7 @@ source .anaconda3/bin/activate
 
 ### ROS project
 
-- `robot-agent`: A computer with CUDA and GPU installed for visual processing.
+- `robot-agent`: A computer with CUDA and a GPU installed for visual processing.
 - `robot-node`: A computer with a real-time OS for a Panda robot.
 
 #### @robot-agent
