@@ -7,7 +7,7 @@ home = path.Path("~").expanduser()
 
 
 def init():
-    root_dir = home / "data/ycb_video/YCB_Video_Models"
+    root_dir = home / ".cache/safepicking/YCB_Video_Models"
 
     if not root_dir.exists():
         gdown.cached_download(
