@@ -26,7 +26,7 @@ def main():
     parser.add_argument("--nogui", action="store_true", help="no gui")
     args = parser.parse_args()
 
-    export_dir = home / "data/safepicking/pile_generation"
+    export_dir = home / ".cache/safepicking/pile_generation"
     export_file = export_dir / f"{args.seed:08d}.pkl"
 
     if export_file.exists():

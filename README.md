@@ -78,6 +78,7 @@ catkin build safepicking_ros
 ```bash
 cd examples/picking/
 
+# download pile files at ~/.cache/safepicking/pile_generation/
 ./download_piles.py
 
 ./train.py --model fusion_net --noise
@@ -86,9 +87,9 @@ cd examples/picking/
 # use pretrained model
 ./download_pretrained_models.py
 
-# inference in the test environments: data/pile_generation/00009000 - 00009999.pkl
+# inference in the test environments: ~/.cache/safepicking/pile_generation/00009000 - 00009999.pkl
 ./learned.py --weight-dir logs/20210709_005731-fusion_net-noise/weights/84500 \
-             data/pile_generation/00009000.pkl
+             ~/.cache/safepicking/pile_generation/00009000.pkl
 ```
 
 <div>
