@@ -105,8 +105,8 @@ cd examples/picking/
 robot-node  $ roslaunch safepicking_ros panda_control.launch
 
 robot-agent $ roslaunch safepicking_ros setup.launch
-robot-agent $ rosrun safepicking_ros demo_interface.py
->>> di.run([YcbObject.PITCHER])
+robot-agent $ rosrun safepicking_ros safepicking_task_interface.py
+>>> self.run([YcbObject.PITCHER])
 ```
 
 <img src="docs/assets/img/robotic_demo.gif" width="90%">
