@@ -1,5 +1,5 @@
 <h1 align="center">SafePicking</h1>
-<h3 align="center">Learning Safe Object Extraction via Object-level Mapping</h3>
+<h3 align="center">Learning Safe Object Extraction via Object-Level Mapping</h3>
 
 <p align="center">
   <a href="https://wkentaro.com">Kentaro Wada</a>,
@@ -116,7 +116,7 @@ robot-agent $ rosrun safepicking_ros demo_interface.py
 
 ```
 @inproceedings{Wada:etal:ICRA2022a,
-  title={{SafePicking}: Learning Safe Object Extraction via Object-level Mapping},
+  title={{SafePicking}: Learning Safe Object Extraction via Object-Level Mapping},
   author={Kentaro Wada and Stephen James and Andrew J. Davison},
   booktitle={IEEE International Conference on Robotics and Automation (ICRA)},
   year={2022},
