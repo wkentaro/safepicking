@@ -7,12 +7,12 @@ import message_filters
 import rospy
 from sensor_msgs.msg import Image
 
-from mercury_ros.msg import ObjectClassArray
+from safepicking_ros.msg import ObjectClassArray
 
 import imgviz
 import numpy as np
 
-from mercury.datasets.ycb import class_names
+from safepicking.datasets.ycb import class_names
 
 
 class DrawInstanceSegmentation(LazyTransport):

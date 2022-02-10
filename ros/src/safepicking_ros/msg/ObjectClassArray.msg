@@ -1,2 +1,2 @@
 std_msgs/Header header
-mercury_ros/ObjectClass[] classes
+safepicking_ros/ObjectClass[] classes

@@ -15,11 +15,11 @@ import path
 import pybullet_planning as pp
 import torch
 
-import mercury
-from mercury.examples.picking import _agent
-from mercury.examples.picking import _env
-from mercury.examples.picking import _get_heightmap
-from mercury.examples.picking import _utils
+import safepicking
+from safepicking.examples.picking import _agent
+from safepicking.examples.picking import _env
+from safepicking.examples.picking import _get_heightmap
+from safepicking.examples.picking import _utils
 
 import cv_bridge
 from morefusion_ros.msg import ObjectClassArray
@@ -60,7 +60,9 @@ class SafepickingTaskInterface:
         )
 
     def init_agent(self, model):
-        example_dir = path.Path(mercury.__file__).parent / "examples/picking"
+        example_dir = (
+            path.Path(safepicking.__file__).parent / "examples/picking"
+        )
         if model == "fusion_net":
             # 0.465
             weight_dir = (
@@ -105,7 +107,7 @@ class SafepickingTaskInterface:
         pcd_in_camera = self.obs["pcd_in_camera"]
         pcd_in_base = self.obs["pcd_in_base"]
 
-        normals_in_camera = mercury.geometry.normals_from_pointcloud(
+        normals_in_camera = safepicking.geometry.normals_from_pointcloud(
             pcd_in_camera, ksize=4
         )
 
@@ -149,13 +151,13 @@ class SafepickingTaskInterface:
         normals_in_camera = normals_in_camera[mask]
 
         normals_in_base = (
-            mercury.geometry.transform_points(
+            safepicking.geometry.transform_points(
                 pcd_in_camera + normals_in_camera,
-                mercury.geometry.transformation_matrix(*camera_to_base),
+                safepicking.geometry.transformation_matrix(*camera_to_base),
             )
             - pcd_in_base
         )
-        quaternion_in_base = mercury.geometry.quaternion_from_vec2vec(
+        quaternion_in_base = safepicking.geometry.quaternion_from_vec2vec(
             [0, 0, 1], normals_in_base
         )
 
@@ -264,12 +266,12 @@ class SafepickingTaskInterface:
             timeout=rospy.Duration(1),
         )
 
-        pcd_in_camera = mercury.geometry.pointcloud_from_depth(
+        pcd_in_camera = safepicking.geometry.pointcloud_from_depth(
             depth, fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2]
         )
-        pcd_in_base = mercury.geometry.transform_points(
+        pcd_in_base = safepicking.geometry.transform_points(
             pcd_in_camera,
-            mercury.geometry.transformation_matrix(*camera_to_base),
+            safepicking.geometry.transformation_matrix(*camera_to_base),
         )
 
         assert self.base._env.object_ids is None
@@ -287,8 +289,8 @@ class SafepickingTaskInterface:
             )
             obj_to_camera = (position, quaternion)
             obj_to_base = pp.multiply(camera_to_base, obj_to_camera)
-            visual_file = mercury.datasets.ycb.get_visual_file(class_id)
-            obj_id = mercury.pybullet.create_mesh_body(
+            visual_file = safepicking.datasets.ycb.get_visual_file(class_id)
+            obj_id = safepicking.pybullet.create_mesh_body(
                 visual_file=visual_file,
                 collision_file=True,
                 position=obj_to_base[0],
@@ -327,7 +329,9 @@ class SafepickingTaskInterface:
 
         for grasp_pose in grasp_poses[p]:
             for gamma in np.random.uniform(-np.pi, np.pi, size=6):
-                c = mercury.geometry.Coordinate(grasp_pose[:3], grasp_pose[3:])
+                c = safepicking.geometry.Coordinate(
+                    grasp_pose[:3], grasp_pose[3:]
+                )
                 c.rotate([0, 0, gamma])
 
                 self.base.pi.setj(j_init)
@@ -428,7 +432,7 @@ class SafepickingTaskInterface:
         self.base.reset_pose()
 
     def reset_pose_after_extraction(self, time_scale=None):
-        c = mercury.geometry.Coordinate(*self.base.pi.get_pose("tipLink"))
+        c = safepicking.geometry.Coordinate(*self.base.pi.get_pose("tipLink"))
         js = []
         for _ in range(10):
             c.translate([0, 0, 0.05], wrt="world")
@@ -446,7 +450,9 @@ class SafepickingTaskInterface:
         with pp.WorldSaver():
             self.base.pi.setj(j_init)
 
-            c = mercury.geometry.Coordinate(*self.base.pi.get_pose("tipLink"))
+            c = safepicking.geometry.Coordinate(
+                *self.base.pi.get_pose("tipLink")
+            )
             c.position = bin_position
 
             j = self.base.pi.solve_ik(c.pose, rotation_axis="z")
@@ -456,7 +462,7 @@ class SafepickingTaskInterface:
             js_place = []
             for _ in range(5):
                 self.base.pi.setj(j)
-                c = mercury.geometry.Coordinate(
+                c = safepicking.geometry.Coordinate(
                     *self.base.pi.get_pose("tipLink")
                 )
                 c.translate([0, 0, -0.02], wrt="local")
@@ -579,7 +585,7 @@ class SafepickingTaskInterface:
                     terminal = 1
                 dx, dy, dz, da, db, dg = self._picking_env.actions[action]
 
-                c = mercury.geometry.Coordinate(
+                c = safepicking.geometry.Coordinate(
                     *self.base.pi.get_pose("tipLink")
                 )
                 c.translate([dx, dy, dz], wrt="world")
@@ -732,7 +738,7 @@ class SafepickingTaskInterface:
 
         self.base.reset_pose()
         rospy.loginfo("Move an object and press key to continue")
-        mercury.pybullet.pause()
+        safepicking.pybullet.pause()
         self.finalize_heightmap_comparison()
 
 
