@@ -6,7 +6,7 @@ waitforjobs() {
 
 for scene_id in $(seq 9000 9999); do
   scene_id=$(printf "%08d" $scene_id)
-  pile_file=~/data/mercury/pile_generation/${scene_id}.pkl
+  pile_file=data/pile_generation/${scene_id}.pkl
 
   set -x
 
