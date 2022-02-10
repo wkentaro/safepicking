@@ -20,7 +20,7 @@ for scene_dir in logs_dir.listdir():
 
         diff = abs(heightmap1 - heightmap2)
         diff_mask = diff > DIFF_THRESHOLD
-        diff_volume = np.nansum(HEIGHTMAP_PIXEL_SIZE ** 2 * diff)
+        diff_volume = np.nansum(HEIGHTMAP_PIXEL_SIZE**2 * diff)
 
         with open(episode_dir / "data.json") as f:
             data = json.load(f)
@@ -29,7 +29,7 @@ for scene_dir in logs_dir.listdir():
                 scene_id=str(scene_dir.stem),
                 model=data["model"],
                 diff_mask_ratio=diff_mask.mean(),
-                diff_volume=diff_volume * 100 ** 3 / 1000,  # [l]
+                diff_volume=diff_volume * 100**3 / 1000,  # [l]
             )
         )
 

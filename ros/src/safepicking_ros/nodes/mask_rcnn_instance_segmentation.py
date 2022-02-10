@@ -50,7 +50,7 @@ class MaskRCNNInstanceSegmentationNode(LazyTransport):
             Image,
             callback=self.callback,
             queue_size=1,
-            buff_size=2 ** 24,
+            buff_size=2**24,
         )
 
     def unsubscribe(self):

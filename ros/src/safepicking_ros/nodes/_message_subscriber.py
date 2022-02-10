@@ -12,7 +12,7 @@ class MessageSubscriber:
         subscribers = []
         for topic_name, topic_msg in self._topics:
             sub = message_filters.Subscriber(
-                topic_name, topic_msg, queue_size=1, buff_size=2 ** 24
+                topic_name, topic_msg, queue_size=1, buff_size=2**24
             )
             subscribers.append(sub)
         self._subscribers = subscribers
