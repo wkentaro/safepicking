@@ -373,9 +373,12 @@ p.resetDebugVisualizerCamera(
         elif events.get(ord("p")) == p.KEY_WAS_RELEASED:
             pose = get_pose(obj, parent=parent)
             if parent is None:
-                print(f"mercury.pybullet.set_pose(obj, {pose})")
+                print(f"safepicking.pybullet.set_pose(obj, {pose})")
             else:
-                print(f"mercury.pybullet.set_pose(obj, {pose}, parent=parent)")
+                print(
+                    "safepicking.pybullet.set_pose("
+                    f"obj, {pose}, parent=parent)"
+                )
         elif events.get(ord("q")) == p.KEY_WAS_RELEASED:
             break
         pp.set_pose(obj, c.pose)
