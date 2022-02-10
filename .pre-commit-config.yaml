@@ -1,11 +1,11 @@
 repos:
 - repo: https://github.com/psf/black
-  rev: 20.8b1
+  rev: 22.1.0
   hooks:
   - id: black
     exclude: examples/picking/_rollout_generator.py
-- repo: https://gitlab.com/pycqa/flake8
-  rev: 3.7.9
+- repo: https://github.com/openstack/hacking
+  rev: 4.1.0
   hooks:
-  - id: flake8
+  - id: hacking
     exclude: examples/picking/_rollout_generator.py
