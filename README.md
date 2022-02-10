@@ -45,7 +45,7 @@ source .anaconda3/bin/activate
 
 ### ROS project
 
-- `robot-agent`: A computer for visual processing.
+- `robot-agent`: A computer with CUDA and GPU installed for visual processing.
 - `robot-node`: A computer with a real-time OS for a Panda robot.
 
 #### @robot-agent
@@ -91,14 +91,13 @@ cd examples/picking/
              data/pile_generation/00009000.pkl
 ```
 
-<!-- <div> -->
-<!--   <img src="docs/assets/img/inference_01.gif" width="15%"> -->
-<!--   <img src="docs/assets/img/inference_02.gif" width="15%"> -->
-<!--   <img src="docs/assets/img/inference_03.gif" width="15%"> -->
-<!--   <img src="docs/assets/img/inference_04.gif" width="15%"> -->
-<!--   <img src="docs/assets/img/inference_05.gif" width="15%"> -->
-<!--   <img src="docs/assets/img/inference_06.gif" width="15%"> -->
-<!-- </div> -->
+<div>
+  <img src="docs/assets/img/learned_00009001.gif" width="18%">
+  <img src="docs/assets/img/learned_00009005.gif" width="18%">
+  <img src="docs/assets/img/learned_00009007.gif" width="18%">
+  <img src="docs/assets/img/learned_00009010.gif" width="18%">
+  <img src="docs/assets/img/learned_00009013.gif" width="18%">
+</div>
 
 ### Robotic demonstration
 
