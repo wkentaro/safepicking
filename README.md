@@ -15,13 +15,13 @@
 <p align="center">
   <a href="#installation"><b>Installation</b></a> |
   <a href="#usage"><b>Usage</b></a> |
-  <a href="#"><b>Paper</b></a> |
-  <a href="#"><b>Video</b></a> |
-  <a href="#"><b>Website</b></a>
+  <a href="https://arxiv.org/abs/TODO"><b>Paper</b></a> |
+  <a href="https://youtu.be/ejjqiBqRRKo"><b>Video</b></a> |
+  <a href="https://safepicking.wkentaro.com"><b>Website</b></a>
 </p>
 
 <div align="center">
-  <img src="docs/assets/img/teaser.png" width="50%">
+  <img src="docs/assets/img/teaser_horizontal.png" width="50%">
 </div>
 
 ---

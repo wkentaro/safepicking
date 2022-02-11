@@ -1,0 +1,37 @@
+@font-face {
+  font-family: 'Product Sans';
+  font-style: normal;
+  font-weight: 400;
+  src: local('Open Sans'), local('OpenSans'), url(https://fonts.gstatic.com/s/productsans/v5/HYvgU2fE2nRJvZ5JFAumwegdm0LZdjqr5-oayXSOefg.woff2) format('woff2');
+}
+
+h1, h2, h3, h4, h5 {
+  color: #555555;
+}
+
+body {
+  font-family: "Product Sans", Helvetica, sans-serif;;
+  color: #787878;
+}
+
+a {
+  -moz-transition: color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+  -webkit-transition: color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+  -ms-transition: color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+  transition: color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+  border-bottom: dotted 1px;
+  color: #47a2ff;
+  text-decoration: none;
+}
+
+a:hover {
+  border-bottom-color: transparent;
+  color: #47a2ff !important;
+  text-decoration: none;
+}
+a > img {
+  border: 1px solid #47a2ff;
+}
+a:hover > img {
+  border: 1.5px solid #47a2ff;
+}
