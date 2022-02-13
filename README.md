@@ -29,7 +29,7 @@
 <div align="center">
   <img src="docs/assets/img/whole_pipeline.gif" width="32%">
   <img src="docs/assets/img/vs_heuristic.gif" width="32%">
-  <img src="docs/assets/img/adjustment.gif" width="32%">
+  <img src="docs/assets/img/real_ablation.gif" width="32%">
 </div>
 
 ## Installation
