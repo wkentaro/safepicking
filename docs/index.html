@@ -92,19 +92,27 @@
           <div class="col-lg-10 offset-lg-1">
             <h4 id="network">Network model for motion generation</h4>
             <p>
-              We train a deep Q-network using a safety metric reward during object extraction. The network model receives fused observations of a depth-based heightmap and estimated object poses <u>to achieve high levels of success with object pose and robustness to estimation errors with the raw depth observation</u>. We feed end-effector relative transformations as evaluation actions, from which the best-scored action is selected as the next action.
+              We train a deep Q-network using a "safety metric reward" during object extraction. The network model receives fused observations of a depth-based heightmap and estimated object poses <u>to achieve high levels of success with object pose and robustness to estimation errors with the raw depth observation</u>. We feed end-effector relative transformations as evaluation actions, from which the best-scored action is selected as the next action.
             </p>
             <div class="col-lg-8 offset-lg-2">
               <img src="assets/img/network.png" class="img-fluid">
             </div>
           </div>
 
+          <div class="col-lg-10 offset-lg-1"><hr class="mt-4 mb-4"></div>
+          <div class="col-lg-10 offset-lg-1">
+            <h4 id="network">Training in simulation</h4>
+            <p>
+              We train the model in physics simulation using the CAD models of known objects. <u>The safety metric reward is computed as the sum of the translations of objects</u> in a pile, which incorporates undesirable consequences such as dropping and sliding.
+            </p>
+            <img src="assets/img/learned_in_simulation.gif" class="img-fluid">
+          </div>
 
           <div class="col-lg-10 offset-lg-1"><hr class="mt-4 mb-4"></div>
           <div class="col-lg-10 offset-lg-1">
             <h4>Baseline comparison in safe object extraction</h4>
             <p>
-              Our proposed method, SafePicking, surpasses all of the baseline methods: Naive, joint interpolation to a reset pose; Heuristic, a straight motion to lift a grasped object up; RRT-Connect, motion planning using ground-truth object poses.
+              Our proposed method, SafePicking, <u>surpasses all of the baseline methods</u>: Naive, joint interpolation to a reset pose; Heuristic, a straight motion to lift a grasped object up; RRT-Connect, motion planning using ground-truth object poses.
             </p>
             <div class="table-responsive">
               <table class="table table-sm table-bordered text-center mb-0" style="font-size: 13px;">
