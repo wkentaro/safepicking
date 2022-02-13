@@ -58,7 +58,7 @@
                 Robots need object-level scene understanding to manipulate objects while reasoning about contact, support, and occlusion among objects. Given a pile of objects, object recognition and reconstruction can identify the boundary of object instances, giving important cues as to how the objects form and support the pile.
               </p>
               <p>
-                In this paper, we present a system, SafePicking, that integrates object-level mapping and learning-based motion planning to generate a motion that safely extracts occluded target objects from a pile. We use a deep Q-network to generate motion feeding as input estimated object poses and a depth-based heightmap, which is trained to maximize a safety metric reward.
+              In this paper, we present a system, <u>SafePicking</u>, that integrates object-level mapping and learning-based motion planning to generate a motion that safely extracts occluded target objects from a pile. We train a deep Q-network to maximize a safety metric reward for motion generation with feeding as input estimated object poses and a depth-based heightmap.
               </p>
             </div>
             <div class="col-md-4 text-center">
@@ -81,13 +81,159 @@
 
           <div class="col-lg-10 offset-lg-1"><hr class="mt-4 mb-4"></div>
           <div class="col-lg-10 offset-lg-1">
-            <h4 id="pipeline">Pipeline</h4>
+            <h4 id="pipeline">Pipeline for object mapping and extraction</h4>
             <p>
-              We present a pipeline that finds target objects and extract them in a cluttered environment, which consists of 1) object-level mapping with volumetric reconstruction and pose estimation of detected objects with an on-board RGB-D camera, and 2) learning-based motion planning with a model that recursively generates end-effector relative poses with N steps for object extraction using estimated object poses and a raw depth observation in the form of a heightmap.
+            We present a pipeline that finds target objects and extract them from a cluttered environment such as an object pile. This pipeline consists of <u>1) object-level mapping with volumetric reconstruction and pose estimation of detected objects</u> with an on-board RGB-D camera, and <u>2) learning-based motion planning with a model that recursively generates end-effector relative motions</u> using estimated object poses and a raw depth observation in the form of a heightmap.
             </p>
-            <img src="assets/img/pipeline.png" class="img-fluid p-3">
+            <img src="assets/img/pipeline.png" class="img-fluid">
           </div>
 
+          <div class="col-lg-10 offset-lg-1"><hr class="mt-4 mb-4"></div>
+          <div class="col-lg-10 offset-lg-1">
+            <h4 id="network">Network model for motion generation</h4>
+            <p>
+              We train a deep Q-network using a safety metric reward during object extraction. The network model receives fused observations of a depth-based heightmap and estimated object poses <u>to achieve high levels of success with object pose and robustness to estimation errors with the raw depth observation</u>. We feed end-effector relative transformations as evaluation actions, from which the best-scored action is selected as the next action.
+            </p>
+            <div class="col-lg-8 offset-lg-2">
+              <img src="assets/img/network.png" class="img-fluid">
+            </div>
+          </div>
+
+
+          <div class="col-lg-10 offset-lg-1"><hr class="mt-4 mb-4"></div>
+          <div class="col-lg-10 offset-lg-1">
+            <h4>Baseline comparison in safe object extraction</h4>
+            <p>
+              Our proposed method, SafePicking, surpasses all of the baseline methods: Naive, joint interpolation to a reset pose; Heuristic, a straight motion to lift a grasped object up; RRT-Connect, motion planning using ground-truth object poses.
+            </p>
+            <div class="table-responsive">
+              <table class="table table-sm table-bordered text-center mb-0" style="font-size: 13px;">
+                <caption class="pb-0">We test the methods in 600 unseen environments in simulation.</caption>
+                <tr>
+                  <th rowspan="2" class="align-middle">Method</th>
+                  <th rowspan="2" class="align-middle">Observation</th>
+                  <th colspan="2">Safety metric</th>
+                </tr>
+                <tr style="border-bottom: solid 3px;">
+                  <th>translation↓</th>
+                  <th>velocity↓</th>
+                </tr>
+                <tr>
+                  <td>Naive</td>
+                  <td>-</td>
+                  <td>0.701</td>
+                  <td>1.919</td>
+                </tr>
+                <tr>
+                  <td>Heuristic</td>
+                  <td>-</td>
+                  <td>0.578</td>
+                  <td>1.624</td>
+                </tr>
+                <tr>
+                  <td>RRT-Connect</td>
+                  <td>pose</td>
+                  <td>0.520</td>
+                  <td>1.643</td>
+                </tr>
+                <tr>
+                  <td>SafePicking</td>
+                  <td>pose, heightmap</td>
+                  <td class="table-active">0.465</td>
+                  <td class="table-active">1.419</td>
+                </tr>
+              </table>
+            </div>
+          </div>
+
+          <div class="col-lg-10 offset-lg-1"><hr class="mt-4 mb-4"></div>
+          <div class="col-lg-10 offset-lg-1">
+            <h4>Model comparison using different observations as input</h4>
+            <p>
+              Our proposed model shows <u>the best result when given both object poses and a raw depth observation as input</u>. The pose information enables the model to generate better motions using more complete semantic information, and the raw depth information enables it to be robust to estimation errors (pose errors; mis-detection) as a less processed scene observation.
+            </p>
+            <div class="table-responsive">
+              <table class="table table-sm table-bordered text-center" style="font-size: 13px;">
+                <caption>We test the models in 600 unseen environments in simulation.</caption>
+                <tr>
+                  <th rowspan="2" class="align-middle">Model variant</th>
+                  <th rowspan="2" class="align-middle">Observation</th>
+                  <th rowspan="2" class="align-middle">Errors in<br/>object poses</th>
+                  <th colspan="2">Safety metric</th>
+                </tr>
+                <tr style="border-bottom: solid 3px;">
+                  <th>translation↓</th>
+                  <th>velocity↓</th>
+                </tr>
+                <tr>
+                  <td>Raw-only</td>
+                  <td>heightmap</td>
+                  <td rowspan="3" class="align-middle">no</td>
+                  <td>0.507</td>
+                  <td>1.491</td>
+                </tr>
+                <tr>
+                  <td>Pose-only</td>
+                  <td>pose</td>
+                  <td>0.477</td>
+                  <td>1.430</td>
+                </tr>
+                <tr>
+                  <td>Pose+Raw</td>
+                  <td>pose, heightmap</td>
+                  <td class="table-active">0.465</td>
+                  <td class="table-active">1.419</td>
+                </tr>
+                <tr style="border-top: solid 1.5px;">
+                  <td>Pose-only</td>
+                  <td>pose</td>
+                  <td rowspan="2" class="align-middle">yes</td>
+                  <td>0.487</td>
+                  <td>1.449</td>
+                </tr>
+                <tr>
+                  <td>Pose+Raw</td>
+                  <td>pose, heightmap</td>
+                  <td class="table-active">0.465</td>
+                  <td class="table-active">1.433</td>
+                </tr>
+              </table>
+            </div>
+            <img src="assets/img/evaluation_in_sim.png" class="img-fluid">
+          </div>
+
+          <div class="col-lg-10 offset-lg-1"><hr class="mt-4 mb-4"></div>
+          <div class="col-lg-10 offset-lg-1">
+            <h4>Real-world experiments</h4>
+            <div class="row mt-4">
+              <div class="col-lg-6">
+                <h5>Full pipeline demonstration</h5>
+                <a href="https://youtu.be/ejjqiBqRRKo?t=29">
+                  <img src="assets/img/whole_pipeline.gif" class="img-fluid">
+                </a>
+              </div>
+              <div class="col-lg-6">
+                <h5>Heuristic vs. Learned</h5>
+                <a href="https://youtu.be/ejjqiBqRRKo?t=51">
+                  <img src="assets/img/vs_heuristic.gif" class="img-fluid">
+                </a>
+              </div>
+            </div>
+            <div class="row mt-3">
+              <div class="col-lg-6">
+                <h5>Learned model ablation</h5>
+                <a href="https://youtu.be/ejjqiBqRRKo?t=114">
+                  <img src="assets/img/real_ablation.gif" class="img-fluid">
+                </a>
+              </div>
+              <div class="col-lg-6">
+                <h5>Adaptation to pile changes</h5>
+                <a href="https://youtu.be/ejjqiBqRRKo?t=145">
+                  <img src="assets/img/adjustment.gif" class="img-fluid">
+                </a>
+              </div>
+            </div>
+          </div>
 
           <div class="col-lg-10 offset-lg-1"><hr class="mt-4 mb-4"></div>
           <div class="col-lg-10 offset-lg-1">
