@@ -17,7 +17,7 @@
   <a href="#usage"><b>Usage</b></a> |
   <a href="https://arxiv.org/abs/2202.05832"><b>Paper</b></a> |
   <a href="https://youtu.be/ejjqiBqRRKo"><b>Video</b></a> |
-  <a href="https://safepicking.wkentaro.com"><b>Website</b></a>
+  <a href="https://safepicking.wkentaro.com"><b>Webpage</b></a>
 </p>
 
 <div align="center">
