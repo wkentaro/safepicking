@@ -218,9 +218,11 @@ SCHEDULE 1
 
 The Software
 
-MoreFusion is an object-level reconstruction system that builds a map with known-shaped objects,
-exploiting volumetric reconstruction of detected objects in a real-time, incremental scene
-reconstruction senario. It is based on the techniques described in the following publication:
+SafePicking is a robotic manipulation system that finds and extracts target objects from a pile
+with a sensible motion that minimizes disturbances to the other objects.
+It exploits learned motion generation via hybrid scene understanding of semantics and geometry
+of detected objects raw sensory observation.
+It is based on the techniques described in the following publication:
 
     • Kentaro Wada, Stephen James, Andrew J. Davison.
 SafePicking: Learning Safe Object Extraction via Object-Level Mapping,
